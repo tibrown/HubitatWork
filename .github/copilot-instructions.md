@@ -1,0 +1,1 @@
+You should always analyze the .md files in this solution to understand the context and documentation of the project.
