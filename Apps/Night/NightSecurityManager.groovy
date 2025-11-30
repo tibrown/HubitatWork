@@ -15,23 +15,23 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Night Security Manager", install: true, uninstall: true) {
         section("Sensors") {
-            input "doorBHScreen", "capability.contact", title: "BH Screen Door", required: true
-            input "carportBeam", "capability.contact", title: "Carport Beam", required: true
+            input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: true
+            input "carportBeam", "capability.contactSensor", title: "Carport Beam", required: true
             input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion", required: true
-            input "concreteShedZooz", "capability.contact", title: "Concrete Shed Door", required: true
-            input "doorDiningRoom", "capability.contact", title: "Dining Room Door", required: true
-            input "doorLivingRoomFrench", "capability.contact", title: "Living Room French Doors", required: true
-            input "doorFront", "capability.contact", title: "Front Door", required: true
-            input "woodshedDoor", "capability.contact", title: "Woodshed Door", required: true
+            input "concreteShedZooz", "capability.contactSensor", title: "Concrete Shed Door", required: true
+            input "doorDiningRoom", "capability.contactSensor", title: "Dining Room Door", required: true
+            input "doorLivingRoomFrench", "capability.contactSensor", title: "Living Room French Doors", required: true
+            input "doorFront", "capability.contactSensor", title: "Front Door", required: true
+            input "woodshedDoor", "capability.contactSensor", title: "Woodshed Door", required: true
             input "rpdFrontDoor", "capability.switch", title: "RPD Front Door (Switch)", required: true
             input "rpdBirdHouse", "capability.switch", title: "RPD Bird House (Switch)", required: true
             input "rpdGarden", "capability.switch", title: "RPD Garden (Switch)", required: true
             input "rpdCPen", "capability.switch", title: "RPD Rear Gate (Switch)", required: true
             input "chickenPenOutside", "capability.motionSensor", title: "Chicken Pen Outside Motion", required: true
-            input "doorBirdHouse", "capability.contact", title: "She Shed Door (BirdHouse)", required: true
+            input "doorBirdHouse", "capability.contactSensor", title: "She Shed Door (BirdHouse)", required: true
             input "outsideBackdoor", "capability.motionSensor", title: "Outside Backdoor Motion", required: true
             input "floodSide", "capability.motionSensor", title: "Flood Side Motion", required: true
-            input "doorLanai", "capability.contact", title: "Lanai Door (Backdoor)", required: true
+            input "doorLanai", "capability.contactSensor", title: "Lanai Door (Backdoor)", required: true
         }
         
         section("Switches & Controls") {
@@ -39,29 +39,21 @@ def mainPage() {
             input "silent", "capability.switch", title: "Silent Switch", required: true
             input "highAlert", "capability.switch", title: "High Alert Switch", required: true
             input "alarmsEnabled", "capability.switch", title: "Alarms Enabled Switch", required: true
-            input "siren1", "capability.switch", title: "Siren 1", required: true
             input "pauseDRDoorAlarm", "capability.switch", title: "Pause DR Door Alarm", required: true
             input "masterOff", "capability.switch", title: "Master Off Switch", required: true
             input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm", required: true
             input "rearGateActive", "capability.switch", title: "Rear Gate Active Switch", required: true
+            input "allLightsOn", "capability.switch", title: "All Lights ON Switch", required: true
         }
 
         section("Notification Devices") {
-            input "phoneProxy", "capability.notification", title: "Phone Proxy", required: true
-            input "notificationProxy", "capability.notification", title: "Notification Proxy (Audio)", required: true
-        }
-
-        section("Variables (Connector Devices)") {
-            input "echoMessageVar", "capability.actuator", title: "Echo Message Variable Device", required: false
-            input "alertMessageVar", "capability.actuator", title: "Alert Message Variable Device", required: false
+            input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: true
         }
 
         section("Actions / Outputs") {
-            input "executeAlarms", "capability.switch", title: "Execute Alarms Switch", required: true
-            input "executeShedSiren", "capability.switch", title: "Execute Shed Siren Switch", required: true
-            input "turnAllLightsOn", "capability.switch", title: "Turn All Lights On Switch", required: true
-            input "allLightsOn", "capability.switch", title: "All Lights ON Switch", required: true
-            input "whisperToGuestroom", "capability.switch", title: "Whisper to Guestroom Switch", required: true
+            input "sirens", "capability.alarm", title: "Sirens", multiple: true, required: true
+            input "allLights", "capability.switch", title: "All Lights", multiple: true, required: true
+            input "guestRoomEcho", "capability.notification", title: "Guest Room Echo", required: true
         }
 
         section("Restrictions") {
@@ -122,7 +114,7 @@ def evtHandler(evt) {
 
 def handleBHScreen(evt) {
     if (evt.value == "open" && traveling.currentSwitch == "off") {
-        phoneProxy.deviceNotification("BH Screen Door Open")
+        notificationDevices.each { it.deviceNotification("BH Screen Door Open") }
     }
 }
 
@@ -140,81 +132,103 @@ def handleCarportBeam(evt) {
          boolean timeCondition = timeOfDayIsBetween(start, end, now, location.timeZone)
          
          if (silent.currentSwitch == "off" && carportFrontMotion.currentMotion == "active" && (timeCondition || highAlert.currentSwitch == "on")) {
-             phoneProxy.deviceNotification("Alert! Intruder in the carport!")
+             notificationDevices.each { it.deviceNotification("Alert! Intruder in the carport!") }
              runIn(5, executeAlarmsOn)
          }
     } else if (evt.value == "closed") {
-        phoneProxy.deviceNotification("Beam Broken")
+        notificationDevices.each { it.deviceNotification("Beam Broken") }
     }
 }
 
 def executeAlarmsOn() {
-    executeAlarms.on()
+    if (alarmsEnabled.currentSwitch == "on") {
+        sirens.each { it.siren() }
+        runIn(300, stopAlarms)
+    }
+}
+
+def stopAlarms() {
+    sirens.each { it.off() }
+}
+
+def executeShedSirenOn() {
+    sirens.each { it.siren() }
+    runIn(4, stopShedSiren)
+}
+
+def stopShedSiren() {
+    sirens.each { it.off() }
+}
+
+def turnAllLightsOnNow() {
+    allLights.on()
+    allLightsOn.on()
+}
+
+def whisperToGuestroomNow() {
+    def msg = getGlobalVar("EchoMessage").value
+    guestRoomEcho.deviceNotification(msg)
 }
 
 def handleConcreteShed(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && siren1.currentSwitch == "off") {
-        notificationProxy.deviceNotification("Intruder in the Concrete Shed")
-        executeShedSiren.on()
-        turnAllLightsOn.on()
+        notificationDevices.each { it.deviceNotification("Intruder in the Concrete Shed") }
+        executeShedSirenOn()
+        turnAllLightsOnNow()
     }
 }
 
 def handleDiningRoomDoor(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off" && pauseDRDoorAlarm.currentSwitch == "off") {
-        turnAllLightsOn.on()
-        notificationProxy.deviceNotification("Intruder at the Dining Room Door")
-        phoneProxy.deviceNotification("Intruder at the Dining Room Door")
+        turnAllLightsOnNow()
+        notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
         runIn(5, executeAlarmsOn)
     }
 }
 
 def handleLRFrenchDoors(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on") {
-        turnAllLightsOn.on()
-        notificationProxy.deviceNotification("Intruder at the Living Room French Doors")
-        phoneProxy.deviceNotification("Intruder at the Living Room French Doors")
+        turnAllLightsOnNow()
+        notificationDevices.each { it.deviceNotification("Intruder at the Living Room French Doors") }
         runIn(5, executeAlarmsOn)
     }
 }
 
 def handleFrontDoor(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off") {
-        turnAllLightsOn.on()
-        notificationProxy.deviceNotification("Intruder at the Front Door")
+        turnAllLightsOnNow()
+        notificationDevices.each { it.deviceNotification("Intruder at the Front Door") }
         runIn(5, executeAlarmsOn)
     }
 }
 
 def handleWoodshed(evt) {
     if (evt.value == "open" && silent.currentSwitch == "off" && masterOff.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
-        notificationProxy.deviceNotification("Intruder in the Woodshed")
-        executeShedSiren.on()
-        turnAllLightsOn.on()
+        notificationDevices.each { it.deviceNotification("Intruder in the Woodshed") }
+        executeShedSirenOn()
+        turnAllLightsOnNow()
     }
 }
 
 def handleRPDFrontDoor(evt) {
     if (evt.value == "on") {
-        notificationProxy.deviceNotification("Person at the Front Door")
+        notificationDevices.each { it.deviceNotification("Person at the Front Door") }
         allLightsOn.on()
     }
 }
 
 def handleRPDBirdHouse(evt) {
     if (evt.value == "on") {
-        phoneProxy.deviceNotification("Intruder at the Bird House")
-        notificationProxy.deviceNotification("Intruder at the Bird House")
+        notificationDevices.each { it.deviceNotification("Intruder at the Bird House") }
         allLightsOn.on()
-        if (echoMessageVar) echoMessageVar.setVariable("Intruder at the Bird House")
-        whisperToGuestroom.on()
+        setGlobalVar("EchoMessage", "Intruder at the Bird House")
+        whisperToGuestroomNow()
     }
 }
 
 def handleRPDGarden(evt) {
     if (evt.value == "on") {
-        phoneProxy.deviceNotification("Intruder in the Garden")
-        notificationProxy.deviceNotification("Intruder in the Garden")
+        notificationDevices.each { it.deviceNotification("Intruder in the Garden") }
         allLightsOn.on()
     }
 }
@@ -229,7 +243,7 @@ def handleRPDRearGate(evt) {
          if (timeOfDayIsBetween(start, end, now, location.timeZone)) {
              // Set Vars omitted (assuming local usage)
              rearGateActive.on()
-             phoneProxy.deviceNotification("Intruder at the Rear Gate")
+             notificationDevices.each { it.deviceNotification("Intruder at the Rear Gate") }
          }
     }
 }
@@ -237,21 +251,21 @@ def handleRPDRearGate(evt) {
 def handleSheShed(evt) {
     if (evt.value == "open" && silent.currentSwitch == "off") {
         allLightsOn.on()
-        notificationProxy.deviceNotification("Intruder in the She Shed")
-        executeShedSiren.on()
+        notificationDevices.each { it.deviceNotification("Intruder in the She Shed") }
+        executeShedSirenOn()
     }
 }
 
 def handleBackdoorMotion(evt) {
     if (evt.value == "active" && floodSide.currentMotion == "active" && highAlert.currentSwitch == "on") {
-        turnAllLightsOn.on()
-        phoneProxy.deviceNotification("Intruder at the Backdoor")
+        turnAllLightsOnNow()
+        notificationDevices.each { it.deviceNotification("Intruder at the Backdoor") }
     }
 }
 
 def handleIntruderBackdoor(evt) {
     if (evt.value == "open" && pauseBDAlarm.currentSwitch == "off" && silent.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
-        if (alertMessageVar) alertMessageVar.setVariable("Intruder at the Backdoor")
-        executeAlarms.on()
+        setGlobalVar("AlertMessage", "Intruder at the Backdoor")
+        executeAlarmsOn()
     }
 }
