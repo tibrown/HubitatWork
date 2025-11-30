@@ -40,7 +40,6 @@ def mainPage() {
             input "highAlert", "capability.switch", title: "High Alert Switch", required: true
             input "alarmsEnabled", "capability.switch", title: "Alarms Enabled Switch", required: true
             input "pauseDRDoorAlarm", "capability.switch", title: "Pause DR Door Alarm", required: true
-            input "masterOff", "capability.switch", title: "Master Off Switch", required: true
             input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm", required: true
             input "rearGateActive", "capability.switch", title: "Rear Gate Active Switch", required: true
             input "allLightsOn", "capability.switch", title: "All Lights ON Switch", required: true
@@ -203,7 +202,7 @@ def handleFrontDoor(evt) {
 }
 
 def handleWoodshed(evt) {
-    if (evt.value == "open" && silent.currentSwitch == "off" && masterOff.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
+    if (evt.value == "open" && silent.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
         notificationDevices.each { it.deviceNotification("Intruder in the Woodshed") }
         executeShedSirenOn()
         turnAllLightsOnNow()
