@@ -53,9 +53,11 @@ def updated() {
 }
 
 def initialize() {
+    log.debug "initialize called"
     if (masterSwitch) subscribe(masterSwitch, "switch", switchHandler)
     
     if (enableSchedule) {
+        log.debug "Schedule enabled. On Type: $onTimeType"
         if (onTimeType == "Sunset") {
             subscribe(location, "sunset", sunsetHandler)
         } else if (onTimeVal) {
@@ -64,6 +66,48 @@ def initialize() {
         
         if (offTimeVal) {
             schedule(offTimeVal, scheduledTurnOff)
+        }
+
+        // Check if we should be on right now (Catch-up logic)
+        checkIfShouldBeOn()
+    } else {
+        log.debug "Schedule disabled"
+    }
+}
+
+def checkIfShouldBeOn() {
+    log.debug "Checking if lights should be on now..."
+    if (!checkDate()) {
+        log.debug "Date not within range."
+        return
+    }
+
+    def now = new Date()
+    def startTime
+    def endTime = offTimeVal ? timeToday(offTimeVal) : timeToday("22:00")
+    
+    if (onTimeType == "Sunset") {
+        def sunTimes = getSunriseAndSunset()
+        startTime = sunTimes.sunset
+    } else {
+        startTime = onTimeVal ? timeToday(onTimeVal) : null
+    }
+
+    if (startTime && endTime) {
+        // If end time is earlier than start time, assume it's the next day
+        if (endTime < startTime) {
+            endTime = endTime + 1
+        }
+        
+        // Check if now is between start and end
+        // Note: This simple check handles the "Sunset just happened" case.
+        // It might not handle the "It's 1AM and I should still be on from yesterday" case perfectly without more complex logic,
+        // but it solves the immediate issue of missed events.
+        if (now >= startTime && now < endTime) {
+            log.debug "Current time is within schedule window. Turning on."
+            scheduledTurnOn()
+        } else {
+            log.debug "Current time is NOT within schedule window."
         }
     }
 }
@@ -77,33 +121,29 @@ def switchHandler(evt) {
 }
 
 def sunsetHandler(evt) {
+    log.debug "Sunset event received"
     scheduledTurnOn()
 }
 
 def scheduledTurnOn() {
+    log.debug "scheduledTurnOn called"
     if (checkDate()) {
-        if (masterSwitch) {
-            masterSwitch.on() // This will trigger switchHandler -> activateChristmas
-        } else {
-            activateChristmas()
-        }
+        log.debug "Date is within range, turning on"
+        activateChristmas()
+    } else {
+        log.debug "Date is outside range, not turning on"
     }
 }
 
 def scheduledTurnOff() {
-    if (masterSwitch) {
-        masterSwitch.off() // This will trigger switchHandler -> deactivateChristmas
-    } else {
-        deactivateChristmas()
-    }
+    deactivateChristmas()
 }
 
 def activateChristmas() {
-    // 1. Turn on Indoor Trees (Always)
-    if (treeSwitches) treeSwitches.on()
-
-    // 2. Check Rain for Outdoor Lights
+    log.debug "activateChristmas called"
+    // Check Rain for Outdoor Lights
     if (rainSensor && rainSensor.currentValue("switch") == "on") {
+        log.debug "Rain sensor is on, skipping outdoor lights"
         if (notificationDevices) notificationDevices.deviceNotification("Christmas lights not coming on because it is raining")
         // Ensure outdoor lights are off if it's raining
         if (mainLights) mainLights.off()
@@ -120,10 +160,7 @@ def activateChristmas() {
 }
 
 def deactivateChristmas() {
-    // 1. Turn off Indoor Trees
-    if (treeSwitches) treeSwitches.off()
-
-    // 2. Turn off Outdoor Lights
+    // Turn off Outdoor Lights
     if (mainLights) mainLights.off()
     if (secondaryLights) secondaryLights.off()
 
@@ -137,12 +174,21 @@ def turnOffPorch() {
 
 def checkDate() {
     def now = new Date()
-    def currentMonth = now.month + 1
-    def currentDay = now.date
+    def tz = location.timeZone ?: TimeZone.getDefault()
+    def currentMonth = now.format("M", tz).toInteger()
+    def currentDay = now.format("d", tz).toInteger()
     def curr = currentMonth * 100 + currentDay
     
-    def s = startMonth * 100 + startDay
-    def e = endMonth * 100 + endDay
+    // Use defaults if settings are null
+    def sMonth = startMonth != null ? startMonth : 11
+    def sDay = startDay != null ? startDay : 23
+    def eMonth = endMonth != null ? endMonth : 1
+    def eDay = endDay != null ? endDay : 2
+    
+    def s = sMonth * 100 + sDay
+    def e = eMonth * 100 + eDay
+    
+    log.debug "checkDate: Current: $curr (Month: $currentMonth, Day: $currentDay), Start: $s, End: $e"
     
     if (s > e) { // Wraps year
         return (curr >= s || curr <= e)
