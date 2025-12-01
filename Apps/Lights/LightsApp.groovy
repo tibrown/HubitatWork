@@ -61,26 +61,32 @@ def updated() {
 def initialize() {
     subscribe(location, "mode", modeHandler)
     if (deskMotion) subscribe(deskMotion, "motion.active", deskHandler)
-    if (deskButton) subscribe(deskButton, "pushed", deskHandler) // Button usually pushed or held
-    if (deskButton) subscribe(deskButton, "held", deskHandler)
+    if (deskButton) subscribe(deskButton, "pushed", deskHandler)
+    if (deskButton) subscribe(deskButton, "doubleTapped", deskHandler)
 }
 
 def deskHandler(evt) {
     log.info "Desk Handler Event: ${evt.name} ${evt.value}"
     
     // Check for Button 1 if it's a button event
-    if (evt.name == "held" || evt.name == "pushed") {
+    if (evt.name == "pushed" || evt.name == "doubleTapped") {
         if (evt.value != "1") return // Only react to Button 1
+        
+        if (evt.name == "pushed") {
+            setDeskLight(100)
+        } else {
+            setDeskLight(5)
+        }
+    } else {
+        // Motion event
+        setDeskLight(5)
     }
-
-    // Logic from DeskLightDimmest
-    setDeskLight()
 }
 
-def setDeskLight() {
-    // Method: Soft White, Level 5
+def setDeskLight(level = 5) {
+    // Method: Soft White, Level 5 (default)
     if (deskCT) {
-        deskCT.setLevel(5)
+        deskCT.setLevel(level)
         if (deskCT.hasCommand("setColorTemperature")) {
             deskCT.setColorTemperature(2700)
         }
