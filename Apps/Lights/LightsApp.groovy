@@ -94,8 +94,9 @@ def setDeskLight(level = 5) {
 }
 
 def modeHandler(evt) {
-    def mode = evt.value
+    def mode = evt.value?.trim()
     log.info "Mode changed to ${mode}"
+    log.info "Processing Mode: ${mode}"
 
     // Lightstrip Method Logic
     // Night: Blue, 30
@@ -117,11 +118,22 @@ def modeHandler(evt) {
 
     } else if (mode == "Evening") {
         // TurnLightsOnEvening Logic
-        if (switches) switches.on()
+        log.info "Executing Evening Logic"
+        log.info "Switches configured: ${switches?.size() ?: 0} devices"
+        if (switches) {
+            switches.each { device ->
+                log.info "Turning on ${device.displayName}"
+                device.on()
+            }
+        } else {
+            log.warn "No switches configured"
+        }
 
         // LanStrip ON -> Use Lightstrip method
+        log.info "Setting LightStrip: ${lightStrip?.displayName ?: 'Not configured'}"
         setStrip(lightStrip, "Soft White", 50)
-        setStrip(lanStrip, "Soft White", 50)
+        log.info "Setting LanStrip: ${lanStrip?.displayName ?: 'Not configured'}"
+        setStrip(lanStrip, "Yellow", 96)
 
     } else if (mode == "Morning") {
         // TurnLightsOnMorning Logic
@@ -134,7 +146,7 @@ def modeHandler(evt) {
             
             // LanStrip ON -> Use Lightstrip method
             setStrip(lightStrip, "Soft White", 50)
-            setStrip(lanStrip, "Soft White", 50)
+            setStrip(lanStrip, "Yellow", 96)
         } else {
             // If conditions not met, LightStrip still updates per its own rule logic (Mode Change)
             setStrip(lightStrip, "Soft White", 50)
@@ -151,7 +163,12 @@ def modeHandler(evt) {
 }
 
 def setStrip(device, colorName, level) {
-    if (!device) return
+    if (!device) {
+        log.debug "setStrip called with null device"
+        return
+    }
+
+    log.info "setStrip: ${device.displayName} -> ${colorName} @ ${level}%"
 
     if (level == 0) {
         device.off()
@@ -159,25 +176,38 @@ def setStrip(device, colorName, level) {
     }
 
     // Ensure device is on
-    if (device.currentValue("switch") != "on") {
+    def currentState = device.currentValue("switch")
+    log.debug "${device.displayName} current state: ${currentState}"
+    
+    if (currentState != "on") {
+        log.info "Turning on ${device.displayName}"
         device.on()
+        pauseExecution(500) // Give device time to turn on
     }
     
+    log.info "Setting ${device.displayName} level to ${level}"
     device.setLevel(level)
 
     if (colorName == "Blue") {
         // Blue: Hue ~66, Sat 100
         def colorMap = [hue: 66, saturation: 100, level: level]
+        log.info "Setting ${device.displayName} to Blue"
         device.setColor(colorMap)
     } else if (colorName == "Soft White") {
         // Soft White: CT 2700
         if (device.hasCommand("setColorTemperature")) {
+            log.info "Setting ${device.displayName} to Soft White (CT 2700)"
             device.setColorTemperature(2700)
         } else {
             // Fallback for RGBW if no CT command
             // Hue 23, Sat 56 is often used for Warm White/Soft White
             def colorMap = [hue: 23, saturation: 56, level: level]
+            log.info "Setting ${device.displayName} to Soft White (color map)"
             device.setColor(colorMap)
         }
+    } else if (colorName == "Yellow") {
+        def colorMap = [hue: 18, saturation: 19, level: level]
+        log.info "Setting ${device.displayName} to Yellow"
+        device.setColor(colorMap)
     }
 }

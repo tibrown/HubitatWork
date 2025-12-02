@@ -22,12 +22,23 @@ def mainPage() {
                 input "startDay", "number", title: "Start Day (e.g. 23)", defaultValue: 23
                 input "endMonth", "number", title: "End Month (e.g. 1)", defaultValue: 1
                 input "endDay", "number", title: "End Day (e.g. 2)", defaultValue: 2
-                input "onTimeType", "enum", title: "Turn On At", options: ["Sunset", "Time"], defaultValue: "Sunset", submitOnChange: true
+                input "onTimeType", "enum", title: "Turn On At", options: ["Sunset", "Time", "Mode"], defaultValue: "Sunset", submitOnChange: true
                 if (onTimeType == "Time") {
                     input "onTimeVal", "time", title: "On Time"
+                } else if (onTimeType == "Mode") {
+                    input "onMode", "mode", title: "On Mode", multiple: true
                 }
-                input "offTimeVal", "time", title: "Off Time", defaultValue: "22:00"
+                input "offTimeType", "enum", title: "Turn Off At", options: ["Time", "Sunrise", "Sunset", "Mode"], defaultValue: "Time", submitOnChange: true
+                if (offTimeType == "Time") {
+                    input "offTimeVal", "time", title: "Off Time", defaultValue: "22:00"
+                } else if (offTimeType == "Mode") {
+                    input "offMode", "mode", title: "Off Mode", multiple: true
+                }
             }
+        }
+        section("Virtual Control Switches") {
+            input "christmasTreesSwitch", "capability.switch", title: "ChristmasTrees Virtual Switch", required: false, multiple: false, description: "Virtual switch to control all trees"
+            input "christmasLightsSwitch", "capability.switch", title: "ChristmasLights Virtual Switch", required: false, multiple: false, description: "Virtual switch to control all outdoor lights"
         }
         section("Indoor Devices (Trees)") {
             input "treeSwitches", "capability.switch", title: "Tree Switches", required: false, multiple: true
@@ -54,17 +65,31 @@ def updated() {
 
 def initialize() {
     log.debug "initialize called"
+    
+    // Subscribe to master switch
     if (masterSwitch) subscribe(masterSwitch, "switch", switchHandler)
+    
+    // Subscribe to virtual control switches for manual override
+    if (christmasTreesSwitch) subscribe(christmasTreesSwitch, "switch", treeSwitchHandler)
+    if (christmasLightsSwitch) subscribe(christmasLightsSwitch, "switch", lightsSwitchHandler)
     
     if (enableSchedule) {
         log.debug "Schedule enabled. On Type: $onTimeType"
         if (onTimeType == "Sunset") {
             subscribe(location, "sunset", sunsetHandler)
+        } else if (onTimeType == "Mode") {
+            subscribe(location, "mode", modeHandler)
         } else if (onTimeVal) {
             schedule(onTimeVal, scheduledTurnOn)
         }
         
-        if (offTimeVal) {
+        if (offTimeType == "Sunset") {
+            subscribe(location, "sunset", scheduledTurnOff)
+        } else if (offTimeType == "Sunrise") {
+            subscribe(location, "sunrise", scheduledTurnOff)
+        } else if (offTimeType == "Mode") {
+            if (onTimeType != "Mode") subscribe(location, "mode", modeHandler)
+        } else if (offTimeVal) {
             schedule(offTimeVal, scheduledTurnOff)
         }
 
@@ -82,13 +107,44 @@ def checkIfShouldBeOn() {
         return
     }
 
+    // Check Mode Logic first
+    if (onTimeType == "Mode") {
+        if (onMode && location.mode in onMode) {
+            log.debug "Current mode matches On Mode. Turning on."
+            scheduledTurnOn()
+        }
+        return
+    }
+    
+    // If Off is Mode, and we are in that mode, ensure off?
+    if (offTimeType == "Mode") {
+        if (offMode && location.mode in offMode) {
+            log.debug "Current mode matches Off Mode. Ensuring off."
+            scheduledTurnOff()
+            return
+        }
+    }
+
     def now = new Date()
     def startTime
-    def endTime = offTimeVal ? timeToday(offTimeVal) : timeToday("22:00")
+    def endTime
+    
+    if (offTimeType == "Sunset") {
+        endTime = getSunriseAndSunset().sunset
+    } else if (offTimeType == "Sunrise") {
+        endTime = getSunriseAndSunset().sunrise
+    } else if (offTimeType == "Mode") {
+        // No specific end time.
+        endTime = null
+    } else {
+        endTime = offTimeVal ? timeToday(offTimeVal) : timeToday("22:00")
+    }
     
     if (onTimeType == "Sunset") {
         def sunTimes = getSunriseAndSunset()
         startTime = sunTimes.sunset
+    } else if (onTimeType == "Mode") {
+        startTime = null
     } else {
         startTime = onTimeVal ? timeToday(onTimeVal) : null
     }
@@ -100,15 +156,35 @@ def checkIfShouldBeOn() {
         }
         
         // Check if now is between start and end
-        // Note: This simple check handles the "Sunset just happened" case.
-        // It might not handle the "It's 1AM and I should still be on from yesterday" case perfectly without more complex logic,
-        // but it solves the immediate issue of missed events.
         if (now >= startTime && now < endTime) {
             log.debug "Current time is within schedule window. Turning on."
             scheduledTurnOn()
         } else {
             log.debug "Current time is NOT within schedule window."
         }
+    } else if (startTime && offTimeType == "Mode") {
+        // Started by time, ends by mode. 
+        // We already checked if we are in Off Mode above.
+        // If we are here, we are NOT in Off Mode.
+        // So if we are past start time, we should probably be on?
+        if (now >= startTime) {
+             log.debug "Past start time and not in Off Mode. Turning on."
+             scheduledTurnOn()
+        }
+    }
+}
+
+def modeHandler(evt) {
+    log.debug "Mode changed to ${evt.value}"
+    
+    if (onTimeType == "Mode" && onMode && evt.value in onMode) {
+        log.debug "Mode matches On Mode. Turning on."
+        scheduledTurnOn()
+    }
+    
+    if (offTimeType == "Mode" && offMode && evt.value in offMode) {
+        log.debug "Mode matches Off Mode. Turning off."
+        scheduledTurnOff()
     }
 }
 
@@ -118,6 +194,58 @@ def switchHandler(evt) {
     } else {
         deactivateChristmas()
     }
+}
+
+def treeSwitchHandler(evt) {
+    // Manual control of trees via virtual switch
+    if (atomicState.syncingTreesSwitch) {
+        log.debug "Ignoring trees switch event caused by app sync"
+        return
+    }
+    log.debug "ChristmasTrees switch manually turned ${evt.value}"
+    if (evt.value == "on") {
+        if (treeSwitches) treeSwitches.on()
+    } else {
+        if (treeSwitches) treeSwitches.off()
+    }
+}
+
+def lightsSwitchHandler(evt) {
+    // Manual control of lights via virtual switch
+    if (atomicState.syncingLightsSwitch) {
+        log.debug "Ignoring lights switch event caused by app sync"
+        return
+    }
+    log.debug "ChristmasLights switch manually turned ${evt.value}"
+    if (evt.value == "on") {
+        // Check rain sensor before turning on outdoor lights
+        if (rainSensor && rainSensor.currentValue("switch") == "on") {
+            log.debug "Rain sensor is on, not turning on outdoor lights"
+            if (notificationDevices) notificationDevices.deviceNotification("Cannot turn on Christmas lights - it is raining")
+            // Turn the switch back off
+            atomicState.syncingLightsSwitch = true
+            christmasLightsSwitch.off()
+            runIn(2, clearLightsSwitchSync)
+            return
+        }
+        if (mainLights) mainLights.on()
+        if (secondaryLights) secondaryLights.on()
+        if (porchLights) {
+            runIn(300, turnOffPorch)
+        }
+    } else {
+        if (mainLights) mainLights.off()
+        if (secondaryLights) secondaryLights.off()
+        if (porchLights) porchLights.on()
+    }
+}
+
+def clearTreesSwitchSync() {
+    atomicState.syncingTreesSwitch = false
+}
+
+def clearLightsSwitchSync() {
+    atomicState.syncingLightsSwitch = false
 }
 
 def sunsetHandler(evt) {
@@ -141,30 +269,62 @@ def scheduledTurnOff() {
 
 def activateChristmas() {
     log.debug "activateChristmas called"
+    
+    // Turn on trees and sync the virtual switch
+    if (treeSwitches) treeSwitches.on()
+    if (christmasTreesSwitch && christmasTreesSwitch.currentValue("switch") != "on") {
+        atomicState.syncingTreesSwitch = true
+        christmasTreesSwitch.on()
+        runIn(2, clearTreesSwitchSync)
+    }
+    
     // Check Rain for Outdoor Lights
     if (rainSensor && rainSensor.currentValue("switch") == "on") {
         log.debug "Rain sensor is on, skipping outdoor lights"
         if (notificationDevices) notificationDevices.deviceNotification("Christmas lights not coming on because it is raining")
-        // Ensure outdoor lights are off if it's raining
+        // Ensure outdoor lights and virtual switch are off if it's raining
         if (mainLights) mainLights.off()
         if (secondaryLights) secondaryLights.off()
+        if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "off") {
+            atomicState.syncingLightsSwitch = true
+            christmasLightsSwitch.off()
+            runIn(2, clearLightsSwitchSync)
+        }
         return
     }
 
-    // 3. Turn on Outdoor Lights (if not raining)
+    // Turn on Outdoor Lights (if not raining) and sync the virtual switch
     if (mainLights) mainLights.on()
     if (secondaryLights) secondaryLights.on()
+    if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "on") {
+        atomicState.syncingLightsSwitch = true
+        christmasLightsSwitch.on()
+        runIn(2, clearLightsSwitchSync)
+    }
     
-    // 4. Handle Porch Lights
+    // Handle Porch Lights
     runIn(300, turnOffPorch)
 }
 
 def deactivateChristmas() {
-    // Turn off Outdoor Lights
+    // Turn off trees and sync the virtual switch
+    if (treeSwitches) treeSwitches.off()
+    if (christmasTreesSwitch && christmasTreesSwitch.currentValue("switch") != "off") {
+        atomicState.syncingTreesSwitch = true
+        christmasTreesSwitch.off()
+        runIn(2, clearTreesSwitchSync)
+    }
+    
+    // Turn off Outdoor Lights and sync the virtual switch
     if (mainLights) mainLights.off()
     if (secondaryLights) secondaryLights.off()
+    if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "off") {
+        atomicState.syncingLightsSwitch = true
+        christmasLightsSwitch.off()
+        runIn(2, clearLightsSwitchSync)
+    }
 
-    // 3. Restore Porch Lights
+    // Restore Porch Lights
     if (porchLights) porchLights.on()
 }
 
