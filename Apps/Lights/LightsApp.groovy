@@ -204,6 +204,7 @@ def setStrip(device, colorName, level) {
             def colorMap = [hue: 23, saturation: 56, level: level]
             log.info "Setting ${device.displayName} to Soft White (color map)"
             device.setColor(colorMap)
+            device.setColorTemperature(2640)
         }
     } else if (colorName == "Yellow") {
         def colorMap = [hue: 18, saturation: 19, level: level]
