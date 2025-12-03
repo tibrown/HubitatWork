@@ -45,7 +45,6 @@ def mainPage() {
         }
         section("Outdoor Devices (Lights)") {
             input "mainLights", "capability.switch", title: "Main Christmas Lights", required: false, multiple: true
-            input "secondaryLights", "capability.switch", title: "Secondary Christmas Lights", required: false, multiple: true
             input "porchLights", "capability.switch", title: "Porch Lights", required: false, multiple: true
             input "rainSensor", "capability.switch", title: "Rain Sensor", required: false, multiple: false
             input "notificationDevices", "capability.notification", title: "Notification Devices", required: false, multiple: true
@@ -229,13 +228,11 @@ def lightsSwitchHandler(evt) {
             return
         }
         if (mainLights) mainLights.on()
-        if (secondaryLights) secondaryLights.on()
         if (porchLights) {
             runIn(300, turnOffPorch)
         }
     } else {
         if (mainLights) mainLights.off()
-        if (secondaryLights) secondaryLights.off()
         if (porchLights) porchLights.on()
     }
 }
@@ -284,7 +281,6 @@ def activateChristmas() {
         if (notificationDevices) notificationDevices.deviceNotification("Christmas lights not coming on because it is raining")
         // Ensure outdoor lights and virtual switch are off if it's raining
         if (mainLights) mainLights.off()
-        if (secondaryLights) secondaryLights.off()
         if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "off") {
             atomicState.syncingLightsSwitch = true
             christmasLightsSwitch.off()
@@ -295,7 +291,6 @@ def activateChristmas() {
 
     // Turn on Outdoor Lights (if not raining) and sync the virtual switch
     if (mainLights) mainLights.on()
-    if (secondaryLights) secondaryLights.on()
     if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "on") {
         atomicState.syncingLightsSwitch = true
         christmasLightsSwitch.on()
@@ -317,7 +312,6 @@ def deactivateChristmas() {
     
     // Turn off Outdoor Lights and sync the virtual switch
     if (mainLights) mainLights.off()
-    if (secondaryLights) secondaryLights.off()
     if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "off") {
         atomicState.syncingLightsSwitch = true
         christmasLightsSwitch.off()
