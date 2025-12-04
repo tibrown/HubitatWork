@@ -110,8 +110,7 @@ def modeHandler(evt) {
         
         // Lightstrip method for Night is Blue 30.
         setStrip(lightStrip, "Blue", 30)
-        // LanStrip should be off at night
-        if (lanStrip) lanStrip.off()
+        setStrip(lanStrip, "Blue", 30)
 
         // Special Note: DeskLightDimmest method at Night
         setDeskLight()
