@@ -1375,14 +1375,55 @@ Many rules share these connector switches and variables that should be consolida
 
 ---
 
+## File Organization and Structure
+
+### Directory Structure:
+Each app MUST be organized in its own dedicated folder under `Apps/`, following the existing pattern:
+
+```
+Apps/
+  SecurityAlarmManager/
+    SecurityAlarmManager.groovy
+    SecurityAlarmManager.md
+  NightSecurityManager/
+    NightSecurityManager.groovy
+    NightSecurityManager.md
+  LightsAutomationManager/
+    LightsAutomationManager.groovy
+    LightsAutomationManager.md
+  [... etc for all apps ...]
+```
+
+**Why This Structure:**
+- ✅ **Organization**: Keeps related files together
+- ✅ **Maintainability**: Easy to find all assets for a specific app
+- ✅ **Consistency**: Matches existing pattern (NightSecurityManager, CarPortControl, etc.)
+- ✅ **Scalability**: Allows room for additional files (test configs, examples, etc.)
+- ✅ **Version Control**: Clean git history per app
+
+### Required Files Per App Folder:
+1. **[AppName].groovy** - The Groovy app code (REQUIRED)
+2. **[AppName].md** - Complete documentation (REQUIRED)
+3. **CHANGELOG.md** - Version history (OPTIONAL but recommended)
+4. **examples/** - Sample configurations (OPTIONAL)
+
+---
+
 ## Documentation Requirements
 
 ### For Each App:
-1. **README.md** - Installation, configuration, usage
-2. **CHANGELOG.md** - Version history
-3. **Inline comments** - Code documentation
+1. **[AppName].md** - Complete app documentation including:
+   - Overview and purpose
+   - Installation instructions
+   - Configuration guide
+   - Required devices and virtual switches
+   - Hub variables used/supported
+   - Example use cases
+   - Troubleshooting tips
+2. **CHANGELOG.md** - Version history (optional but recommended)
+3. **Inline comments** - Code documentation within the .groovy file
 4. **Settings descriptions** - Help text in app UI
-5. **Example configs** - Sample setups
+5. **Example configs** - Sample setups (optional)
 
 ### Master Documentation:
 - Migration guide (this document)
