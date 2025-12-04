@@ -10,6 +10,7 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
 - **Final Apps to Create**: 11-12 consolidated apps
 - **No Functionality Loss**: All rules AND existing app features accounted for
 - **Hubitat Constraints**: No hard file size limits found, but best practice is to keep apps under 500 lines for maintainability
+- **Hub Variable Support**: All apps will support hub variables for configurable values (thresholds, limits, temperatures, etc.) with standard input fallbacks
 
 ## Key Changes from Original Plan
 1. **Existing Apps Integration**: Analysis shows 4 existing apps that partially implement consolidation
@@ -18,6 +19,7 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
 4. **CarPortControl**: Covers carport beam logic, can be absorbed into Group 3 or Group 2
 5. **ChristmasTreesControl**: Comprehensive, covers 100% of Group 4
 6. **ArriveGraceTurnsOn**: Simple app, covers arrival grace period logic
+7. **Hub Variable Support**: All apps will support hub variables for flexible configuration of thresholds, limits, temperatures, delays, and other scalar values with standard input fallbacks
 
 ---
 
@@ -58,11 +60,20 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Siren devices (Siren1, Siren2, Siren3)
   - Control switches (AlarmsEnabled, AudibleAlarmsOn, Silent, etc.)
   - Alarm buttons
+  - **Volume levels** (standard input with hub variable override)
+  - **Alarm duration** (standard input with hub variable override)
+  - **Delay timers** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `alarmVolume` - Override default siren volume (0-100)
+  - `alarmDuration` - Override alarm sound duration (seconds)
+  - `armDelay` - Override arm delay timer (seconds)
+  - `disarmDelay` - Override disarm delay (seconds)
 - **Methods**:
   - `handleModeChange()` - arm/disarm based on mode
   - `playSound(soundNumber, devices)` - centralized sound playback
   - `armAlarms()`, `disarmAlarms()`, `stopAllAlarms()`
   - `handleButton(button, action)` - button control
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -113,6 +124,15 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Ring devices ✅
   - Notification devices ✅
   - Mode configuration ✅
+  - **Time windows** (standard time inputs with hub variable override)
+  - **Alert delays** (standard input with hub variable override)
+  - **Sensitivity thresholds** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `nightStartTime` - Override night mode start time (HH:mm format)
+  - `nightEndTime` - Override night mode end time (HH:mm format)
+  - `alertDelay` - Override delay before alerting (seconds)
+  - `motionTimeout` - Override motion sensor timeout (seconds)
+  - `beamLogEnabled` - Enable/disable detailed beam logging (boolean: true/false)
 - **Methods**:
   - ✅ `evtHandler()` - centralized event routing
   - ✅ `handleBHScreen()`, `handleCarportBeam()`, etc. - device-specific handlers
@@ -121,6 +141,7 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - ❌ **ADD**: `handlePhoneArrival()` - phone arrival during night
   - ❌ **REFACTOR**: Make time windows configurable in preferences
   - ❌ **REFACTOR**: Remove global variable dependencies (use app state)
+  - ❌ **ADD**: `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 - **Enhancement Priority**: HIGH (P1)
 - **Replaces Rules**: 18 rules
 - **Replaces Apps**: None (original app)
@@ -184,6 +205,19 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - ❌ **ADD**: Porch lights, guest lights
   - ❌ **ADD**: Master all-lights group
   - ✅ Condition switches (PTO, Holiday - existing)
+  - **Time schedules** (standard time inputs with hub variable override)
+  - **Brightness levels** (standard input with hub variable override)
+  - **Motion timeouts** (standard input with hub variable override)
+  - **Color values** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `morningTime` - Override morning light activation time (HH:mm format)
+  - `eveningTime` - Override evening light activation time (HH:mm format)
+  - `nightTime` - Override night mode light time (HH:mm format)
+  - `deskBrightness` - Override desk light brightness (0-100)
+  - `floodTimeout` - Override motion-activated flood timeout (minutes)
+  - `stripColorDay` - Override daytime strip color (hex color code or color name)
+  - `stripColorNight` - Override nighttime strip color (hex color code or color name)
+  - `beamLightDelay` - Override carport beam light delay (seconds)
 - **Methods**:
   - ✅ `modeHandler()` - mode-based lighting (existing)
   - ✅ `setStrip()` - color control (existing)  
@@ -193,6 +227,7 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - ❌ **ADD**: `handleBeamBreak(mode)` - carport beam lighting (from CarPortControl)
   - ❌ **ADD**: `setEmergencyColor(device, color)` - emergency indicators (red desk for shower help)
   - ❌ **ADD**: `explicitColorCommands()` - separate green/red/white commands
+  - ❌ **ADD**: `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 - **Enhancement Priority**: HIGH (P2)
 - **Replaces Rules**: 20 rules
 - **Replaces Apps**: LightsApp.groovy, CarPortControl.groovy
@@ -301,13 +336,23 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Notification devices
   - Mode-based behavior settings
   - Pause switches
-  - Alert thresholds (time open)
+  - **Alert thresholds** (standard input with hub variable override)
+  - **Pause durations** (standard input with hub variable override)
+  - **Check intervals** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `doorOpenThreshold` - Override time before alerting on open door (minutes)
+  - `windowOpenThreshold` - Override time before alerting on open window (minutes)
+  - `freezerDoorThreshold` - Override freezer door open threshold (minutes)
+  - `pauseDuration` - Override alarm pause duration (minutes)
+  - `checkInterval` - Override periodic check interval (minutes)
+  - `tamperAlertEnabled` - Enable/disable tamper detection (boolean: true/false)
 - **Methods**:
   - `handleDoorOpen(door, mode)`
   - `handleDoorClosed(door)`
   - `checkLeftOpen()` - periodic check for doors left open
   - `pauseAlarm(door, duration)`
   - `handleTamper(device)`
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -354,6 +399,16 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - ✅ Grace period switch (from existing app)
   - ✅ Alarms enabled, Silent mode switches (from existing app)
   - Mode-based behavior settings
+  - **Grace period duration** (standard input with hub variable override)
+  - **Motion timeouts** (standard input with hub variable override)
+  - **Presence delay** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `gracePeriodDuration` - Override arrival grace period (minutes)
+  - `motionTimeout` - Override motion sensor timeout (minutes)
+  - `presenceDelay` - Override presence change delay (seconds)
+  - `rvMotionEnabled` - Enable/disable RV motion monitoring (boolean: true/false)
+  - `carportSensitivity` - Override carport motion sensitivity threshold (1-10)
+  - `notifyOnArrival` - Enable/disable arrival notifications (boolean: true/false)
 - **Methods**:
   - `handleMotion(sensor, location)` - motion event processing
   - `handleArrival(phone)`, `handleDeparture(phone)` - presence changes
@@ -361,6 +416,7 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - ✅ `endGracePeriod()` - from ArriveGraceTurnsOn
   - `zoneActive(zone)` - track zone activity
   - `updateLastMotion(location)` - timestamp tracking
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 - **Enhancement Priority**: MEDIUM (P2)
 - **Replaces Rules**: 13 rules
 - **Replaces Apps**: ArriveGraceTurnsOn.groovy
@@ -408,12 +464,23 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Ring devices
   - Mode settings
   - Notification preferences
+  - **Alert delays** (standard input with hub variable override)
+  - **Shock sensitivity** (standard input with hub variable override)
+  - **Check intervals** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `gateAlertDelay` - Override gate open alert delay (seconds)
+  - `shockSensitivity` - Override shock sensor sensitivity (1-10)
+  - `perimeterCheckInterval` - Override status check interval (minutes)
+  - `awayModeAlertEnabled` - Enable/disable away mode alerts (boolean: true/false)
+  - `ringPersonTimeout` - Override Ring person detection timeout (seconds)
+  - `gunCabinetAlertEnabled` - Enable/disable gun cabinet alerts (boolean: true/false)
 - **Methods**:
   - `handleGate(gate, state)`
   - `handleShock(sensor)`
   - `handleRingPerson(location)`
   - `checkPerimeter()` - status check
   - `isAwayMode()` - mode check
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -436,10 +503,16 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Indoor camera power outlets
   - Mode settings
   - Manual override switches
+  - **Transition delays** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `privacyModeDelay` - Override camera off delay when arriving home (minutes)
+  - `enableDelay` - Override camera on delay when leaving (minutes)
+  - `manualOverrideDuration` - Override manual override timeout (hours)
 - **Methods**:
   - `camerasOn()`, `camerasOff()`
   - `handleModeChange(mode)`
   - `checkPrivacyMode()`
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -476,14 +549,26 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Fan/heater switches
   - Skeeter killer outlets
   - Water control valve
-  - Temperature thresholds
-  - Schedules
+  - **Temperature thresholds** (standard input with hub variable override)
+  - **Schedules** (standard time inputs with hub variable override)
+  - **Timeouts** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `greenhouseFanOnTemp` - Override fan activation temperature (°F)
+  - `greenhouseFanOffTemp` - Override fan deactivation temperature (°F)
+  - `greenhouseHeaterOnTemp` - Override heater activation temperature (°F)
+  - `greenhouseHeaterOffTemp` - Override heater deactivation temperature (°F)
+  - `freezeAlertThreshold` - Override freeze warning temperature (°F)
+  - `officeHeaterTemp` - Override office heater temperature (°F)
+  - `skeeterOnTime` - Override skeeter killer on time (HH:mm format)
+  - `skeeterOffTime` - Override skeeter killer off time (HH:mm format)
+  - `waterTimeout` - Override water shutoff timeout (minutes)
 - **Methods**:
   - `controlFan(location, temp)`
   - `controlHeater(location, temp)`
   - `checkFreezeRisk()`
   - `manageSkeeterKiller(schedule)`
   - `waterControl(state)`
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -515,12 +600,23 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Alert devices (sirens, lights, notifications)
   - Silent mode switches
   - Stop/cancel buttons
+  - **Alert durations** (standard input with hub variable override)
+  - **Flash rates** (standard input with hub variable override)
+  - **Volume levels** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `helpAlertDuration` - Override help alert duration (seconds)
+  - `flashRate` - Override light flash rate (flashes per second)
+  - `emergencyVolume` - Override emergency siren volume (0-100)
+  - `silentModeTimeout` - Override silent mode timeout (minutes)
+  - `notificationDelay` - Override notification delay (seconds)
+  - `visualOnlyMode` - Enable visual-only alerts (boolean: true/false)
 - **Methods**:
   - `triggerHelp(location, button)`
   - `cancelHelp()`
   - `flashLights(color)`
   - `soundAlerts()`
   - `notifyEmergency(message)`
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -567,6 +663,18 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - Notification devices
   - Smart plugs (coffee)
   - Safe sensor
+  - **Reminder times** (standard input with hub variable override)
+  - **Timeouts** (standard input with hub variable override)
+  - **Check intervals** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `dogFeedingReminderTime` - Override feeding reminder time (HH:mm format)
+  - `dogOutsideTimeout` - Override dog outside timeout (minutes)
+  - `meetingReminderAdvance` - Override meeting reminder advance time (minutes)
+  - `coffeeOnTime` - Override coffee maker on time (HH:mm format)
+  - `wakeUpTime` - Override wake-up alarm time (HH:mm format)
+  - `safeCheckInterval` - Override safe lock check interval (hours)
+  - `powerMonitorDelay` - Override mains power alert delay (seconds)
+  - `awayModeDelay` - Override away mode activation delay (minutes)
 - **Methods**:
   - `monitorDogs()`
   - `checkFeeding()`
@@ -574,6 +682,7 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - `handleMainsPower(state)`
   - `notify(destination, message)`
   - `checkSafe()`
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -600,14 +709,23 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
 - **Name**: `RingPersonDetectionManager.groovy`
 - **Inputs**:
   - Ring devices (all locations)
-  - Reset timers
+  - **Reset timers** (standard input with hub variable override)
   - Mode settings
   - Notification preferences
+  - **Detection delays** (standard input with hub variable override)
+- **Hub Variable Support**:
+  - `motionResetDelay` - Override motion reset delay (seconds)
+  - `personDetectionTimeout` - Override person detection timeout (seconds)
+  - `notificationDelay` - Override notification delay (seconds)
+  - `nightModeEnabled` - Enable/disable night mode detection (boolean: true/false)
+  - `sensitivityLevel` - Override detection sensitivity (1-10)
+  - `cooldownPeriod` - Override notification cooldown period (minutes)
 - **Methods**:
   - `handleMotion(camera)`
   - `handlePerson(camera, location)`
   - `resetMotion(camera)`
   - `shouldNotify(location, mode)`
+  - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
 
 ---
 
@@ -684,6 +802,7 @@ Based on analysis of Hubitat documentation and best practices:
 3. **Use efficient code patterns** (explicit types, minimize state usage)
 4. **Leverage @Field static variables** for non-persistent data caching
 5. **Use singleThreaded: true** in definition for simpler state management
+6. **Support Hub Variables** for all configurable values with standard input fallbacks
 
 **Our Planned Apps Size Estimates**:
 | App | Estimated LOC | Status | Concerns |
@@ -729,6 +848,36 @@ def evtHandler(evt) {
         case door2.deviceId: handleDoor2(evt); break
     }
 }
+
+// Hub Variable Support - Standard Pattern
+def getConfigValue(String settingName, String hubVarName) {
+    // Try to get value from hub variable first
+    def hubVar = getGlobalVar(hubVarName)
+    if (hubVar?.value != null) {
+        logDebug "Using hub variable ${hubVarName}: ${hubVar.value}"
+        return convertValue(hubVar.value, hubVar.type)
+    }
+    
+    // Fall back to app setting
+    def settingValue = settings[settingName]
+    logDebug "Using app setting ${settingName}: ${settingValue}"
+    return settingValue
+}
+
+def convertValue(value, type) {
+    // Convert hub variable value to appropriate type
+    switch(type) {
+        case "number": return value as Integer
+        case "decimal": return value as BigDecimal
+        case "boolean": return value.toString().toBoolean()
+        case "string":
+        default: return value.toString()
+    }
+}
+
+// Usage example:
+def threshold = getConfigValue("doorOpenThreshold", "doorOpenThreshold")
+def temperature = getConfigValue("heaterTemp", "greenhouseHeaterOnTemp")
 ```
 
 **Memory Considerations**:
@@ -804,6 +953,32 @@ Many rules share these connector switches and variables that should be consolida
 - Use app state variables instead
 - Expose only user-facing switches
 - Reduces hub device count significantly
+
+### Hub Variable Strategy:
+
+**All Apps Will Support Hub Variables For**:
+- **Thresholds**: Temperature limits, time delays, duration values
+- **Limits**: Brightness levels, volume settings, sensitivity values
+- **Temperatures**: Set points for heating/cooling triggers
+- **Timeouts**: How long to wait before alerts or actions
+- **Schedules**: Times for automated actions (HH:mm format)
+- **Boolean Flags**: Enable/disable features dynamically
+- **Scalar Values**: Any numeric or text configuration value
+
+**Implementation Pattern**:
+1. **Standard Inputs**: All apps provide normal preference inputs (text, number, time, etc.)
+2. **Hub Variable Override**: Each configurable value checks for a corresponding hub variable first
+3. **Fallback**: If hub variable doesn't exist or is null, use the standard input value
+4. **Naming Convention**: Hub variable names match setting names for clarity
+5. **Documentation**: Each app documents which hub variables it supports
+
+**Benefits**:
+- **Dynamic Configuration**: Change values without editing app preferences
+- **Centralized Control**: One hub variable can affect multiple apps
+- **Testing**: Temporarily override values for testing without changing settings
+- **Automation**: Other apps/rules can modify hub variables to adjust behavior
+- **Seasonal Adjustments**: Easy to change thresholds for summer vs winter
+- **User Choice**: Users can use standard inputs OR hub variables as preferred
 
 ---
 
