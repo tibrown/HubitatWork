@@ -23,6 +23,327 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
 
 ---
 
+## Inter-App Communication Architecture
+
+### Overview
+Multiple apps need to call functionality from other apps (e.g., Group 2 needs to call Group 1's alarm execution). We'll use Hubitat best practices for app-to-app communication.
+
+### Communication Strategy: Connector Switch Bridge Pattern
+
+**Approach**: Use Connector Switches (hub variable-backed virtual switches) as communication bridges between apps. This is the most reliable, maintainable, and Hubitat-native approach.
+
+> **Important**: Prefer **Connector Switches** (backed by hub variables) over standard virtual devices. Hub variables are managed centrally in one place (Settings → Hub Variables), making them easier to monitor, debug, and maintain. They also provide persistence across hub reboots and better visibility into system state.
+
+**Why This Approach:**
+- ✅ **Decoupled**: Apps don't need direct references to each other
+- ✅ **Reliable**: Uses Hubitat's native event system
+- ✅ **Debuggable**: Can see switch states in device list
+- ✅ **Flexible**: Easy to add new triggers without modifying apps
+- ✅ **Testable**: Can manually trigger switches for testing
+- ✅ **Hub Variable Compatible**: Works seamlessly with existing hub variable infrastructure
+
+### Implementation Pattern
+
+**1. Create Virtual Switches for Cross-App Communication**
+- `AlarmTrigger` - When turned on, Group 1 executes alarms
+- `AlarmStop` - When turned on, Group 1 stops all alarms
+- `NightSecurityAlert` - When turned on, triggers night security actions
+- `EmergencyLightsOn` - When turned on, Group 3 activates emergency lighting
+- `AllLightsControl` - Multi-state for all lights (on/off/night/evening)
+
+**2. Standard App Structure**
+
+Each app will have:
+
+```groovy
+// RECEIVING COMMANDS (listening to virtual switches)
+def installed() {
+    initialize()
+}
+
+def updated() {
+    unsubscribe()
+    initialize()
+}
+
+def initialize() {
+    // Subscribe to control switches for this app
+    subscribe(settings.alarmTriggerSwitch, "switch.on", handleAlarmTrigger)
+    subscribe(settings.alarmStopSwitch, "switch.on", handleAlarmStop)
+    // ... other subscriptions
+}
+
+def handleAlarmTrigger(evt) {
+    executeAlarms()
+    // Auto-reset trigger switch after handling
+    runIn(2, resetTriggerSwitch)
+}
+
+def resetTriggerSwitch() {
+    settings.alarmTriggerSwitch?.off()
+}
+
+// SENDING COMMANDS (activating virtual switches)
+def triggerAlarmExecution() {
+    // Find and activate the alarm trigger
+    def alarmSwitch = getDeviceByName("AlarmTrigger")
+    alarmSwitch?.on()
+}
+```
+
+**3. Hub Variables and Connector Switches**
+
+**Hub Variables:**
+- **Types Supported**: String, Number, Boolean, Decimal, Date
+- **Access Methods**: `getGlobalVar(name)` and `setGlobalVar(name, value)`
+- **Use For**: Configuration values (thresholds, timeouts, limits), status flags
+- **Cannot**: Generate events directly (not subscribable)
+- **Example**: Storing alarm volume, temperature thresholds, timer values
+
+**Connector Switches (Hub Variable-Backed Virtual Switches):**
+- **Type**: Virtual switch devices that read/write to hub variables
+- **Device Type**: "Connector Switch" (namespace: "hubitat")
+- **Behavior**: Act like real switches but store state in hub variables
+- **Can**: Generate switch events that apps can subscribe to
+- **Use For**: Cross-app communication with event-driven automation
+- **Existing Examples**: `Silent`, `AlarmsEnabled`, `AudibleAlarmsOn`, `ChristmasTrees`, `traveling`, etc.
+
+**Standard Virtual Switches:**
+- **Type**: Virtual devices (not backed by hub variables)
+- **Device Type**: "Virtual Switch" (namespace: "hubitat")
+- **Behavior**: Standard switch device with in-memory state
+- **Use For**: Triggers, indicators, or when hub variable backing not needed
+
+```groovy
+// ❌ WRONG - Hub variables themselves cannot be subscribed to
+subscribe(getGlobalVar("AlarmTrigger"), "switch", handler)  // Won't work!
+
+// ✅ CORRECT - Connector Switches CAN trigger events
+subscribe(settings.silentSwitch, "switch.on", handler)  // Works! (Silent is a Connector Switch)
+
+// ✅ CORRECT - Standard Virtual Switches work too
+subscribe(settings.alarmTriggerSwitch, "switch.on", handler)  // Works!
+
+// ✅ Hub variables ARE good for configuration values
+def getAlarmVolume() {
+    return getGlobalVar("alarmVolume")?.toInteger() ?: settings.defaultVolume
+}
+
+// ✅ Apps can update hub variables
+def setAlarmsEnabled(enabled) {
+    setGlobalVar("AlarmsEnabled", enabled ? "true" : "false")
+}
+```
+
+**Recommendation for Cross-App Communication:**
+
+> **🔑 Best Practice**: Always prefer **Connector Switches** (hub variable-backed) over standard virtual devices. Hub variables are managed in one centralized location (Settings → Hub Variables), making the entire system easier to monitor, troubleshoot, and maintain.
+
+Use **Connector Switches** (PREFERRED) when you want:
+- Event-driven triggers between apps
+- Hub variable backing for persistence and centralized management
+- Ability to check state from multiple apps
+- Dashboard visibility and manual control
+- Easy debugging (all values visible in Hub Variables page)
+
+Use **Standard Virtual Switches** (ONLY when necessary) when you want:
+- Simple momentary triggers that don't need persistence
+- Temporary test devices
+- Cases where hub variable overhead is not desired
+
+Use **Hub Variables directly** (without Connector Switch) when you want:
+- Configuration values only (no event triggering needed)
+- Numeric, boolean, date, or decimal types that don't need device events
+- Polling-based status checks only (not event-driven automation)
+
+### Cross-App Communication Map
+
+| Calling App | Called App | Purpose | Mechanism | Type |
+|-------------|------------|---------|-----------|------|
+| Group 2 (NightSecurity) | Group 1 (Alarms) | Execute alarms | Virtual Switch: `AlarmTrigger` | Event-driven |
+| Group 2 (NightSecurity) | Group 1 (Alarms) | Stop alarms | Virtual Switch: `AlarmStop` | Event-driven |
+| Group 2 (NightSecurity) | Group 3 (Lights) | Emergency lights | Virtual Switch: `EmergencyLightsOn` | Event-driven |
+| Group 3 (Lights) | Group 1 (Alarms) | Check if alarms enabled | Hub Variable: `AlarmsEnabled` | Polling (read-only) |
+| Group 5 (Presence) | Group 2 (NightSecurity) | Arrival notification | Virtual Switch: `PresenceArrival` | Event-driven |
+| Group 2 (NightSecurity) | Group 1 (Alarms) | Check if alarms active | Hub Variable: `AlarmActive` | Polling (read-only) |
+| Any App | Group 1 (Alarms) | Panic alert | Virtual Switch: `PanicButton` | Event-driven |
+
+**Legend:**
+- **Event-driven**: App subscribes to virtual switch events and responds automatically
+- **Polling (read-only)**: App reads hub variable value when needed (no automatic event trigger)
+
+### Standard Connector Switches to Create
+
+Create these switches in Hubitat before deploying the apps. **Prefer Connector Switches** for all use cases - they provide centralized management via Hub Variables, making the system easier to monitor and debug.
+
+> **Note**: All switches below should be created as **Connector Switches** unless specifically noted. This ensures all state is managed in one place (Settings → Hub Variables) rather than scattered across individual virtual device states.
+
+1. **Alarm Control** (All Connector Switches)
+   - `AlarmTrigger` - Triggers alarm execution (auto-reset via app logic)
+   - `AlarmStop` - Stops all alarms (auto-reset via app logic)
+   - `PanicButton` - Panic alert trigger
+   - `AlarmsEnabled` - Master alarm enable/disable (existing Connector Switch)
+   - `AudibleAlarmsOn` - Control audible alarm state (existing Connector Switch)
+   - `Silent` - Silent mode switch (existing Connector Switch)
+
+2. **Lighting Control** (All Connector Switches)
+   - `EmergencyLightsOn` - Emergency lighting activation
+   - `AllLightsControl` - Master light control (convert to Connector Switch if currently Virtual Switch)
+   - `NightLights` - Night mode lighting (convert to Connector Switch if currently Virtual Switch)
+
+3. **Security Control** (All Connector Switches)
+   - `NightSecurityAlert` - General night security trigger
+   - `PresenceArrival` - Presence arrival notification
+   - `traveling` - Travel mode indicator (existing Connector Switch)
+
+4. **Status Indicators** (Use Connector Switches for hub variable backing)
+   - These benefit from Connector Switch implementation for persistence and dashboard visibility
+   - Examples: `ChristmasTrees`, `Holiday`, `SummerTime` (all existing Connector Switches)
+
+### Helper Methods Library
+
+Each app will include these standard helper methods:
+
+```groovy
+// Get a device by name
+def getDeviceByName(deviceName) {
+    return getAllDevices()?.find { it.displayName == deviceName || it.name == deviceName }
+}
+
+// Trigger an action in another app via virtual switch
+def triggerAction(switchName) {
+    def triggerSwitch = getDeviceByName(switchName)
+    if (triggerSwitch) {
+        triggerSwitch.on()
+        return true
+    }
+    log.warn "Trigger switch '${switchName}' not found"
+    return false
+}
+
+// Auto-reset a momentary switch
+def resetSwitch(switchName, delaySeconds = 2) {
+    runIn(delaySeconds, "doResetSwitch", [data: [switch: switchName]])
+}
+
+def doResetSwitch(data) {
+    def sw = getDeviceByName(data.switch)
+    sw?.off()
+}
+
+// Get hub variable value
+def getHubVar(varName, defaultValue = null) {
+    try {
+        return getGlobalVar(varName)?.value ?: defaultValue
+    } catch (e) {
+        log.debug "Hub variable '${varName}' not found, using default: ${defaultValue}"
+        return defaultValue
+    }
+}
+
+// Set hub variable value
+def setHubVar(varName, value) {
+    try {
+        setGlobalVar(varName, value.toString())
+        return true
+    } catch (e) {
+        log.error "Failed to set hub variable '${varName}': ${e.message}"
+        return false
+    }
+}
+```
+
+### Example: Group 2 Calling Group 1
+
+**Night-SheShedDoorOpen scenario:**
+
+```groovy
+// In NightSecurityManager (Group 2)
+def handleSheShedDoorOpen(evt) {
+    if (!modeIsNight() || silentMode()) return
+    
+    logInfo "She Shed door opened during night mode"
+    
+    // 1. Local actions (Group 2's responsibility)
+    settings.allLightsSwitch?.on()
+    sendNotification("Alert, Alert, Intruder in the bird house")
+    
+    // 2. Trigger alarm execution (Group 1's responsibility)
+    triggerAction("AlarmTrigger")  // This activates Group 1
+    
+    // 3. Optional: Trigger emergency lighting (Group 3's responsibility)
+    triggerAction("EmergencyLightsOn")
+}
+```
+
+```groovy
+// In SecurityAlarmManager (Group 1)
+def initialize() {
+    // Subscribe to the alarm trigger switch
+    subscribe(settings.alarmTriggerSwitch, "switch.on", handleAlarmTrigger)
+    subscribe(settings.alarmStopSwitch, "switch.on", handleAlarmStop)
+}
+
+def handleAlarmTrigger(evt) {
+    logInfo "Alarm trigger received from ${evt.displayName}"
+    executeAlarms()
+    
+    // Auto-reset the trigger
+    runIn(2, resetAlarmTrigger)
+}
+
+def resetAlarmTrigger() {
+    settings.alarmTriggerSwitch?.off()
+}
+
+def executeAlarms() {
+    if (!settings.alarmsEnabled?.currentValue("switch") == "on") {
+        logInfo "Alarms disabled, skipping execution"
+        return
+    }
+    
+    // Execute alarm logic
+    playSound(settings.defaultAlarmSound ?: 6, [settings.siren1, settings.siren2, settings.siren3])
+    
+    // Update hub variable for other apps to monitor
+    setHubVar("AlarmActive", "true")
+}
+```
+
+### Benefits of This Architecture
+
+1. **Loose Coupling**: Apps can be updated independently
+2. **Clear Contracts**: Virtual switch names define the interface
+3. **Easy Testing**: Manually flip switches to test cross-app behavior
+4. **Observable**: See all communication in device events
+5. **Fail-Safe**: If one app is disabled, others continue to function
+6. **Maintainable**: No complex app discovery or direct method calls
+7. **Scalable**: Easy to add new communication channels
+
+### Configuration Requirements
+
+Each app's preferences will include:
+
+```groovy
+preferences {
+    section("Cross-App Communication") {
+        input "alarmTriggerSwitch", "capability.switch", 
+              title: "Alarm Trigger Switch", 
+              description: "Virtual switch to trigger alarm execution (AlarmTrigger)",
+              required: false
+        
+        input "alarmStopSwitch", "capability.switch",
+              title: "Alarm Stop Switch",
+              description: "Virtual switch to stop alarms (AlarmStop)",
+              required: false
+        
+        // ... other communication switches
+    }
+}
+```
+
+---
+
 ## Group 1: Security & Alarm Management
 **Purpose**: Centralize all security alarm, siren, and alert functionality
 
@@ -63,17 +384,29 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - **Volume levels** (standard input with hub variable override)
   - **Alarm duration** (standard input with hub variable override)
   - **Delay timers** (standard input with hub variable override)
+  - **Cross-App Communication**:
+    - `alarmTriggerSwitch` - Virtual switch to trigger alarm execution (receives from other apps)
+    - `alarmStopSwitch` - Virtual switch to stop alarms (receives from other apps)
+    - `panicButtonSwitch` - Virtual switch for panic alerts (receives from other apps)
 - **Hub Variable Support**:
   - `alarmVolume` - Override default siren volume (0-100)
   - `alarmDuration` - Override alarm sound duration (seconds)
   - `armDelay` - Override arm delay timer (seconds)
   - `disarmDelay` - Override disarm delay (seconds)
+  - `AlarmActive` - Status variable (written by this app, read by others)
+  - `AlarmsEnabled` - Status variable (written by this app, read by others)
 - **Methods**:
   - `handleModeChange()` - arm/disarm based on mode
   - `playSound(soundNumber, devices)` - centralized sound playback
   - `armAlarms()`, `disarmAlarms()`, `stopAllAlarms()`
   - `handleButton(button, action)` - button control
   - `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
+  - **Cross-App Methods**:
+    - `handleAlarmTrigger(evt)` - responds to AlarmTrigger switch activation
+    - `handleAlarmStop(evt)` - responds to AlarmStop switch activation
+    - `executeAlarms()` - PUBLIC method for alarm execution (called via virtual switch)
+    - `setHubVar(varName, value)` - updates hub variables for other apps
+    - `triggerAction(switchName)` - helper to activate virtual switches
 
 ---
 
@@ -127,12 +460,19 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - **Time windows** (standard time inputs with hub variable override)
   - **Alert delays** (standard input with hub variable override)
   - **Sensitivity thresholds** (standard input with hub variable override)
+  - **Cross-App Communication**:
+    - `alarmTriggerSwitch` - Virtual switch to trigger Group 1 alarms (sends to SecurityAlarmManager)
+    - `alarmStopSwitch` - Virtual switch to stop Group 1 alarms (sends to SecurityAlarmManager)
+    - `emergencyLightsSwitch` - Virtual switch to trigger Group 3 emergency lights (sends to LightsAutomationManager)
+    - `allLightsSwitch` - Master light control (sends to Group 3)
 - **Hub Variable Support**:
   - `nightStartTime` - Override night mode start time (HH:mm format)
   - `nightEndTime` - Override night mode end time (HH:mm format)
   - `alertDelay` - Override delay before alerting (seconds)
   - `motionTimeout` - Override motion sensor timeout (seconds)
   - `beamLogEnabled` - Enable/disable detailed beam logging (boolean: true/false)
+  - `AlarmsEnabled` - Read alarm status from Group 1 (read-only)
+  - `AlarmActive` - Check if alarms are currently active (read-only)
 - **Methods**:
   - ✅ `evtHandler()` - centralized event routing
   - ✅ `handleBHScreen()`, `handleCarportBeam()`, etc. - device-specific handlers
@@ -142,6 +482,13 @@ This document provides a detailed plan for consolidating 100+ Hubitat Rule Machi
   - ❌ **REFACTOR**: Make time windows configurable in preferences
   - ❌ **REFACTOR**: Remove global variable dependencies (use app state)
   - ❌ **ADD**: `getConfigValue(settingName, hubVarName)` - retrieve value from hub variable or fall back to setting
+  - **Cross-App Methods**:
+    - ❌ **ADD**: `triggerAlarmExecution()` - activates Group 1's AlarmTrigger switch
+    - ❌ **ADD**: `triggerEmergencyLights()` - activates Group 3's EmergencyLights switch
+    - ❌ **ADD**: `triggerAction(switchName)` - helper to activate virtual switches
+    - ❌ **ADD**: `getHubVar(varName, defaultValue)` - reads hub variables from other apps
+    - ❌ **REFACTOR**: Update `executeAlarmsOn()` to use `triggerAlarmExecution()` instead of direct calls
+    - ❌ **REFACTOR**: Update `stopAlarms()` to use virtual switch instead of direct calls
 - **Enhancement Priority**: HIGH (P1)
 - **Replaces Rules**: 18 rules
 - **Replaces Apps**: None (original app)

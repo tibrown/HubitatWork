@@ -13,6 +13,52 @@ This document outlines best practices for developing efficient, user-friendly ap
 
 ---
 
+## 🔧 Hub Variables and Device Management
+
+### Prefer Hub Variables (Connector Switches) Over Virtual Devices
+
+> **Key Principle**: Always use hub variable-backed devices (Connector Switches) instead of standard virtual devices for cross-app communication and state management.
+
+**Why Hub Variables Are Better:**
+- **Centralized Management**: All hub variables visible in one place (Settings → Hub Variables)
+- **Easier Debugging**: See all system state values at a glance
+- **Better Monitoring**: Track changes and values without navigating to individual devices
+- **Persistence**: Values persist across hub reboots
+- **Type Safety**: Support for String, Number, Boolean, Decimal, Date types
+- **Reduced Clutter**: Fewer virtual devices scattered across the device list
+
+**When to Use Connector Switches:**
+- Cross-app communication triggers (event-driven)
+- System status flags (alarms enabled, silent mode, etc.)
+- Mode indicators (traveling, holiday, summer time, etc.)
+- Any state that multiple apps need to read or write
+
+**When to Use Hub Variables Directly (without Connector Switch):**
+- Configuration values (thresholds, timeouts, limits)
+- Numeric calculations (temperatures, counts, percentages)
+- Values that don't need to trigger device events
+
+**When to Use Standard Virtual Devices (rarely):**
+- Temporary testing devices
+- Special cases where hub variable overhead not desired
+- Legacy compatibility (migrate to Connector Switches when possible)
+
+**Example:**
+```groovy
+// ❌ BAD - Creating standard virtual switch
+// Creates device state not visible in Hub Variables
+virtualSwitch.on()
+
+// ✅ GOOD - Using Connector Switch backed by hub variable
+// State visible in Settings → Hub Variables AND device list
+connectorSwitch.on()  // Also updates hub variable automatically
+
+// ✅ ALSO GOOD - Direct hub variable for config values
+def threshold = getGlobalVar("temperatureThreshold")?.toInteger() ?: 72
+```
+
+---
+
 ## 💾 Storing Data
 
 ### Use state for Small Amounts of Data
