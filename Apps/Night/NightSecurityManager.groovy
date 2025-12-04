@@ -17,11 +17,13 @@
 definition(
     name: "Night Security Manager",
     namespace: "hubitat",
-    author: "Gemini 3 Pro",
-    description: "Consolidated Night Security Rules",
+    author: "Tim Brown",
+    description: "Comprehensive nighttime security monitoring and intruder detection system. Handles door/window sensors, motion detection, Ring person detection, and coordinates with alarm and lighting systems.",
     category: "Security",
     iconUrl: "",
-    iconX2Url: ""
+    iconX2Url: "",
+    iconX3Url: "",
+    singleThreaded: true
 )
 
 preferences {
@@ -74,19 +76,57 @@ def mainPage() {
         section("Restrictions") {
             input "restrictedModes", "mode", title: "Only run in these modes", multiple: true, required: true
         }
+        
+        section("Cross-App Communication") {
+            input "alarmTriggerSwitch", "capability.switch", title: "Alarm Trigger Switch (sends to SecurityAlarmManager)", required: false
+            input "alarmStopSwitch", "capability.switch", title: "Alarm Stop Switch (sends to SecurityAlarmManager)", required: false
+            input "emergencyLightsSwitch", "capability.switch", title: "Emergency Lights Switch (sends to LightsAutomationManager)", required: false
+        }
+        
+        section("Time Window Configuration") {
+            input "carportNightStart", "time", title: "Carport Night Alert Start Time", defaultValue: "22:30", required: false
+            input "carportNightEnd", "time", title: "Carport Night Alert End Time", defaultValue: "06:00", required: false
+            input "rearGateStart", "time", title: "Rear Gate Alert Start Time", defaultValue: "20:00", required: false
+            input "rearGateEnd", "time", title: "Rear Gate Alert End Time", defaultValue: "06:00", required: false
+        }
+        
+        section("Alert Configuration") {
+            input "alertDelay", "number", title: "Delay before triggering alarms (seconds)", defaultValue: 5, required: false
+            input "sirenDuration", "number", title: "Siren duration (seconds)", defaultValue: 300, required: false
+            input "beamLogging", "bool", title: "Enable detailed carport beam logging", defaultValue: true, required: false
+        }
+        
+        section("Hub Variable Overrides") {
+            paragraph "This app supports hub variable overrides for flexible configuration:"
+            paragraph "• nightStartTime - Override night mode start time (HH:mm format)"
+            paragraph "• nightEndTime - Override night mode end time (HH:mm format)"
+            paragraph "• alertDelay - Override delay before alerting (seconds)"
+            paragraph "• motionTimeout - Override motion sensor timeout (seconds)"
+            paragraph "• beamLogEnabled - Enable/disable detailed beam logging (true/false)"
+            paragraph "• AlarmsEnabled - Read alarm status from SecurityAlarmManager (read-only)"
+            paragraph "• AlarmActive - Check if alarms are currently active (read-only)"
+        }
+        
+        section("Logging") {
+            input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
+            input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
+        }
     }
 }
 
 def installed() {
+    logInfo "Night Security Manager installed"
     initialize()
 }
 
 def updated() {
+    logInfo "Night Security Manager updated"
     unsubscribe()
     initialize()
 }
 
 def initialize() {
+    logInfo "Initializing Night Security Manager"
     subscribe(doorBHScreen, "contact", evtHandler)
     subscribe(carportBeam, "contact", evtHandler)
     subscribe(concreteShedZooz, "contact", evtHandler)
@@ -104,10 +144,10 @@ def initialize() {
 }
 
 def evtHandler(evt) {
-    log.debug "Event: ${evt.name} ${evt.value} from ${evt.displayName}"
+    logDebug "Event: ${evt.name} ${evt.value} from ${evt.displayName}"
     
     if (restrictedModes && !restrictedModes.contains(location.mode)) {
-        log.debug "Skipping event: Mode is ${location.mode}, required: ${restrictedModes}"
+        logDebug "Skipping event: Mode is ${location.mode}, required: ${restrictedModes}"
         return
     }
 
@@ -129,36 +169,40 @@ def evtHandler(evt) {
 
 def handleBHScreen(evt) {
     if (evt.value == "open" && traveling.currentSwitch == "off") {
-        notificationDevices.each { it.deviceNotification("BH Screen Door Open") }
+        logInfo "Birdhouse screen door opened during night mode"
+        notificationDevices.each { it.deviceNotification("Birdhouse screen door is open, birdhouse screen door is open") }
     }
 }
 
 def handleCarportBeam(evt) {
-    // Update Time Vars logic omitted as it's usually handled by system time, 
-    // but we can implement specific checks if needed.
-    
     if (evt.value == "open") { // Beam Broken/Active
-         // Check Time Logic (10:30 PM to 6:00 AM) or High Alert
+         logBeamActivity("Carport beam broken")
+         
+         // Check Time Logic (configurable via settings or hub vars)
          def now = new Date()
-         def start = timeToday("22:30", location.timeZone)
-         def end = timeToday("06:00", location.timeZone)
-         // Adjust end for next day if needed, or use timeOfDayIsBetween
+         def start = carportNightStart ? toDateTime(carportNightStart) : timeToday("22:30", location.timeZone)
+         def end = carportNightEnd ? toDateTime(carportNightEnd) : timeToday("06:00", location.timeZone)
          
          boolean timeCondition = timeOfDayIsBetween(start, end, now, location.timeZone)
          
          if (silent.currentSwitch == "off" && carportFrontMotion.currentMotion == "active" && (timeCondition || highAlert.currentSwitch == "on")) {
+             logInfo "Intruder detected in carport - time condition or high alert active"
              notificationDevices.each { it.deviceNotification("Alert! Intruder in the carport!") }
-             runIn(5, executeAlarmsOn)
+             Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+             runIn(delay, executeAlarmsOn)
          }
     } else if (evt.value == "closed") {
-        notificationDevices.each { it.deviceNotification("Beam Broken") }
+        logBeamActivity("Car port beam broken")
+        notificationDevices.each { it.deviceNotification("Car Port Beam Broken") }
     }
 }
 
 def executeAlarmsOn() {
     if (alarmsEnabled.currentSwitch == "on") {
-        sirens.each { it.siren() }
-        runIn(300, stopAlarms)
+        logInfo "Executing alarms via cross-app communication"
+        triggerAlarmExecution()
+    } else {
+        logDebug "Alarms not enabled, skipping execution"
     }
 }
 
@@ -187,6 +231,7 @@ def whisperToGuestroomNow() {
 
 def handleConcreteShed(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && siren1.currentSwitch == "off") {
+        logInfo "Intruder detected in concrete shed"
         notificationDevices.each { it.deviceNotification("Intruder in the Concrete Shed") }
         executeShedSirenOn()
         turnAllLightsOnNow()
@@ -195,30 +240,37 @@ def handleConcreteShed(evt) {
 
 def handleDiningRoomDoor(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off" && pauseDRDoorAlarm.currentSwitch == "off") {
+        logInfo "Intruder detected at dining room door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
-        runIn(5, executeAlarmsOn)
+        Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+        runIn(delay, executeAlarmsOn)
     }
 }
 
 def handleLRFrenchDoors(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on") {
+        logInfo "Intruder detected at living room French doors"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Living Room French Doors") }
-        runIn(5, executeAlarmsOn)
+        Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+        runIn(delay, executeAlarmsOn)
     }
 }
 
 def handleFrontDoor(evt) {
     if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off") {
+        logInfo "Intruder detected at front door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Front Door") }
-        runIn(5, executeAlarmsOn)
+        Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+        runIn(delay, executeAlarmsOn)
     }
 }
 
 def handleWoodshed(evt) {
     if (evt.value == "open" && silent.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
+        logInfo "Intruder detected in woodshed"
         notificationDevices.each { it.deviceNotification("Intruder in the Woodshed") }
         executeShedSirenOn()
         turnAllLightsOnNow()
@@ -265,6 +317,7 @@ def handleRPDRearGate(evt) {
 
 def handleSheShed(evt) {
     if (evt.value == "open" && silent.currentSwitch == "off") {
+        logInfo "Intruder detected in She Shed"
         allLightsOn.on()
         notificationDevices.each { it.deviceNotification("Intruder in the She Shed") }
         executeShedSirenOn()
@@ -281,6 +334,135 @@ def handleBackdoorMotion(evt) {
 def handleIntruderBackdoor(evt) {
     if (evt.value == "open" && pauseBDAlarm.currentSwitch == "off" && silent.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
         setGlobalVar("AlertMessage", "Intruder at the Backdoor")
+        logInfo "Intruder detected at backdoor - triggering alarms"
         executeAlarmsOn()
     }
+}
+
+// ========================================
+// CROSS-APP COMMUNICATION METHODS
+// ========================================
+
+def triggerAlarmExecution() {
+    if (alarmTriggerSwitch) {
+        logDebug "Triggering alarm execution via SecurityAlarmManager"
+        alarmTriggerSwitch.on()
+    } else {
+        // Fallback to local siren control
+        logDebug "No alarm trigger switch configured, using local sirens"
+        sirens.each { it.siren() }
+        runIn(getConfigValue("sirenDuration", "alarmDuration") as Integer, stopAlarms)
+    }
+}
+
+def triggerAlarmStop() {
+    if (alarmStopSwitch) {
+        logDebug "Stopping alarms via SecurityAlarmManager"
+        alarmStopSwitch.on()
+    } else {
+        // Fallback to local siren control
+        logDebug "No alarm stop switch configured, stopping local sirens"
+        stopAlarms()
+    }
+}
+
+def triggerEmergencyLights() {
+    if (emergencyLightsSwitch) {
+        logDebug "Triggering emergency lights via LightsAutomationManager"
+        emergencyLightsSwitch.on()
+    } else {
+        // Fallback to turning on all lights
+        logDebug "No emergency lights switch configured, using local light control"
+        turnAllLightsOnNow()
+    }
+}
+
+def triggerAction(String switchName) {
+    def targetSwitch = null
+    
+    switch(switchName) {
+        case "AlarmTrigger":
+            targetSwitch = alarmTriggerSwitch
+            break
+        case "AlarmStop":
+            targetSwitch = alarmStopSwitch
+            break
+        case "EmergencyLights":
+            targetSwitch = emergencyLightsSwitch
+            break
+    }
+    
+    if (targetSwitch) {
+        logDebug "Activating ${switchName}"
+        targetSwitch.on()
+        return true
+    }
+    
+    logDebug "Switch ${switchName} not configured"
+    return false
+}
+
+// ========================================
+// BEAM LOGGING METHOD
+// ========================================
+
+def logBeamActivity(String activity) {
+    Boolean loggingEnabled = getConfigValue("beamLogging", "beamLogEnabled") as Boolean
+    
+    if (loggingEnabled) {
+        logInfo "BEAM LOG: ${activity}"
+        // Could also send to notification device if needed
+        // notificationDevices.each { it.deviceNotification("Beam Log: ${activity}") }
+    }
+}
+
+// ========================================
+// HELPER METHODS
+// ========================================
+
+def getConfigValue(String settingName, String hubVarName) {
+    // Try to get value from hub variable first
+    def hubVarValue = getHubVar(hubVarName)
+    if (hubVarValue != null) {
+        logDebug "Using hub variable '${hubVarName}' = ${hubVarValue}"
+        return hubVarValue
+    }
+    
+    // Fall back to setting value
+    def settingValue = settings[settingName]
+    logDebug "Using setting '${settingName}' = ${settingValue}"
+    return settingValue
+}
+
+def getHubVar(String varName, defaultValue = null) {
+    try {
+        def value = getGlobalVar(varName)?.value
+        return value ?: defaultValue
+    } catch (e) {
+        logDebug "Hub variable '${varName}' not found, using default: ${defaultValue}"
+        return defaultValue
+    }
+}
+
+def setHubVar(String varName, String value) {
+    try {
+        setGlobalVar(varName, value)
+        logDebug "Set hub variable '${varName}' = ${value}"
+        return true
+    } catch (e) {
+        logDebug "Failed to set hub variable '${varName}': ${e.message}"
+        return false
+    }
+}
+
+// ========================================
+// LOGGING
+// ========================================
+
+def logDebug(msg) {
+    if (logEnable) log.debug "${app.label}: ${msg}"
+}
+
+def logInfo(msg) {
+    if (infoEnable) log.info "${app.label}: ${msg}"
 }
