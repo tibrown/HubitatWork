@@ -77,12 +77,12 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• doorOpenThreshold - Override time before alerting on open door (minutes)"
-            paragraph "• windowOpenThreshold - Override time before alerting on open window (minutes)"
-            paragraph "• freezerDoorThreshold - Override freezer door open threshold (minutes)"
-            paragraph "• pauseDuration - Override alarm pause duration (minutes)"
-            paragraph "• checkInterval - Override periodic check interval (minutes)"
-            paragraph "• tamperAlertEnabled - Enable/disable tamper detection (true/false)"
+            paragraph "• DoorOpenThreshold - Override time before alerting on open door (minutes)"
+            paragraph "• WindowOpenThreshold - Override time before alerting on open window (minutes)"
+            paragraph "• FreezerDoorThreshold - Override freezer door open threshold (minutes)"
+            paragraph "• PauseDuration - Override alarm pause duration (minutes)"
+            paragraph "• CheckInterval - Override periodic check interval (minutes)"
+            paragraph "• TamperAlertEnabled - Enable/disable tamper detection (true/false)"
         }
         
         section("Logging") {
@@ -125,7 +125,7 @@ def initialize() {
     if (pauseBDAlarm) subscribe(pauseBDAlarm, "switch.on", handlePauseBD)
     
     // Schedule periodic left-open check
-    Integer interval = getConfigValue("checkInterval", "checkInterval") as Integer
+    Integer interval = getConfigValue("checkInterval", "CheckInterval") as Integer
     schedule("0 */${interval} * * * ?", checkLeftOpen)
 }
 
@@ -270,9 +270,9 @@ def checkLeftOpen() {
     logDebug "Checking for doors/windows left open"
     
     Long currentTime = now()
-    Integer doorThreshold = (getConfigValue("doorOpenThreshold", "doorOpenThreshold") as Integer) * 60000 // Convert to ms
-    Integer windowThreshold = (getConfigValue("windowOpenThreshold", "windowOpenThreshold") as Integer) * 60000
-    Integer freezerThreshold = (getConfigValue("freezerDoorThreshold", "freezerDoorThreshold") as Integer) * 60000
+    Integer doorThreshold = (getConfigValue("doorOpenThreshold", "DoorOpenThreshold") as Integer) * 60000 // Convert to ms
+    Integer windowThreshold = (getConfigValue("windowOpenThreshold", "WindowOpenThreshold") as Integer) * 60000
+    Integer freezerThreshold = (getConfigValue("freezerDoorThreshold", "FreezerDoorThreshold") as Integer) * 60000
     
     // Check each tracked door/window
     state.each { key, value ->
@@ -325,7 +325,7 @@ def findDeviceById(String deviceId) {
 def handlePauseDRDoor(evt) {
     logInfo "Pausing dining room door alarm"
     
-    Integer duration = (getConfigValue("pauseDuration", "pauseDuration") as Integer) * 60
+    Integer duration = (getConfigValue("pauseDuration", "PauseDuration") as Integer) * 60
     
     // Schedule auto-unpause
     runIn(duration, unpauseDRDoor)
@@ -336,7 +336,7 @@ def handlePauseDRDoor(evt) {
 def handlePauseBD(evt) {
     logInfo "Pausing backdoor alarm"
     
-    Integer duration = (getConfigValue("pauseDuration", "pauseDuration") as Integer) * 60
+    Integer duration = (getConfigValue("pauseDuration", "PauseDuration") as Integer) * 60
     
     // Schedule auto-unpause
     runIn(duration, unpauseBD)
@@ -359,7 +359,7 @@ def unpauseBD() {
 // ========================================
 
 def handleTamper(device) {
-    Boolean tamperEnabled = getConfigValue("tamperAlertEnabled", "tamperAlertEnabled") as Boolean
+    Boolean tamperEnabled = getConfigValue("tamperAlertEnabled", "TamperAlertEnabled") as Boolean
     
     if (tamperEnabled == false) {
         logDebug "Tamper detection disabled"

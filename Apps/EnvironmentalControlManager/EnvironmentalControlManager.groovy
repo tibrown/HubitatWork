@@ -151,15 +151,15 @@ def mainPage() {
         
         section("Hub Variables Support") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
-            paragraph "• <b>greenhouseFanOnTemp</b> - Override fan on temperature (°F)\n" +
-                     "• <b>greenhouseFanOffTemp</b> - Override fan off temperature (°F)\n" +
-                     "• <b>greenhouseHeaterOnTemp</b> - Override heater on temperature (°F)\n" +
-                     "• <b>greenhouseHeaterOffTemp</b> - Override heater off temperature (°F)\n" +
-                     "• <b>freezeAlertThreshold</b> - Override freeze warning temperature (°F)\n" +
-                     "• <b>officeHeaterTemp</b> - Override office heater temperature (°F)\n" +
-                     "• <b>skeeterOnTime</b> - Override skeeter on time (HH:mm)\n" +
-                     "• <b>skeeterOffTime</b> - Override skeeter off time (HH:mm)\n" +
-                     "• <b>waterTimeout</b> - Override water shutoff timeout (minutes)"
+            paragraph "• <b>GreenhouseFanOnTemp</b> - Override fan on temperature (°F)\n" +
+                     "• <b>GreenhouseFanOffTemp</b> - Override fan off temperature (°F)\n" +
+                     "• <b>GreenhouseHeaterOnTemp</b> - Override heater on temperature (°F)\n" +
+                     "• <b>GreenhouseHeaterOffTemp</b> - Override heater off temperature (°F)\n" +
+                     "• <b>FreezeAlertThreshold</b> - Override freeze warning temperature (°F)\n" +
+                     "• <b>OfficeHeaterTemp</b> - Override office heater temperature (°F)\n" +
+                     "• <b>SkeeterOnTime</b> - Override skeeter on time (HH:mm)\n" +
+                     "• <b>SkeeterOffTime</b> - Override skeeter off time (HH:mm)\n" +
+                     "• <b>WaterTimeout</b> - Override water shutoff timeout (minutes)"
         }
         
         section("Logging") {
@@ -257,7 +257,7 @@ def greenhouseAlexaHandler(evt) {
 def waterOnHandler(evt) {
     logInfo "Water valve turned on"
     
-    def timeout = getConfigValue("waterTimeoutMinutes", "waterTimeout") as Integer
+    def timeout = getConfigValue("waterTimeoutMinutes", "WaterTimeout") as Integer
     logInfo "Scheduling water auto-off in ${timeout} minutes"
     
     runIn(timeout * 60, waterAutoOff)
@@ -271,7 +271,7 @@ def waterResetHandler(evt) {
     
     // Restart timeout if valve is on
     if (settings.waterValve?.currentValue("switch") == "on") {
-        def timeout = getConfigValue("waterTimeoutMinutes", "waterTimeout") as Integer
+        def timeout = getConfigValue("waterTimeoutMinutes", "WaterTimeout") as Integer
         logInfo "Restarting water auto-off timer: ${timeout} minutes"
         runIn(timeout * 60, waterAutoOff)
     }
@@ -285,8 +285,8 @@ def waterResetHandler(evt) {
 // ============================================================================
 
 def controlGreenhouseFan(BigDecimal temp) {
-    def fanOn = getConfigValue("fanOnTemp", "greenhouseFanOnTemp") as BigDecimal
-    def fanOff = getConfigValue("fanOffTemp", "greenhouseFanOffTemp") as BigDecimal
+    def fanOn = getConfigValue("fanOnTemp", "GreenhouseFanOnTemp") as BigDecimal
+    def fanOff = getConfigValue("fanOffTemp", "GreenhouseFanOffTemp") as BigDecimal
     
     if (!settings.greenhouseFan) return
     
@@ -304,8 +304,8 @@ def controlGreenhouseFan(BigDecimal temp) {
 }
 
 def controlGreenhouseHeater(BigDecimal temp) {
-    def heaterOn = getConfigValue("heaterOnTemp", "greenhouseHeaterOnTemp") as BigDecimal
-    def heaterOff = getConfigValue("heaterOffTemp", "greenhouseHeaterOffTemp") as BigDecimal
+    def heaterOn = getConfigValue("heaterOnTemp", "GreenhouseHeaterOnTemp") as BigDecimal
+    def heaterOff = getConfigValue("heaterOffTemp", "GreenhouseHeaterOffTemp") as BigDecimal
     
     if (!settings.greenhouseHeater) return
     
@@ -324,7 +324,7 @@ def controlGreenhouseHeater(BigDecimal temp) {
 }
 
 def checkFreezeRisk(BigDecimal temp) {
-    def freezeTemp = getConfigValue("freezeAlertTemp", "freezeAlertThreshold") as BigDecimal
+    def freezeTemp = getConfigValue("freezeAlertTemp", "FreezeAlertThreshold") as BigDecimal
     
     if (temp <= freezeTemp) {
         logWarn "FREEZE ALERT: Greenhouse temperature ${temp}°F at or below ${freezeTemp}°F"
@@ -338,7 +338,7 @@ def checkFreezeRisk(BigDecimal temp) {
 // ============================================================================
 
 def controlOfficeHeater(BigDecimal temp) {
-    def targetTemp = getConfigValue("officeHeaterTemp", "officeHeaterTemp") as BigDecimal
+    def targetTemp = getConfigValue("officeHeaterTemp", "OfficeHeaterTemp") as BigDecimal
     
     if (!settings.officeHeater) return
     
@@ -372,8 +372,8 @@ def scheduleSkeeterKiller() {
     }
     
     // Get times from hub variables or settings
-    def onTime = getConfigValue("skeeterOnTime", "skeeterOnTime")
-    def offTime = getConfigValue("skeeterOffTime", "skeeterOffTime")
+    def onTime = getConfigValue("skeeterOnTime", "SkeeterOnTime")
+    def offTime = getConfigValue("skeeterOffTime", "SkeeterOffTime")
     
     // Schedule using time inputs
     schedule(onTime, skeeterOn)

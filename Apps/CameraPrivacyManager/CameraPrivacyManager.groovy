@@ -90,9 +90,9 @@ def mainPage() {
         
         section("Hub Variables Support") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
-            paragraph "• <b>privacyModeDelay</b> - Override camera off delay (minutes)\n" +
-                     "• <b>enableDelay</b> - Override camera on delay (minutes)\n" +
-                     "• <b>manualOverrideDuration</b> - Override manual override timeout (hours)"
+            paragraph "• <b>PrivacyModeDelay</b> - Override camera off delay (minutes)\n" +
+                     "• <b>EnableDelay</b> - Override camera on delay (minutes)\n" +
+                     "• <b>ManualOverrideDuration</b> - Override manual override timeout (hours)"
         }
         
         section("Logging") {
@@ -153,7 +153,7 @@ def manualOverrideHandler(evt) {
         camerasOff()
         
         // Schedule revert to automatic mode
-        def duration = getConfigValue("overrideDurationHours", "manualOverrideDuration") as Integer
+        def duration = getConfigValue("overrideDurationHours", "ManualOverrideDuration") as Integer
         logInfo "Manual override active for ${duration} hours"
         runIn(duration * 3600, revertToAutomatic)
     } else {
@@ -176,12 +176,12 @@ def handleModeChange(String newMode) {
     
     if (settings.homeModes?.contains(newMode)) {
         // Privacy mode - turn cameras off with delay
-        def delay = getConfigValue("privacyDelayMinutes", "privacyModeDelay") as Integer
+        def delay = getConfigValue("privacyDelayMinutes", "PrivacyModeDelay") as Integer
         logInfo "Privacy mode activated, cameras will turn off in ${delay} minutes"
         runIn(delay * 60, camerasOff)
     } else if (settings.awayModes?.contains(newMode)) {
         // Security mode - turn cameras on with delay
-        def delay = getConfigValue("enableDelayMinutes", "enableDelay") as Integer
+        def delay = getConfigValue("enableDelayMinutes", "EnableDelay") as Integer
         logInfo "Security mode activated, cameras will turn on in ${delay} minutes"
         runIn(delay * 60, camerasOn)
     } else {

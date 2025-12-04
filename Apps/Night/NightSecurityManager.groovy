@@ -98,11 +98,11 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• nightStartTime - Override night mode start time (HH:mm format)"
-            paragraph "• nightEndTime - Override night mode end time (HH:mm format)"
-            paragraph "• alertDelay - Override delay before alerting (seconds)"
-            paragraph "• motionTimeout - Override motion sensor timeout (seconds)"
-            paragraph "• beamLogEnabled - Enable/disable detailed beam logging (true/false)"
+            paragraph "• NightStartTime - Override night mode start time (HH:mm format)"
+            paragraph "• NightEndTime - Override night mode end time (HH:mm format)"
+            paragraph "• AlertDelay - Override delay before alerting (seconds)"
+            paragraph "• MotionTimeout - Override motion sensor timeout (seconds)"
+            paragraph "• BeamLogEnabled - Enable/disable detailed beam logging (true/false)"
             paragraph "• AlarmsEnabled - Read alarm status from SecurityAlarmManager (read-only)"
             paragraph "• AlarmActive - Check if alarms are currently active (read-only)"
         }
@@ -243,7 +243,7 @@ def handleDiningRoomDoor(evt) {
         logInfo "Intruder detected at dining room door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
-        Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+        Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
         runIn(delay, executeAlarmsOn)
     }
 }
@@ -253,7 +253,7 @@ def handleLRFrenchDoors(evt) {
         logInfo "Intruder detected at living room French doors"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Living Room French Doors") }
-        Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+        Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
         runIn(delay, executeAlarmsOn)
     }
 }
@@ -263,7 +263,7 @@ def handleFrontDoor(evt) {
         logInfo "Intruder detected at front door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Front Door") }
-        Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+        Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
         runIn(delay, executeAlarmsOn)
     }
 }
@@ -351,7 +351,7 @@ def triggerAlarmExecution() {
         // Fallback to local siren control
         logDebug "No alarm trigger switch configured, using local sirens"
         sirens.each { it.siren() }
-        runIn(getConfigValue("sirenDuration", "alarmDuration") as Integer, stopAlarms)
+        runIn(getConfigValue("sirenDuration", "AlarmDuration") as Integer, stopAlarms)
     }
 }
 
@@ -407,7 +407,7 @@ def triggerAction(String switchName) {
 // ========================================
 
 def logBeamActivity(String activity) {
-    Boolean loggingEnabled = getConfigValue("beamLogging", "beamLogEnabled") as Boolean
+    Boolean loggingEnabled = getConfigValue("beamLogging", "BeamLogEnabled") as Boolean
     
     if (loggingEnabled) {
         logInfo "BEAM LOG: ${activity}"

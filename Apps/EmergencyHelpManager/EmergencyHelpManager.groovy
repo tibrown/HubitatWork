@@ -71,12 +71,12 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• helpAlertDuration - Override help alert duration (seconds)"
-            paragraph "• flashRate - Override light flash rate (flashes per second)"
-            paragraph "• emergencyVolume - Override emergency siren volume (0-100)"
-            paragraph "• silentModeTimeout - Override silent mode timeout (minutes)"
-            paragraph "• notificationDelay - Override notification delay (seconds)"
-            paragraph "• visualOnlyMode - Enable visual-only alerts (boolean: true/false)"
+            paragraph "• HelpAlertDuration - Override help alert duration (seconds)"
+            paragraph "• FlashRate - Override light flash rate (flashes per second)"
+            paragraph "• EmergencyVolume - Override emergency siren volume (0-100)"
+            paragraph "• SilentModeTimeout - Override silent mode timeout (minutes)"
+            paragraph "• NotificationDelay - Override notification delay (seconds)"
+            paragraph "• VisualOnlyMode - Enable visual-only alerts (boolean: true/false)"
         }
         
         section("Logging") {
@@ -156,8 +156,8 @@ def handleShowerHelpButton(evt) {
     state.showerHelpActive = true
     state.repeatCount = 0
     
-    Integer repeats = getConfigValue("repeatCount", "helpAlertRepeat") as Integer
-    Integer interval = getConfigValue("repeatInterval", "helpAlertInterval") as Integer
+    Integer repeats = getConfigValue("repeatCount", "HelpAlertRepeat") as Integer
+    Integer interval = getConfigValue("repeatInterval", "HelpAlertInterval") as Integer
     
     logInfo "Starting shower help alert sequence (${repeats} repetitions every ${interval} seconds)"
     
@@ -287,8 +287,8 @@ def flashLightsForHelp() {
         return
     }
     
-    Integer rate = getConfigValue("flashRate", "flashRate") as Integer
-    Integer duration = getConfigValue("helpAlertDuration", "helpAlertDuration") as Integer
+    Integer rate = getConfigValue("flashRate", "FlashRate") as Integer
+    Integer duration = getConfigValue("helpAlertDuration", "HelpAlertDuration") as Integer
     
     logDebug "Flashing ${flashLights.size()} lights at ${rate} flashes/sec for ${duration} seconds"
     

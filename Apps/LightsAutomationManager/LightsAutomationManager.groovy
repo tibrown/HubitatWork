@@ -107,14 +107,14 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• morningTime - Override morning light activation time (HH:mm format)"
-            paragraph "• eveningTime - Override evening light activation time (HH:mm format)"
-            paragraph "• nightTime - Override night mode light time (HH:mm format)"
-            paragraph "• deskBrightness - Override desk light brightness (0-100)"
-            paragraph "• floodTimeout - Override motion-activated flood timeout (minutes)"
-            paragraph "• stripColorDay - Override daytime strip color (color name)"
-            paragraph "• stripColorNight - Override nighttime strip color (color name)"
-            paragraph "• beamLightDelay - Override carport beam light delay (seconds)"
+            paragraph "• MorningTime - Override morning light activation time (HH:mm format)"
+            paragraph "• EveningTime - Override evening light activation time (HH:mm format)"
+            paragraph "• NightTime - Override night mode light time (HH:mm format)"
+            paragraph "• DeskBrightness - Override desk light brightness (0-100)"
+            paragraph "• FloodTimeout - Override motion-activated flood timeout (minutes)"
+            paragraph "• StripColorDay - Override daytime strip color (color name)"
+            paragraph "• StripColorNight - Override nighttime strip color (color name)"
+            paragraph "• BeamLightDelay - Override carport beam light delay (seconds)"
         }
         
         section("Logging") {
@@ -200,14 +200,14 @@ def handleNightMode() {
     }
     
     // Set light strips to blue at night level
-    Integer nightLevel = getConfigValue("stripNightLevel", "stripNightLevel") as Integer
-    String nightColor = getConfigValue("stripColorNight", "stripColorNight") ?: "Blue"
+    Integer nightLevel = getConfigValue("stripNightLevel", "StripNightLevel") as Integer
+    String nightColor = getConfigValue("stripColorNight", "StripColorNight") ?: "Blue"
     
     setStrip(lightStrip, nightColor, nightLevel)
     setStrip(lanStrip, nightColor, nightLevel)
     
     // Set desk light to dimmest
-    setDeskLight(getConfigValue("deskDimLevel", "deskDimLevel") as Integer)
+    setDeskLight(getConfigValue("deskDimLevel", "DeskDimLevel") as Integer)
 }
 
 def handleEveningMode() {
@@ -222,7 +222,7 @@ def handleEveningMode() {
     }
     
     // Set light strips
-    Integer dayLevel = getConfigValue("stripDayLevel", "stripDayLevel") as Integer
+    Integer dayLevel = getConfigValue("stripDayLevel", "StripDayLevel") as Integer
     setStrip(lightStrip, "Soft White", dayLevel)
     setStrip(lanStrip, "Yellow", 96)
 }
@@ -241,14 +241,14 @@ def handleMorningMode() {
         if (genericSwitches) genericSwitches.on()
         
         // Set light strips
-        Integer dayLevel = getConfigValue("stripDayLevel", "stripDayLevel") as Integer
+        Integer dayLevel = getConfigValue("stripDayLevel", "StripDayLevel") as Integer
         setStrip(lightStrip, "Soft White", dayLevel)
         setStrip(lanStrip, "Yellow", 96)
     } else {
         logInfo "Morning lights skipped (Holiday: ${holidayOn}, PTO: ${ptoOn})"
         
         // Still update light strip per mode
-        Integer dayLevel = getConfigValue("stripDayLevel", "stripDayLevel") as Integer
+        Integer dayLevel = getConfigValue("stripDayLevel", "StripDayLevel") as Integer
         setStrip(lightStrip, "Soft White", dayLevel)
     }
 }
@@ -268,7 +268,7 @@ def handleDayMode() {
 
 def deskMotionHandler(evt) {
     logDebug "Desk motion detected"
-    Integer dimLevel = getConfigValue("deskDimLevel", "deskDimLevel") as Integer
+    Integer dimLevel = getConfigValue("deskDimLevel", "DeskDimLevel") as Integer
     setDeskLight(dimLevel)
 }
 
@@ -283,11 +283,11 @@ def deskButtonHandler(evt) {
     
     if (evt.name == "pushed") {
         // Single push = bright
-        Integer brightLevel = getConfigValue("deskBrightLevel", "deskBrightLevel") as Integer
+        Integer brightLevel = getConfigValue("deskBrightLevel", "DeskBrightLevel") as Integer
         setDeskLight(brightLevel)
     } else if (evt.name == "doubleTapped") {
         // Double tap = dim
-        Integer dimLevel = getConfigValue("deskDimLevel", "deskDimLevel") as Integer
+        Integer dimLevel = getConfigValue("deskDimLevel", "DeskDimLevel") as Integer
         setDeskLight(dimLevel)
     }
 }
@@ -298,8 +298,8 @@ def setDeskLight(Integer level = null) {
         return
     }
     
-    Integer finalLevel = level ?: (getConfigValue("deskDimLevel", "deskDimLevel") as Integer)
-    Integer colorTemp = getConfigValue("deskColorTemp", "deskColorTemp") as Integer
+    Integer finalLevel = level ?: (getConfigValue("deskDimLevel", "DeskDimLevel") as Integer)
+    Integer colorTemp = getConfigValue("deskColorTemp", "DeskColorTemp") as Integer
     
     logDebug "Setting desk light to level ${finalLevel}, CT ${colorTemp}K"
     
@@ -422,7 +422,7 @@ def handleFloodMotion(floodLight, String location) {
     floodLight.on()
     
     // Schedule auto-off
-    Integer timeout = getConfigValue("floodTimeout", "floodTimeout") as Integer
+    Integer timeout = getConfigValue("floodTimeout", "FloodTimeout") as Integer
     Integer timeoutSeconds = timeout * 60
     
     logDebug "${location} flood will turn off in ${timeout} minutes"
@@ -515,7 +515,7 @@ def handleBeamDay() {
     pauseCarportBeam?.on()
     
     // Schedule auto-off
-    Integer delay = getConfigValue("carportBeamDelay", "beamLightDelay") as Integer
+    Integer delay = getConfigValue("carportBeamDelay", "BeamLightDelay") as Integer
     runIn(delay, turnOffPauseCarportBeam)
     
     // Send notification
@@ -544,7 +544,7 @@ def handleBeamMorning() {
     silentCarport?.on()
     
     // Schedule auto-off
-    Integer timeout = getConfigValue("silentCarportTimeout", "silentCarportTimeout") as Integer
+    Integer timeout = getConfigValue("silentCarportTimeout", "SilentCarportTimeout") as Integer
     runIn(timeout, turnOffSilentCarport)
     
     // Send notification

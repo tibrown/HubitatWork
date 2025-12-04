@@ -78,10 +78,10 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• alarmVolume - Override default siren volume (0-100)"
-            paragraph "• alarmDuration - Override alarm sound duration (seconds)"
-            paragraph "• armDelay - Override arm delay timer (seconds)"
-            paragraph "• disarmDelay - Override disarm delay (seconds)"
+            paragraph "• AlarmVolume - Override default siren volume (0-100)"
+            paragraph "• AlarmDuration - Override alarm sound duration (seconds)"
+            paragraph "• ArmDelay - Override arm delay timer (seconds)"
+            paragraph "• DisarmDelay - Override disarm delay (seconds)"
             paragraph "• AlarmActive - Status variable (written by this app, read by others)"
             paragraph "• AlarmsEnabled - Status variable (written by this app, read by others)"
         }
@@ -220,7 +220,7 @@ def resetPanicSwitch() {
 def armAlarms() {
     logInfo "Arming alarms"
     
-    Integer delay = getConfigValue("armDelay", "armDelay") as Integer
+    Integer delay = getConfigValue("armDelay", "ArmDelay") as Integer
     
     if (delay > 0) {
         logDebug "Arm delay: ${delay} seconds"
@@ -247,7 +247,7 @@ def doArmAlarms() {
 def disarmAlarms() {
     logInfo "Disarming alarms"
     
-    Integer delay = getConfigValue("disarmDelay", "disarmDelay") as Integer
+    Integer delay = getConfigValue("disarmDelay", "DisarmDelay") as Integer
     
     if (delay > 0) {
         logDebug "Disarm delay: ${delay} seconds"
@@ -296,7 +296,7 @@ def executeAlarms() {
         logInfo "Full alarm activated (sound + strobe)"
         
         // Auto-stop after configured duration
-        Integer duration = getConfigValue("alarmDuration", "alarmDuration") as Integer
+        Integer duration = getConfigValue("alarmDuration", "AlarmDuration") as Integer
         if (duration > 0) {
             logDebug "Alarm will auto-stop in ${duration} seconds"
             runIn(duration, autoStopAlarms)
@@ -336,7 +336,7 @@ def stopAllAlarms() {
 def playSound(Integer soundNumber, List devices) {
     logDebug "Playing sound ${soundNumber} on ${devices.size()} device(s)"
     
-    Integer volume = getConfigValue("alarmVolume", "alarmVolume") as Integer
+    Integer volume = getConfigValue("alarmVolume", "AlarmVolume") as Integer
     
     devices.each { device ->
         device?.playSound(soundNumber, volume)

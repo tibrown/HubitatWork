@@ -126,7 +126,7 @@ subscribe(settings.alarmTriggerSwitch, "switch.on", handler)  // Works!
 
 // ✅ Hub variables ARE good for configuration values
 def getAlarmVolume() {
-    return getGlobalVar("alarmVolume")?.toInteger() ?: settings.defaultVolume
+    return getGlobalVar("AlarmVolume")?.toInteger() ?: settings.defaultVolume
 }
 
 // ✅ Apps can update hub variables

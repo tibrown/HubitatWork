@@ -75,11 +75,11 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• gracePeriodDuration - Override grace period duration (minutes)"
-            paragraph "• motionTimeout - Override motion sensor timeout (seconds)"
-            paragraph "• enableDayMotion - Enable/disable day motion detection (true/false)"
-            paragraph "• enableNightMotion - Enable/disable night motion detection (true/false)"
-            paragraph "• arrivalNotifications - Enable/disable arrival notifications (true/false)"
+            paragraph "• GracePeriodDuration - Override grace period duration (minutes)"
+            paragraph "• MotionTimeout - Override motion sensor timeout (seconds)"
+            paragraph "• EnableDayMotion - Enable/disable day motion detection (true/false)"
+            paragraph "• EnableNightMotion - Enable/disable night motion detection (true/false)"
+            paragraph "• ArrivalNotifications - Enable/disable arrival notifications (true/false)"
         }
         
         section("Logging") {
@@ -213,7 +213,7 @@ def handleRearCarportMotion(evt) {
     sendNotification("Motion detected in rear carport")
     
     // Auto-reset after timeout
-    Integer timeout = getConfigValue("motionTimeout", "motionTimeout") as Integer
+    Integer timeout = getConfigValue("motionTimeout", "MotionTimeout") as Integer
     runIn(timeout, resetRearCarportActive)
 }
 
@@ -235,8 +235,8 @@ def resetRearCarportActive() {
 }
 
 def shouldProcessMotion(String mode) {
-    Boolean dayMotionEnabled = getConfigValue("enableDayMotion", "enableDayMotion") as Boolean
-    Boolean nightMotionEnabled = getConfigValue("enableNightMotion", "enableNightMotion") as Boolean
+    Boolean dayMotionEnabled = getConfigValue("enableDayMotion", "EnableDayMotion") as Boolean
+    Boolean nightMotionEnabled = getConfigValue("enableNightMotion", "EnableNightMotion") as Boolean
     
     if (mode == "Day" || mode == "Morning" || mode == "Evening") {
         return dayMotionEnabled
@@ -255,7 +255,7 @@ def handlePhoneArrival(evt) {
     String mode = location.mode
     logInfo "Phone arrived in ${mode} mode"
     
-    Boolean notifyArrival = getConfigValue("arrivalNotification", "arrivalNotifications") as Boolean
+    Boolean notifyArrival = getConfigValue("arrivalNotification", "ArrivalNotifications") as Boolean
     
     if (notifyArrival) {
         if (mode == "Day") {
@@ -275,7 +275,7 @@ def handlePhoneArrival(evt) {
 def handlePhoneDeparture(evt) {
     logInfo "Phone departed"
     
-    Boolean notifyDeparture = getConfigValue("departureNotification", "departureNotifications") as Boolean
+    Boolean notifyDeparture = getConfigValue("departureNotification", "ArrivalNotifications") as Boolean
     
     if (notifyDeparture) {
         sendNotification("Phone has left")
@@ -285,7 +285,7 @@ def handlePhoneDeparture(evt) {
 def handleMarjiArrival(evt) {
     logInfo "Marji's phone arrived"
     
-    Boolean notifyArrival = getConfigValue("arrivalNotification", "arrivalNotifications") as Boolean
+    Boolean notifyArrival = getConfigValue("arrivalNotification", "ArrivalNotifications") as Boolean
     
     if (notifyArrival) {
         sendNotification("Marji is home")
@@ -295,7 +295,7 @@ def handleMarjiArrival(evt) {
 def handleMarjiDeparture(evt) {
     logInfo "Marji's phone departed"
     
-    Boolean notifyDeparture = getConfigValue("departureNotification", "departureNotifications") as Boolean
+    Boolean notifyDeparture = getConfigValue("departureNotification", "ArrivalNotifications") as Boolean
     
     if (notifyDeparture) {
         sendNotification("Marji has left")
@@ -308,7 +308,7 @@ def handleMarjiDeparture(evt) {
 // ========================================
 
 def handleGracePeriodActivation(evt) {
-    Integer duration = getConfigValue("graceDuration", "gracePeriodDuration") as Integer
+    Integer duration = getConfigValue("graceDuration", "GracePeriodDuration") as Integer
     
     logInfo "Arrival grace period activated for ${duration} minutes"
     

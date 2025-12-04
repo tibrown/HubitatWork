@@ -142,12 +142,12 @@ def mainPage() {
         
         section("Hub Variables Support") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
-            paragraph "• <b>gateAlertDelay</b> - Override gate alert delay (seconds)\n" +
-                     "• <b>shockSensitivity</b> - Override shock sensitivity (1-10)\n" +
-                     "• <b>perimeterCheckInterval</b> - Override check interval (minutes)\n" +
-                     "• <b>awayModeAlertEnabled</b> - Enable/disable away alerts (true/false)\n" +
-                     "• <b>ringPersonTimeout</b> - Override Ring timeout (seconds)\n" +
-                     "• <b>gunCabinetAlertEnabled</b> - Enable/disable cabinet alerts (true/false)"
+            paragraph "• <b>GateAlertDelay</b> - Override gate alert delay (seconds)\n" +
+                     "• <b>ShockSensitivity</b> - Override shock sensitivity (1-10)\n" +
+                     "• <b>PerimeterCheckInterval</b> - Override check interval (minutes)\n" +
+                     "• <b>AwayModeAlertEnabled</b> - Enable/disable away alerts (true/false)\n" +
+                     "• <b>RingPersonTimeout</b> - Override Ring timeout (seconds)\n" +
+                     "• <b>GunCabinetAlertEnabled</b> - Enable/disable cabinet alerts (true/false)"
         }
         
         section("Logging") {
@@ -194,7 +194,7 @@ def initialize() {
     if (settings.ringGarden) subscribe(settings.ringGarden, "motion.active", ringHandler)
     
     // Schedule perimeter checks if enabled
-    def interval = getConfigValue("perimeterCheckInterval", "perimeterCheckInterval") as Integer
+    def interval = getConfigValue("perimeterCheckInterval", "PerimeterCheckInterval") as Integer
     if (interval > 0) {
         schedule("0 */${interval} * * * ?", checkPerimeter)
         logInfo "Scheduled perimeter checks every ${interval} minutes"
@@ -222,7 +222,7 @@ def shockHandler(evt) {
     def sensorName = evt.displayName
     logInfo "Shock detected: ${sensorName}"
     
-    def sensitivity = getConfigValue("shockSensitivity", "shockSensitivity") as Integer
+    def sensitivity = getConfigValue("shockSensitivity", "ShockSensitivity") as Integer
     
     // Check if shock is significant enough to alert
     if (sensitivity >= 5) {
@@ -244,7 +244,7 @@ def motionHandler(evt) {
 }
 
 def gunCabinetHandler(evt) {
-    def enabled = getConfigValue("gunCabinetAlertEnabled", "gunCabinetAlertEnabled", true)
+    def enabled = getConfigValue("gunCabinetAlertEnabled", "GunCabinetAlertEnabled", true)
     
     if (enabled) {
         logInfo "Gun cabinet opened!"
@@ -276,7 +276,7 @@ def ringHandler(evt) {
 // ============================================================================
 
 def handleGateOpen(device, gateName) {
-    def delay = getConfigValue("gateAlertDelaySeconds", "gateAlertDelay") as Integer
+    def delay = getConfigValue("gateAlertDelaySeconds", "GateAlertDelay") as Integer
     
     if (isAwayMode()) {
         // Immediate alert in away mode
@@ -334,7 +334,7 @@ def isAwayMode() {
     def isAway = settings.awayModes.contains(currentMode)
     
     // Also check hub variable override
-    def awayAlertEnabled = getConfigValue("awayModeAlertEnabled", "awayModeAlertEnabled", true)
+    def awayAlertEnabled = getConfigValue("awayModeAlertEnabled", "AwayModeAlertEnabled", true)
     
     return isAway && awayAlertEnabled
 }
