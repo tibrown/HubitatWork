@@ -1,0 +1,518 @@
+/**
+ *  EnvironmentalControlManager
+ *
+ *  Copyright 2025 Tim Brown
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ */
+
+definition(
+    name: "Environmental Control Manager",
+    namespace: "tibrown",
+    author: "Tim Brown",
+    description: "Manages temperature control, fans, heaters, and environmental monitoring for greenhouse, office, and outdoor areas",
+    category: "Convenience",
+    iconUrl: "",
+    iconX2Url: "",
+    iconX3Url: "",
+    singleThreaded: true
+)
+
+preferences {
+    page(name: "mainPage")
+}
+
+def mainPage() {
+    dynamicPage(name: "mainPage", title: "Environmental Control Manager", install: true, uninstall: true) {
+        section("Greenhouse Controls") {
+            input "greenhouseTempSensor", "capability.temperatureMeasurement",
+                  title: "Greenhouse Temperature Sensor",
+                  required: false
+            
+            input "greenhouseFan", "capability.switch",
+                  title: "Greenhouse Fan",
+                  required: false
+            
+            input "greenhouseHeater", "capability.switch",
+                  title: "Greenhouse Heater",
+                  required: false
+            
+            input "fanOnTemp", "decimal",
+                  title: "Fan On Temperature (°F)",
+                  description: "Turn fan on when temperature rises above this",
+                  defaultValue: 75.0,
+                  required: false
+            
+            input "fanOffTemp", "decimal",
+                  title: "Fan Off Temperature (°F)",
+                  description: "Turn fan off when temperature falls below this",
+                  defaultValue: 70.0,
+                  required: false
+            
+            input "heaterOnTemp", "decimal",
+                  title: "Heater On Temperature (°F)",
+                  description: "Turn heater on when temperature falls below this",
+                  defaultValue: 40.0,
+                  required: false
+            
+            input "heaterOffTemp", "decimal",
+                  title: "Heater Off Temperature (°F)",
+                  description: "Turn heater off when temperature rises above this",
+                  defaultValue: 45.0,
+                  required: false
+            
+            input "freezeAlertTemp", "decimal",
+                  title: "Freeze Alert Temperature (°F)",
+                  description: "Send alert when temperature falls below this",
+                  defaultValue: 32.0,
+                  required: false
+            
+            input "greenhouseAlexaToggle", "capability.switch",
+                  title: "Alexa Toggle Switch for Greenhouse (Optional)",
+                  description: "Virtual switch for Alexa voice control",
+                  required: false
+        }
+        
+        section("Office Controls") {
+            input "officeTempSensor", "capability.temperatureMeasurement",
+                  title: "Office Temperature Sensor",
+                  required: false
+            
+            input "officeHeater", "capability.switch",
+                  title: "Office Heater",
+                  required: false
+            
+            input "officeFans", "capability.switch",
+                  title: "Office Fans",
+                  multiple: true,
+                  required: false
+            
+            input "officeHeaterTemp", "decimal",
+                  title: "Office Heater Temperature (°F)",
+                  description: "Target temperature for office heater",
+                  defaultValue: 68.0,
+                  required: false
+        }
+        
+        section("Mosquito Control") {
+            input "skeeterKiller", "capability.switch",
+                  title: "Mosquito Killer Device",
+                  required: false
+            
+            input "skeeterOnTime", "time",
+                  title: "Skeeter On Time",
+                  description: "Daily turn-on time",
+                  required: false
+            
+            input "skeeterOffTime", "time",
+                  title: "Skeeter Off Time",
+                  description: "Daily turn-off time",
+                  required: false
+        }
+        
+        section("Water Control") {
+            input "waterValve", "capability.switch",
+                  title: "Water Control Valve",
+                  required: false
+            
+            input "waterTimeoutMinutes", "number",
+                  title: "Water Auto-Off Timeout (minutes)",
+                  description: "Automatically turn off water after this duration",
+                  defaultValue: 30,
+                  range: "1..180",
+                  required: false
+            
+            input "waterResetSwitch", "capability.switch",
+                  title: "Water Reset Switch (Optional)",
+                  description: "Switch to reset water timeout",
+                  required: false
+        }
+        
+        section("Notification Settings") {
+            input "notificationDevices", "capability.notification",
+                  title: "Notification Devices",
+                  description: "Devices to receive environmental alerts",
+                  multiple: true,
+                  required: false
+            
+            input "alexaDevices", "capability.speechSynthesis",
+                  title: "Alexa Devices for Announcements",
+                  multiple: true,
+                  required: false
+        }
+        
+        section("Hub Variables Support") {
+            paragraph "This app supports the following hub variables for dynamic configuration:"
+            paragraph "• <b>greenhouseFanOnTemp</b> - Override fan on temperature (°F)\n" +
+                     "• <b>greenhouseFanOffTemp</b> - Override fan off temperature (°F)\n" +
+                     "• <b>greenhouseHeaterOnTemp</b> - Override heater on temperature (°F)\n" +
+                     "• <b>greenhouseHeaterOffTemp</b> - Override heater off temperature (°F)\n" +
+                     "• <b>freezeAlertThreshold</b> - Override freeze warning temperature (°F)\n" +
+                     "• <b>officeHeaterTemp</b> - Override office heater temperature (°F)\n" +
+                     "• <b>skeeterOnTime</b> - Override skeeter on time (HH:mm)\n" +
+                     "• <b>skeeterOffTime</b> - Override skeeter off time (HH:mm)\n" +
+                     "• <b>waterTimeout</b> - Override water shutoff timeout (minutes)"
+        }
+        
+        section("Logging") {
+            input "logEnable", "bool",
+                  title: "Enable Debug Logging",
+                  defaultValue: false,
+                  required: false
+        }
+    }
+}
+
+def installed() {
+    logInfo "Environmental Control Manager installed"
+    initialize()
+}
+
+def updated() {
+    logInfo "Environmental Control Manager updated"
+    unsubscribe()
+    unschedule()
+    initialize()
+}
+
+def initialize() {
+    logInfo "Initializing Environmental Control Manager"
+    
+    // Subscribe to temperature sensors
+    if (settings.greenhouseTempSensor) {
+        subscribe(settings.greenhouseTempSensor, "temperature", greenhouseTempHandler)
+    }
+    if (settings.officeTempSensor) {
+        subscribe(settings.officeTempSensor, "temperature", officeTempHandler)
+    }
+    
+    // Subscribe to Alexa toggle for greenhouse
+    if (settings.greenhouseAlexaToggle) {
+        subscribe(settings.greenhouseAlexaToggle, "switch", greenhouseAlexaHandler)
+    }
+    
+    // Subscribe to water valve to track manual operations
+    if (settings.waterValve) {
+        subscribe(settings.waterValve, "switch.on", waterOnHandler)
+    }
+    
+    // Subscribe to water reset switch
+    if (settings.waterResetSwitch) {
+        subscribe(settings.waterResetSwitch, "switch.on", waterResetHandler)
+    }
+    
+    // Schedule mosquito killer
+    scheduleSkeeterKiller()
+    
+    // Initial temperature check
+    checkAllTemperatures()
+}
+
+// ============================================================================
+// EVENT HANDLERS
+// ============================================================================
+
+def greenhouseTempHandler(evt) {
+    def temp = evt.value as BigDecimal
+    logDebug "Greenhouse temperature: ${temp}°F"
+    
+    controlGreenhouseFan(temp)
+    controlGreenhouseHeater(temp)
+    checkFreezeRisk(temp)
+}
+
+def officeTempHandler(evt) {
+    def temp = evt.value as BigDecimal
+    logDebug "Office temperature: ${temp}°F"
+    
+    controlOfficeHeater(temp)
+}
+
+def greenhouseAlexaHandler(evt) {
+    logInfo "Greenhouse Alexa toggle: ${evt.value}"
+    
+    if (evt.value == "on") {
+        // Alexa command to turn on greenhouse controls
+        def currentTemp = settings.greenhouseTempSensor?.currentValue("temperature") as BigDecimal
+        if (currentTemp) {
+            controlGreenhouseFan(currentTemp)
+            controlGreenhouseHeater(currentTemp)
+        }
+    } else {
+        // Alexa command to turn off greenhouse controls
+        settings.greenhouseFan?.off()
+        settings.greenhouseHeater?.off()
+        logInfo "Greenhouse controls turned off by Alexa"
+    }
+}
+
+def waterOnHandler(evt) {
+    logInfo "Water valve turned on"
+    
+    def timeout = getConfigValue("waterTimeoutMinutes", "waterTimeout") as Integer
+    logInfo "Scheduling water auto-off in ${timeout} minutes"
+    
+    runIn(timeout * 60, waterAutoOff)
+}
+
+def waterResetHandler(evt) {
+    logInfo "Water timeout reset"
+    
+    // Cancel auto-off
+    unschedule(waterAutoOff)
+    
+    // Restart timeout if valve is on
+    if (settings.waterValve?.currentValue("switch") == "on") {
+        def timeout = getConfigValue("waterTimeoutMinutes", "waterTimeout") as Integer
+        logInfo "Restarting water auto-off timer: ${timeout} minutes"
+        runIn(timeout * 60, waterAutoOff)
+    }
+    
+    // Turn off reset switch
+    runIn(2, resetWaterResetSwitch)
+}
+
+// ============================================================================
+// GREENHOUSE CONTROL
+// ============================================================================
+
+def controlGreenhouseFan(BigDecimal temp) {
+    def fanOn = getConfigValue("fanOnTemp", "greenhouseFanOnTemp") as BigDecimal
+    def fanOff = getConfigValue("fanOffTemp", "greenhouseFanOffTemp") as BigDecimal
+    
+    if (!settings.greenhouseFan) return
+    
+    def currentState = settings.greenhouseFan.currentValue("switch")
+    
+    if (temp >= fanOn && currentState != "on") {
+        logInfo "Greenhouse temperature ${temp}°F >= ${fanOn}°F, turning fan ON"
+        settings.greenhouseFan.on()
+        announceAlexa("Greenhouse fan turned on, temperature is ${temp} degrees")
+    } else if (temp <= fanOff && currentState == "on") {
+        logInfo "Greenhouse temperature ${temp}°F <= ${fanOff}°F, turning fan OFF"
+        settings.greenhouseFan.off()
+        announceAlexa("Greenhouse fan turned off, temperature is ${temp} degrees")
+    }
+}
+
+def controlGreenhouseHeater(BigDecimal temp) {
+    def heaterOn = getConfigValue("heaterOnTemp", "greenhouseHeaterOnTemp") as BigDecimal
+    def heaterOff = getConfigValue("heaterOffTemp", "greenhouseHeaterOffTemp") as BigDecimal
+    
+    if (!settings.greenhouseHeater) return
+    
+    def currentState = settings.greenhouseHeater.currentValue("switch")
+    
+    if (temp <= heaterOn && currentState != "on") {
+        logInfo "Greenhouse temperature ${temp}°F <= ${heaterOn}°F, turning heater ON"
+        settings.greenhouseHeater.on()
+        announceAlexa("Greenhouse heater turned on, temperature is ${temp} degrees")
+        sendAlert("🌡️ Greenhouse heater activated (${temp}°F)")
+    } else if (temp >= heaterOff && currentState == "on") {
+        logInfo "Greenhouse temperature ${temp}°F >= ${heaterOff}°F, turning heater OFF"
+        settings.greenhouseHeater.off()
+        announceAlexa("Greenhouse heater turned off, temperature is ${temp} degrees")
+    }
+}
+
+def checkFreezeRisk(BigDecimal temp) {
+    def freezeTemp = getConfigValue("freezeAlertTemp", "freezeAlertThreshold") as BigDecimal
+    
+    if (temp <= freezeTemp) {
+        logWarn "FREEZE ALERT: Greenhouse temperature ${temp}°F at or below ${freezeTemp}°F"
+        sendAlert("❄️ FREEZE ALERT: Greenhouse at ${temp}°F!")
+        announceAlexa("Freeze alert! Greenhouse temperature is ${temp} degrees!")
+    }
+}
+
+// ============================================================================
+// OFFICE CONTROL
+// ============================================================================
+
+def controlOfficeHeater(BigDecimal temp) {
+    def targetTemp = getConfigValue("officeHeaterTemp", "officeHeaterTemp") as BigDecimal
+    
+    if (!settings.officeHeater) return
+    
+    def currentState = settings.officeHeater.currentValue("switch")
+    def hysteresis = 2.0 // Prevent rapid cycling
+    
+    if (temp < (targetTemp - hysteresis) && currentState != "on") {
+        logInfo "Office temperature ${temp}°F < ${targetTemp - hysteresis}°F, turning heater ON"
+        settings.officeHeater.on()
+    } else if (temp > (targetTemp + hysteresis) && currentState == "on") {
+        logInfo "Office temperature ${temp}°F > ${targetTemp + hysteresis}°F, turning heater OFF"
+        settings.officeHeater.off()
+    }
+}
+
+def turnOfficeFansOff() {
+    logInfo "Turning office fans OFF"
+    settings.officeFans?.each { fan ->
+        fan.off()
+    }
+}
+
+// ============================================================================
+// MOSQUITO CONTROL
+// ============================================================================
+
+def scheduleSkeeterKiller() {
+    if (!settings.skeeterKiller || !settings.skeeterOnTime || !settings.skeeterOffTime) {
+        logDebug "Mosquito killer not fully configured, skipping schedule"
+        return
+    }
+    
+    // Get times from hub variables or settings
+    def onTime = getConfigValue("skeeterOnTime", "skeeterOnTime")
+    def offTime = getConfigValue("skeeterOffTime", "skeeterOffTime")
+    
+    // Schedule using time inputs
+    schedule(onTime, skeeterOn)
+    schedule(offTime, skeeterOff)
+    
+    logInfo "Scheduled mosquito killer: ON at ${onTime}, OFF at ${offTime}"
+}
+
+def skeeterOn() {
+    logInfo "Turning mosquito killer ON (scheduled)"
+    settings.skeeterKiller?.on()
+}
+
+def skeeterOff() {
+    logInfo "Turning mosquito killer OFF (scheduled)"
+    settings.skeeterKiller?.off()
+}
+
+// ============================================================================
+// WATER CONTROL
+// ============================================================================
+
+def waterAutoOff() {
+    if (settings.waterValve?.currentValue("switch") == "on") {
+        logInfo "Water timeout reached, turning off valve"
+        settings.waterValve.off()
+        sendAlert("💧 Water valve auto-shutoff activated")
+    }
+}
+
+def resetWaterResetSwitch() {
+    settings.waterResetSwitch?.off()
+}
+
+// ============================================================================
+// UTILITY METHODS
+// ============================================================================
+
+def checkAllTemperatures() {
+    logDebug "Checking all temperatures"
+    
+    if (settings.greenhouseTempSensor) {
+        def temp = settings.greenhouseTempSensor.currentValue("temperature") as BigDecimal
+        if (temp) {
+            controlGreenhouseFan(temp)
+            controlGreenhouseHeater(temp)
+            checkFreezeRisk(temp)
+        }
+    }
+    
+    if (settings.officeTempSensor) {
+        def temp = settings.officeTempSensor.currentValue("temperature") as BigDecimal
+        if (temp) {
+            controlOfficeHeater(temp)
+        }
+    }
+}
+
+// ============================================================================
+// NOTIFICATION METHODS
+// ============================================================================
+
+def sendAlert(String message) {
+    logInfo "Sending alert: ${message}"
+    
+    settings.notificationDevices?.each { device ->
+        device.deviceNotification(message)
+    }
+}
+
+def announceAlexa(String message) {
+    if (!settings.alexaDevices) return
+    
+    logDebug "Alexa announcement: ${message}"
+    
+    settings.alexaDevices?.each { alexa ->
+        alexa.speak(message)
+    }
+}
+
+// ============================================================================
+// HELPER METHODS
+// ============================================================================
+
+/**
+ * Get configuration value from hub variable or fall back to app setting
+ */
+def getConfigValue(String settingName, String hubVarName) {
+    try {
+        def hubVar = getGlobalVar(hubVarName)
+        if (hubVar?.value != null) {
+            logDebug "Using hub variable ${hubVarName}: ${hubVar.value}"
+            return convertValue(hubVar.value, hubVar.type)
+        }
+    } catch (Exception e) {
+        logDebug "Hub variable '${hubVarName}' not found: ${e.message}"
+    }
+    
+    // Fall back to app setting
+    def settingValue = settings[settingName]
+    logDebug "Using app setting ${settingName}: ${settingValue}"
+    return settingValue
+}
+
+/**
+ * Convert hub variable value to appropriate type
+ */
+def convertValue(value, type) {
+    switch(type?.toLowerCase()) {
+        case "number":
+            return value as Integer
+        case "decimal":
+            return value as BigDecimal
+        case "boolean":
+            return value.toString().toBoolean()
+        case "string":
+        default:
+            return value.toString()
+    }
+}
+
+// ============================================================================
+// LOGGING
+// ============================================================================
+
+def logInfo(String msg) {
+    log.info "[Environmental Control Manager] ${msg}"
+}
+
+def logDebug(String msg) {
+    if (settings.logEnable) {
+        log.debug "[Environmental Control Manager] ${msg}"
+    }
+}
+
+def logWarn(String msg) {
+    log.warn "[Environmental Control Manager] ${msg}"
+}
+
+def logError(String msg) {
+    log.error "[Environmental Control Manager] ${msg}"
+}
