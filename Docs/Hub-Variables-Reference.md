@@ -298,8 +298,6 @@ Go to **Devices → Add Device → Virtual** and select **Connector** type:
 | `RingPersonTimeout` | Number | 30 | Ring timeout (seconds) | PerimeterSecurityManager |
 | `ShockSensitivity` | Number | 5 | Shock sensitivity (1-10) | PerimeterSecurityManager |
 | `SilentModeTimeout` | Number | - | Silent mode timeout (minutes) | EmergencyHelpManager |
-| `SkeeterOffTime` | String | - | Skeeter off time (HH:mm) | EnvironmentalControlManager |
-| `SkeeterOnTime` | String | - | Skeeter on time (HH:mm) | EnvironmentalControlManager |
 | `StripColorNight` | String | "Blue" | Nighttime strip color | LightsAutomationManager |
 | `TamperAlertEnabled` | Boolean | true | Enable/disable tamper detection | DoorWindowMonitor |
 | `VisualOnlyMode` | Boolean | false | Enable visual-only alerts | EmergencyHelpManager |
