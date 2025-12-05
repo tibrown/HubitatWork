@@ -98,10 +98,7 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• NightStartTime - Override night mode start time (HH:mm format)"
-            paragraph "• NightEndTime - Override night mode end time (HH:mm format)"
             paragraph "• AlertDelay - Override delay before alerting (seconds)"
-            paragraph "• MotionTimeout - Override motion sensor timeout (seconds)"
             paragraph "• BeamLogEnabled - Enable/disable detailed beam logging (true/false)"
             paragraph "• AlarmsEnabled - Read alarm status from SecurityAlarmManager (read-only)"
             paragraph "• AlarmActive - Check if alarms are currently active (read-only)"

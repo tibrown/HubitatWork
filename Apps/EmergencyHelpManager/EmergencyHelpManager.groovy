@@ -34,7 +34,7 @@ def mainPage() {
     dynamicPage(name: "mainPage", title: "Emergency Help Manager", install: true, uninstall: true) {
         section("Shower Help Configuration") {
             input "showerHelpButton", "capability.pushableButton", title: "Shower Help Button", required: false
-            input "stopShowerHelpSwitch", "capability.switch", title: "Stop Shower Help Switch", required: false
+            input "stopShowerHelp", "capability.switch", title: "Stop Shower Help Switch", required: false
             input "deskButton", "capability.pushableButton", title: "Desk Button (to stop alerts)", required: false
         }
         
@@ -109,8 +109,8 @@ def initialize() {
     }
     
     // Subscribe to stop shower help switch
-    if (stopShowerHelpSwitch) {
-        subscribe(stopShowerHelpSwitch, "switch.on", handleStopShowerHelp)
+    if (stopShowerHelp) {
+        subscribe(stopShowerHelp, "switch.on", handleStopShowerHelp)
     }
     
     // Subscribe to desk button (for stopping alerts)
@@ -147,7 +147,7 @@ def handleShowerHelpButton(evt) {
     logInfo "Shower help button activated: ${evt.value}"
     
     // Check if stop switch is off (help not cancelled)
-    if (stopShowerHelpSwitch?.currentValue("switch") == "on") {
+    if (stopShowerHelp?.currentValue("switch") == "on") {
         logDebug "Shower help cancelled, skipping activation"
         return
     }
@@ -172,7 +172,7 @@ def handleShowerHelpButton(evt) {
 
 def executeShowerHelp() {
     // Check if help was cancelled
-    if (stopShowerHelpSwitch?.currentValue("switch") == "on") {
+    if (stopShowerHelp?.currentValue("switch") == "on") {
         logDebug "Shower help cancelled, stopping execution"
         state.showerHelpActive = false
         return
@@ -214,18 +214,18 @@ def handleStopShowerHelp(evt) {
     deskLight?.setLevel(1)
     
     // Auto-reset stop switch after 5 minutes
-    runIn(300, resetStopShowerHelpSwitch)
+    runIn(300, resetStopShowerHelp)
 }
 
 def handleDeskButtonHeld(evt) {
     logInfo "Desk button held - stopping shower alert"
     
-    stopShowerHelpSwitch?.on()
+    stopShowerHelp?.on()
 }
 
-def resetStopShowerHelpSwitch() {
+def resetStopShowerHelp() {
     logDebug "Resetting stop shower help switch"
-    stopShowerHelpSwitch?.off()
+    stopShowerHelp?.off()
 }
 
 // ========================================

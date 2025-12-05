@@ -107,14 +107,16 @@ def mainPage() {
                   title: "Mosquito Killer Device",
                   required: false
             
-            input "skeeterOnTime", "time",
-                  title: "Skeeter On Time",
-                  description: "Daily turn-on time",
+            input "skeeterOnModes", "mode",
+                  title: "Modes to Turn Skeeter ON",
+                  description: "Skeeter will be on during these modes",
+                  multiple: true,
                   required: false
             
-            input "skeeterOffTime", "time",
-                  title: "Skeeter Off Time",
-                  description: "Daily turn-off time",
+            input "skeeterOffModes", "mode",
+                  title: "Modes to Turn Skeeter OFF",
+                  description: "Skeeter will be off during these modes",
+                  multiple: true,
                   required: false
         }
         
@@ -157,8 +159,6 @@ def mainPage() {
                      "• <b>GreenhouseHeaterOffTemp</b> - Override heater off temperature (°F)\n" +
                      "• <b>FreezeAlertThreshold</b> - Override freeze warning temperature (°F)\n" +
                      "• <b>OfficeHeaterTemp</b> - Override office heater temperature (°F)\n" +
-                     "• <b>SkeeterOnTime</b> - Override skeeter on time (HH:mm)\n" +
-                     "• <b>SkeeterOffTime</b> - Override skeeter off time (HH:mm)\n" +
                      "• <b>WaterTimeout</b> - Override water shutoff timeout (minutes)"
         }
         
@@ -209,11 +209,12 @@ def initialize() {
         subscribe(settings.waterResetSwitch, "switch.on", waterResetHandler)
     }
     
-    // Schedule mosquito killer
-    scheduleSkeeterKiller()
+    // Subscribe to mode changes for mosquito control
+    subscribe(location, "mode", modeChangeHandler)
     
-    // Initial temperature check
+    // Initial temperature check and mode-based skeeter control
     checkAllTemperatures()
+    handleCurrentMode()
 }
 
 // ============================================================================
@@ -278,6 +279,11 @@ def waterResetHandler(evt) {
     
     // Turn off reset switch
     runIn(2, resetWaterResetSwitch)
+}
+
+def modeChangeHandler(evt) {
+    logInfo "Mode changed to: ${evt.value}"
+    handleSkeeterMode(evt.value)
 }
 
 // ============================================================================
@@ -365,31 +371,30 @@ def turnOfficeFansOff() {
 // MOSQUITO CONTROL
 // ============================================================================
 
-def scheduleSkeeterKiller() {
-    if (!settings.skeeterKiller || !settings.skeeterOnTime || !settings.skeeterOffTime) {
-        logDebug "Mosquito killer not fully configured, skipping schedule"
+def handleCurrentMode() {
+    if (!settings.skeeterKiller) return
+    
+    def currentMode = location.currentMode
+    handleSkeeterMode(currentMode)
+}
+
+def handleSkeeterMode(String mode) {
+    if (!settings.skeeterKiller) {
+        logDebug "Mosquito killer not configured"
         return
     }
     
-    // Get times from hub variables or settings
-    def onTime = getConfigValue("skeeterOnTime", "SkeeterOnTime")
-    def offTime = getConfigValue("skeeterOffTime", "SkeeterOffTime")
+    def currentState = settings.skeeterKiller.currentValue("switch")
     
-    // Schedule using time inputs
-    schedule(onTime, skeeterOn)
-    schedule(offTime, skeeterOff)
-    
-    logInfo "Scheduled mosquito killer: ON at ${onTime}, OFF at ${offTime}"
-}
-
-def skeeterOn() {
-    logInfo "Turning mosquito killer ON (scheduled)"
-    settings.skeeterKiller?.on()
-}
-
-def skeeterOff() {
-    logInfo "Turning mosquito killer OFF (scheduled)"
-    settings.skeeterKiller?.off()
+    if (settings.skeeterOnModes?.contains(mode) && currentState != "on") {
+        logInfo "Mode ${mode} triggers mosquito killer ON"
+        settings.skeeterKiller.on()
+    } else if (settings.skeeterOffModes?.contains(mode) && currentState != "off") {
+        logInfo "Mode ${mode} triggers mosquito killer OFF"
+        settings.skeeterKiller.off()
+    } else {
+        logDebug "Mode ${mode} has no mosquito killer action (current: ${currentState})"
+    }
 }
 
 // ============================================================================

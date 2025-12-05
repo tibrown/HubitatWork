@@ -58,7 +58,7 @@ These must be created as **Connector Switch** devices (namespace: "hubitat") in 
 ### Emergency & Help
 | Switch Name | Type | Purpose | Used By |
 |------------|------|---------|---------|------|
-| `StopShowerHelpSwitch` | Connector | Stop shower help alert | EmergencyHelpManager |
+| `StopShowerHelp` | Connector | Stop shower help alert | EmergencyHelpManager |
 | `IndoorCamsSwitch` | Connector | Indoor cameras control | SecurityAlarmManager, CameraPrivacyManager |
 
 ---
@@ -77,22 +77,14 @@ These hub variables override default app settings and provide flexible configura
 
 ### NightSecurityManager
 | Variable Name | Type | Default | Purpose |
-|--------------|------|---------|---------|
-| `NightStartTime` | String | "22:30" | Night mode start time (HH:mm) |
-| `NightEndTime` | String | "06:00" | Night mode end time (HH:mm) |
+|--------------|------|---------|---------|------|
 | `AlertDelay` | Number | 5 | Delay before alerting (seconds) |
-| `MotionTimeout` | Number | 60 | Motion sensor timeout (seconds) |
 | `BeamLogEnabled` | Boolean | true | Enable/disable detailed beam logging |
 
 ### LightsAutomationManager
 | Variable Name | Type | Default | Purpose |
-|--------------|------|---------|---------|
-| `MorningTime` | String | - | Morning light activation time (HH:mm) |
-| `EveningTime` | String | - | Evening light activation time (HH:mm) |
-| `NightTime` | String | - | Night mode light time (HH:mm) |
-| `DeskBrightness` | Number | 100 | Desk light brightness (0-100) |
+|--------------|------|---------|---------|------|
 | `FloodTimeout` | Number | 5 | Motion flood timeout (minutes) |
-| `StripColorDay` | String | "Soft White" | Daytime strip color |
 | `StripColorNight` | String | "Blue" | Nighttime strip color |
 | `BeamLightDelay` | Number | 300 | Carport beam light delay (seconds) |
 
@@ -105,8 +97,6 @@ These hub variables override default app settings and provide flexible configura
 | `GreenhouseHeaterOffTemp` | Decimal | 45.0 | Heater off temperature (°F) |
 | `FreezeAlertThreshold` | Decimal | 32.0 | Freeze warning temperature (°F) |
 | `OfficeHeaterTemp` | Decimal | 68.0 | Office heater temperature (°F) |
-| `SkeeterOnTime` | String | - | Skeeter on time (HH:mm) |
-| `SkeeterOffTime` | String | - | Skeeter off time (HH:mm) |
 | `WaterTimeout` | Number | 30 | Water shutoff timeout (minutes) |
 
 ### DoorWindowMonitor
@@ -188,7 +178,6 @@ Go to **Settings → Hub Variables** and create these variables:
 - [ ] `AlarmVolume` (Number) - Default: 80
 - [ ] `AlarmDuration` (Number) - Default: 300
 - [ ] `AlertDelay` (Number) - Default: 5
-- [ ] `DeskBrightness` (Number) - Default: 100
 - [ ] `FloodTimeout` (Number) - Default: 5
 - [ ] `DoorOpenThreshold` (Number) - Default: 5
 - [ ] `WindowOpenThreshold` (Number) - Default: 10
@@ -260,7 +249,7 @@ Go to **Devices → Add Device → Virtual** and select **Connector** type:
 | `RearGateActive` | Connector | Rear gate active indicator | NightSecurityManager |
 | `Silent` | Connector | Silent mode switch | SecurityAlarmManager, NightSecurityManager, EmergencyHelpManager |
 | `SilentCarport` | Connector | Silent carport mode | LightsAutomationManager |
-| `StopShowerHelpSwitch` | Connector | Stop shower help alert | EmergencyHelpManager |
+| `StopShowerHelp` | Connector | Stop shower help alert | EmergencyHelpManager |
 | `SummerTime` | Connector | Summer mode indicator | System-wide |
 | `Traveling` | Connector | Travel mode indicator | NightSecurityManager, DoorWindowMonitor |
 
@@ -280,7 +269,6 @@ Go to **Devices → Add Device → Virtual** and select **Connector** type:
 | `BeamLightDelay` | Number | 300 | Carport beam light delay (seconds) | LightsAutomationManager |
 | `BeamLogEnabled` | Boolean | true | Enable/disable detailed beam logging | NightSecurityManager |
 | `CheckInterval` | Number | 1 | Periodic check interval (minutes) | DoorWindowMonitor |
-| `DeskBrightness` | Number | 100 | Desk light brightness (0-100) | LightsAutomationManager |
 | `DisarmDelay` | Number | 0 | Disarm delay timer (seconds) | SecurityAlarmManager |
 | `DoorOpenThreshold` | Number | 5 | Door left open alert (minutes) | DoorWindowMonitor |
 | `EchoMessage` | String | "" | Message for Alexa TTS | NightSecurityManager, EmergencyHelpManager |
@@ -288,7 +276,6 @@ Go to **Devices → Add Device → Virtual** and select **Connector** type:
 | `EnableDayMotion` | Boolean | true | Enable/disable day motion detection | MotionPresenceManager |
 | `EnableDelay` | Number | 1 | Camera on delay (minutes) | CameraPrivacyManager |
 | `EnableNightMotion` | Boolean | false | Enable/disable night motion detection | MotionPresenceManager |
-| `EveningTime` | String | - | Evening light activation time (HH:mm) | LightsAutomationManager |
 | `FlashRate` | Number | 2 | Light flash rate (flashes/second) | EmergencyHelpManager |
 | `FloodTimeout` | Number | 5 | Motion flood timeout (minutes) | LightsAutomationManager |
 | `FreezeAlertThreshold` | Decimal | 32.0 | Freeze warning temperature (°F) | EnvironmentalControlManager |
@@ -302,11 +289,7 @@ Go to **Devices → Add Device → Virtual** and select **Connector** type:
 | `GunCabinetAlertEnabled` | Boolean | true | Enable/disable cabinet alerts | PerimeterSecurityManager |
 | `HelpAlertDuration` | Number | 300 | Help alert duration (seconds) | EmergencyHelpManager |
 | `ManualOverrideDuration` | Number | 4 | Manual override timeout (hours) | CameraPrivacyManager |
-| `MorningTime` | String | - | Morning light activation time (HH:mm) | LightsAutomationManager |
-| `MotionTimeout` | Number | 60 | Motion sensor timeout (seconds) | NightSecurityManager, MotionPresenceManager |
-| `NightEndTime` | String | "06:00" | Night mode end time (HH:mm) | NightSecurityManager |
-| `NightStartTime` | String | "22:30" | Night mode start time (HH:mm) | NightSecurityManager |
-| `NightTime` | String | - | Night mode light time (HH:mm) | LightsAutomationManager |
+| `MotionTimeout` | Number | 60 | Motion sensor timeout (seconds) | MotionPresenceManager |
 | `NotificationDelay` | Number | 0 | Notification delay (seconds) | EmergencyHelpManager |
 | `OfficeHeaterTemp` | Decimal | 68.0 | Office heater temperature (°F) | EnvironmentalControlManager |
 | `PauseDuration` | Number | 5 | Alarm pause duration (minutes) | DoorWindowMonitor |
@@ -317,7 +300,6 @@ Go to **Devices → Add Device → Virtual** and select **Connector** type:
 | `SilentModeTimeout` | Number | - | Silent mode timeout (minutes) | EmergencyHelpManager |
 | `SkeeterOffTime` | String | - | Skeeter off time (HH:mm) | EnvironmentalControlManager |
 | `SkeeterOnTime` | String | - | Skeeter on time (HH:mm) | EnvironmentalControlManager |
-| `StripColorDay` | String | "Soft White" | Daytime strip color | LightsAutomationManager |
 | `StripColorNight` | String | "Blue" | Nighttime strip color | LightsAutomationManager |
 | `TamperAlertEnabled` | Boolean | true | Enable/disable tamper detection | DoorWindowMonitor |
 | `VisualOnlyMode` | Boolean | false | Enable visual-only alerts | EmergencyHelpManager |

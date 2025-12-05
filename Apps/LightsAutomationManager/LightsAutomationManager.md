@@ -107,14 +107,13 @@ Configure individual flood lights and their associated motion sensors:
 The app supports the following hub variables for dynamic configuration:
 
 ### Configuration Variables (Read by App)
-- `morningTime` (String): Override morning light activation time (HH:mm format)
-- `eveningTime` (String): Override evening light activation time (HH:mm format)
-- `nightTime` (String): Override night mode light time (HH:mm format)
 - `deskBrightness` (Number): Override desk light brightness (0-100)
 - `floodTimeout` (Number): Override motion-activated flood timeout in minutes
 - `stripColorDay` (String): Override daytime strip color (e.g., "Soft White", "Blue")
 - `stripColorNight` (String): Override nighttime strip color (e.g., "Blue", "Red")
 - `beamLightDelay` (Number): Override carport beam light delay in seconds
+
+**Note**: Morning, Evening, and Night lighting modes are triggered by mode changes, not time schedules.
 
 ### Creating Hub Variables
 1. Navigate to **Settings → Hub Variables**

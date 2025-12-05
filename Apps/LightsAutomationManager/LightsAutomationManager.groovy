@@ -107,12 +107,7 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• MorningTime - Override morning light activation time (HH:mm format)"
-            paragraph "• EveningTime - Override evening light activation time (HH:mm format)"
-            paragraph "• NightTime - Override night mode light time (HH:mm format)"
-            paragraph "• DeskBrightness - Override desk light brightness (0-100)"
             paragraph "• FloodTimeout - Override motion-activated flood timeout (minutes)"
-            paragraph "• StripColorDay - Override daytime strip color (color name)"
             paragraph "• StripColorNight - Override nighttime strip color (color name)"
             paragraph "• BeamLightDelay - Override carport beam light delay (seconds)"
         }

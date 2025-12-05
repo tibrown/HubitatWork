@@ -7,7 +7,7 @@ Environmental Control Manager automates temperature control, fans, heaters, and 
 - Automatic temperature-based fan and heater control
 - Freeze protection alerts for greenhouse
 - Office climate management
-- Scheduled mosquito killer control
+- Mode-based mosquito killer control
 - Water valve auto-shutoff safety
 - Alexa voice control integration
 - Hub variable support for dynamic configuration
@@ -50,8 +50,6 @@ The app supports these hub variables for dynamic configuration:
 - `greenhouseHeaterOffTemp` - Override heater deactivation temperature (°F)
 - `freezeAlertThreshold` - Override freeze warning temperature (°F)
 - `officeHeaterTemp` - Override office heater temperature (°F)
-- `skeeterOnTime` - Override skeeter on time (HH:mm format)
-- `skeeterOffTime` - Override skeeter off time (HH:mm format)
 - `waterTimeout` - Override water shutoff timeout (minutes)
 
 If hub variables are not set, the app uses the configured settings as defaults.
@@ -94,14 +92,6 @@ Name: officeHeaterTemp
 Type: decimal
 Initial Value: 68.0
 
-Name: skeeterOnTime
-Type: string
-Initial Value: 18:00
-
-Name: skeeterOffTime
-Type: string
-Initial Value: 22:00
-
 Name: waterTimeout
 Type: number
 Initial Value: 30
@@ -136,8 +126,8 @@ Initial Value: 30
 
 ### Mosquito Control
 - **Mosquito Killer Device**: Mosquito killer switch
-- **Skeeter On Time**: Daily turn-on time
-- **Skeeter Off Time**: Daily turn-off time
+- **Modes to Turn Skeeter ON**: Hub modes that activate mosquito killer
+- **Modes to Turn Skeeter OFF**: Hub modes that deactivate mosquito killer
 
 ### Water Control
 - **Water Control Valve**: Water valve switch
@@ -182,17 +172,18 @@ Initial Value: 30
 2. Temperature rises above 70°F → Heater turns OFF
 3. Prevents rapid cycling with hysteresis band
 
-### Example 3: Scheduled Mosquito Killer
-**Scenario**: Run mosquito killer every evening
+### Example 3: Mode-Based Mosquito Killer
+**Scenario**: Run mosquito killer during evening modes
 
 **Configuration**:
 - Mosquito killer device configured
-- On Time: 18:00 (6 PM)
-- Off Time: 22:00 (10 PM)
+- Modes to Turn ON: Evening, Night
+- Modes to Turn OFF: Day, Away
 
 **Behavior**:
-1. Daily at 6 PM → Mosquito killer turns ON
-2. Daily at 10 PM → Mosquito killer turns OFF
+1. Mode changes to Evening or Night → Mosquito killer turns ON
+2. Mode changes to Day or Away → Mosquito killer turns OFF
+3. Current mode checked on app startup
 
 ### Example 4: Water Safety Auto-Shutoff
 **Scenario**: Prevent water valve from being left on
@@ -246,12 +237,12 @@ Initial Value: 30
 3. Check notification devices configured
 4. Test alert manually
 
-### Mosquito Killer Not Scheduling
-1. Verify on/off times are set
-2. Check app initialized correctly
-3. Hub reboot may have cleared schedule
-4. Update app to reinitialize schedule
-5. Check hub variables for time override
+### Mosquito Killer Not Responding to Mode Changes
+1. Verify skeeter on/off modes are configured
+2. Check current hub mode
+3. Verify mosquito killer device switch
+4. Enable debug logging to see mode changes
+5. Test mode change manually
 
 ### Water Not Auto-Shutting Off
 1. Verify timeout setting is not 0
@@ -270,8 +261,8 @@ Initial Value: 30
 
 ### App Behavior
 - **Single Threaded**: Uses `singleThreaded: true` for state management
-- **Event-Driven**: Responds to temperature changes immediately
-- **Scheduled Jobs**: Mosquito killer uses cron scheduling
+- **Event-Driven**: Responds to temperature and mode changes immediately
+- **Mode-Based Control**: Mosquito killer responds to hub mode changes
 - **Hysteresis Control**: Office heater uses ±2°F band to prevent cycling
 - **Smart Timers**: Water timeout tracks valve state
 
@@ -317,12 +308,18 @@ Reset Switch → Cancel timer, restart if valve ON
 
 ## Version History
 
+### Version 1.1.0 (2025-12-05)
+- Changed mosquito killer from time-based to mode-based control
+- Removed SkeeterOnTime and SkeeterOffTime hub variables
+- Added mode change event subscription
+- Improved mosquito killer responsiveness
+
 ### Version 1.0.0 (2025-12-04)
 - Initial release
 - Greenhouse fan and heater control
 - Freeze protection alerts
 - Office climate management
-- Mosquito killer scheduling
+- Mosquito killer time-based scheduling
 - Water valve auto-shutoff
 - Alexa voice control integration
 - Hub variable support for all settings
