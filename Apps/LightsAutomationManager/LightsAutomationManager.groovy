@@ -70,7 +70,6 @@ def mainPage() {
         section("Condition Switches") {
             input "onPTO", "capability.switch", title: "On PTO Switch", required: false
             input "holiday", "capability.switch", title: "Holiday Switch", required: false
-            input "traveling", "capability.switch", title: "Traveling Switch", required: false
         }
         
         section("Cross-App Communication") {

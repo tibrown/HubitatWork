@@ -18,7 +18,7 @@ definition(
     name: "Camera Privacy Manager",
     namespace: "tibrown",
     author: "Tim Brown",
-    description: "Manages indoor/outdoor camera power and privacy settings based on presence and mode",
+    description: "Manages indoor camera power based on phone presence - cameras on when you leave, off when you arrive",
     category: "Security",
     iconUrl: "",
     iconX2Url: "",
@@ -46,21 +46,14 @@ def mainPage() {
                   required: false
         }
         
-        section("Privacy Mode Settings") {
-            input "homeModes", "mode",
-                  title: "Privacy Modes (Cameras Off)",
-                  description: "Select modes when indoor cameras should be OFF for privacy",
-                  multiple: true,
-                  required: true
-            
-            input "awayModes", "mode",
-                  title: "Security Modes (Cameras On)",
-                  description: "Select modes when cameras should be ON for security",
-                  multiple: true,
+        section("Presence Detection") {
+            input "phonePresenceSwitch", "capability.switch",
+                  title: "Phone Presence Switch",
+                  description: "Switch that turns OFF when your phone leaves (e.g., from geofence)",
                   required: true
             
             input "privacyDelayMinutes", "number",
-                  title: "Privacy Mode Delay (minutes)",
+                  title: "Privacy Delay (minutes)",
                   description: "Delay before turning cameras off when arriving home",
                   defaultValue: 2,
                   range: "0..60",
@@ -74,15 +67,20 @@ def mainPage() {
                   required: false
         }
         
-        section("Manual Override") {
+        section("Override Switches") {
+            input "travelingSwitch", "capability.switch",
+                  title: "Traveling Switch",
+                  description: "When ON, your phone leaving won't trigger cameras (spouse still home)",
+                  required: false
+            
             input "manualOverride", "capability.switch",
                   title: "Manual Override Switch (Optional)",
-                  description: "Switch to manually control camera privacy",
+                  description: "Switch to manually force cameras off",
                   required: false
             
             input "overrideDurationHours", "number",
                   title: "Manual Override Duration (hours)",
-                  description: "How long manual override lasts before reverting to mode control",
+                  description: "How long manual override lasts before reverting",
                   defaultValue: 4,
                   range: "1..24",
                   required: false
@@ -90,7 +88,7 @@ def mainPage() {
         
         section("Hub Variables Support") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
-            paragraph "• <b>PrivacyModeDelay</b> - Override camera off delay (minutes)\n" +
+            paragraph "• <b>PrivacyDelay</b> - Override camera off delay (minutes)\n" +
                      "• <b>EnableDelay</b> - Override camera on delay (minutes)\n" +
                      "• <b>ManualOverrideDuration</b> - Override manual override timeout (hours)"
         }
@@ -112,14 +110,15 @@ def installed() {
 def updated() {
     logInfo "Camera Privacy Manager updated"
     unsubscribe()
+    unschedule()
     initialize()
 }
 
 def initialize() {
     logInfo "Initializing Camera Privacy Manager"
     
-    // Subscribe to mode changes
-    subscribe(location, "mode", modeChangeHandler)
+    // Subscribe to phone presence switch
+    subscribe(settings.phonePresenceSwitch, "switch", phonePresenceHandler)
     
     // Subscribe to manual override switch if configured
     if (settings.manualOverride) {
@@ -127,22 +126,29 @@ def initialize() {
     }
     
     // Check current state and apply
-    checkPrivacyMode()
+    checkPresenceState()
+    
+    logDebug "Subscribed to phone presence switch: ${settings.phonePresenceSwitch}"
 }
 
 // ============================================================================
 // EVENT HANDLERS
 // ============================================================================
 
-def modeChangeHandler(evt) {
-    logInfo "Mode changed to: ${evt.value}"
+def phonePresenceHandler(evt) {
+    logInfo "Phone presence switch changed to: ${evt.value}"
     
     // Cancel any pending jobs
     unschedule(camerasOn)
     unschedule(camerasOff)
     
-    // Handle mode change with delays
-    handleModeChange(evt.value)
+    if (evt.value == "off") {
+        // Phone left - turn cameras ON (unless traveling)
+        handlePhoneLeft()
+    } else if (evt.value == "on") {
+        // Phone arrived - turn cameras OFF for privacy
+        handlePhoneArrived()
+    }
 }
 
 def manualOverrideHandler(evt) {
@@ -150,6 +156,7 @@ def manualOverrideHandler(evt) {
     
     if (evt.value == "on") {
         // Manual override ON - turn cameras off immediately
+        unschedule(camerasOn)
         camerasOff()
         
         // Schedule revert to automatic mode
@@ -157,9 +164,9 @@ def manualOverrideHandler(evt) {
         logInfo "Manual override active for ${duration} hours"
         runIn(duration * 3600, revertToAutomatic)
     } else {
-        // Manual override OFF - return to mode-based control
+        // Manual override OFF - return to presence-based control
         unschedule(revertToAutomatic)
-        checkPrivacyMode()
+        checkPresenceState()
     }
 }
 
@@ -167,29 +174,54 @@ def manualOverrideHandler(evt) {
 // CORE LOGIC
 // ============================================================================
 
-def handleModeChange(String newMode) {
+def handlePhoneLeft() {
+    logInfo "Phone has left"
+    
     // Check if manual override is active
     if (settings.manualOverride?.currentValue("switch") == "on") {
-        logInfo "Manual override active, ignoring mode change"
+        logInfo "Manual override active, ignoring phone departure"
         return
     }
     
-    if (settings.homeModes?.contains(newMode)) {
-        // Privacy mode - turn cameras off with delay
-        def delay = getConfigValue("privacyDelayMinutes", "PrivacyModeDelay") as Integer
-        logInfo "Privacy mode activated, cameras will turn off in ${delay} minutes"
-        runIn(delay * 60, camerasOff)
-    } else if (settings.awayModes?.contains(newMode)) {
-        // Security mode - turn cameras on with delay
-        def delay = getConfigValue("enableDelayMinutes", "EnableDelay") as Integer
-        logInfo "Security mode activated, cameras will turn on in ${delay} minutes"
+    // Check if traveling (user is away but spouse is home)
+    if (isTraveling()) {
+        logInfo "Traveling switch is ON - spouse still home, cameras stay OFF"
+        return
+    }
+    
+    // Turn cameras on with delay
+    def delay = getConfigValue("enableDelayMinutes", "EnableDelay") as Integer
+    if (delay > 0) {
+        logInfo "Cameras will turn on in ${delay} minutes"
         runIn(delay * 60, camerasOn)
     } else {
-        logDebug "Mode ${newMode} not configured for camera control"
+        camerasOn()
     }
 }
 
-def checkPrivacyMode() {
+def handlePhoneArrived() {
+    logInfo "Phone has arrived"
+    
+    // Cancel any pending camera on action
+    unschedule(camerasOn)
+    
+    // Check if manual override is active
+    if (settings.manualOverride?.currentValue("switch") == "on") {
+        logInfo "Manual override active, cameras already off"
+        return
+    }
+    
+    // Turn cameras off with delay
+    def delay = getConfigValue("privacyDelayMinutes", "PrivacyDelay") as Integer
+    if (delay > 0) {
+        logInfo "Cameras will turn off in ${delay} minutes"
+        runIn(delay * 60, camerasOff)
+    } else {
+        camerasOff()
+    }
+}
+
+def checkPresenceState() {
     // Check if manual override is active
     if (settings.manualOverride?.currentValue("switch") == "on") {
         logInfo "Manual override active, cameras remain off"
@@ -197,18 +229,28 @@ def checkPrivacyMode() {
         return
     }
     
-    // Get current mode
-    def currentMode = location.currentMode.toString()
+    def phonePresent = settings.phonePresenceSwitch?.currentValue("switch") == "on"
     
-    if (settings.homeModes?.contains(currentMode)) {
-        logInfo "Currently in privacy mode (${currentMode})"
+    if (phonePresent) {
+        logInfo "Phone is home - ensuring privacy mode"
         camerasOff()
-    } else if (settings.awayModes?.contains(currentMode)) {
-        logInfo "Currently in security mode (${currentMode})"
-        camerasOn()
     } else {
-        logDebug "Current mode (${currentMode}) not configured for camera control"
+        if (isTraveling()) {
+            logInfo "Phone is away but Traveling is ON - spouse still home, cameras stay OFF"
+            camerasOff()
+        } else {
+            logInfo "Phone is away - ensuring security mode"
+            camerasOn()
+        }
     }
+}
+
+/**
+ * Check if Traveling switch is on
+ * When traveling, your phone leaving shouldn't trigger cameras because spouse is still home
+ */
+def isTraveling() {
+    return settings.travelingSwitch?.currentValue("switch") == "on"
 }
 
 def camerasOn() {
@@ -240,13 +282,13 @@ def camerasOff() {
 }
 
 def revertToAutomatic() {
-    logInfo "Manual override duration expired, reverting to automatic mode control"
+    logInfo "Manual override duration expired, reverting to automatic presence control"
     
     // Turn off manual override switch
     settings.manualOverride?.off()
     
-    // Check and apply current mode
-    checkPrivacyMode()
+    // Check and apply current presence state
+    checkPresenceState()
 }
 
 // ============================================================================

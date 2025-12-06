@@ -1,37 +1,39 @@
 # Camera Privacy Manager
 
 ## Overview
-Camera Privacy Manager automatically controls indoor and outdoor camera power based on presence modes, providing privacy when home and security when away.
+Camera Privacy Manager automatically controls indoor and outdoor camera power based on phone presence, providing privacy when home and security when away.
 
 ## Purpose
-- Automatically turn off indoor cameras when home for privacy
-- Enable cameras when away for security monitoring
+- Automatically turn off indoor cameras when your phone arrives home
+- Enable cameras when your phone leaves for security monitoring
 - Support manual override for temporary control
 - Configurable delays for smooth transitions
 - Hub variable support for dynamic configuration
+- Traveling switch prevents cameras when you're away but spouse is home
 
 ## Rules Consolidated
 This app replaces the following Rule Machine rules:
-1. **IndoorCamsOff** (901) - Turn off indoor cameras in home modes
-2. **IndoorCamsOn** (900) - Turn on cameras in away modes
+1. **IndoorCamsOff** (901) - Turn off indoor cameras when home
+2. **IndoorCamsOn** (900) - Turn on cameras when away
 
 **Total Rules Replaced**: 2
 
 ## Features
 
 ### Core Functionality
-- **Mode-Based Control**: Cameras respond to mode changes
-- **Privacy Protection**: Indoor cameras off when home
-- **Security Enhancement**: All cameras on when away
+- **Presence-Based Control**: Cameras respond to phone presence switch changes
+- **Privacy Protection**: Indoor cameras off when phone arrives home
+- **Security Enhancement**: All cameras on when phone leaves
 - **Delayed Activation**: Configurable delays prevent false triggers
 - **Manual Override**: Temporary manual control with auto-revert
+- **Traveling Mode**: Prevents cameras when you travel but spouse is home
 - **Separate Indoor/Outdoor**: Different control for indoor vs outdoor cameras
 
 ### Hub Variables Support
 The app supports these hub variables for dynamic configuration:
-- `privacyModeDelay` - Override camera off delay (minutes)
-- `enableDelay` - Override camera on delay (minutes)
-- `manualOverrideDuration` - Override manual override timeout (hours)
+- `PrivacyDelay` - Override camera off delay (minutes)
+- `EnableDelay` - Override camera on delay (minutes)
+- `ManualOverrideDuration` - Override manual override timeout (hours)
 
 If hub variables are not set, the app uses the configured settings as defaults.
 
@@ -39,23 +41,24 @@ If hub variables are not set, the app uses the configured settings as defaults.
 
 ### Prerequisites
 1. Indoor camera power switches (required)
-2. Outdoor camera power switches (optional)
-3. Mode configuration for home/away states
+2. Phone presence switch (required) - typically driven by geofence/Life360
+3. Outdoor camera power switches (optional)
 4. Manual override switch (optional)
+5. Traveling switch (optional)
 
 ### Hub Variables (Optional)
 Create these hub variables in Settings → Hub Variables for dynamic control:
 
 ```
-Name: privacyModeDelay
+Name: PrivacyDelay
 Type: number
 Initial Value: 2
 
-Name: enableDelay
+Name: EnableDelay
 Type: number
 Initial Value: 1
 
-Name: manualOverrideDuration
+Name: ManualOverrideDuration
 Type: number
 Initial Value: 4
 ```
@@ -72,22 +75,26 @@ Initial Value: 4
 
 ### Indoor Cameras
 - **Indoor Camera Power Outlets**: Select all switches that control indoor camera power
-- These cameras will turn OFF in privacy modes
+- These cameras will turn OFF when phone arrives
 
 ### Outdoor Cameras (Optional)
 - **Outdoor Camera Power Outlets**: Select switches for outdoor cameras
 - These cameras remain ON for perimeter security
 
-### Privacy Mode Settings
-- **Privacy Modes (Cameras Off)**: Select modes when indoor cameras should be OFF (e.g., Home, Day, Evening, Night)
-- **Security Modes (Cameras On)**: Select modes when all cameras should be ON (e.g., Away, Vacation)
-- **Privacy Mode Delay**: Minutes to wait before turning cameras off when arriving home (default: 2)
+### Presence Detection
+- **Phone Presence Switch**: Select your phone's presence switch
+  - Switch OFF = Phone has left (away from home)
+  - Switch ON = Phone is home
+- **Privacy Delay**: Minutes to wait before turning cameras off when arriving home (default: 2)
 - **Enable Delay**: Minutes to wait before turning cameras on when leaving (default: 1)
 
-### Manual Override
+### Override Switches
+- **Traveling Switch**: Prevents cameras from turning on when you leave but your spouse is still home
+  - ON = You're traveling, spouse is home alone - cameras stay OFF even when your phone leaves
+  - OFF = Normal operation - cameras turn on when phone leaves
 - **Manual Override Switch**: Optional switch for manual control
-  - ON = Force cameras off regardless of mode
-  - OFF = Return to automatic mode-based control
+  - ON = Force cameras off regardless of presence
+  - OFF = Return to automatic presence-based control
 - **Manual Override Duration**: Hours before auto-reverting to automatic (default: 4)
 
 ### Logging
@@ -95,18 +102,17 @@ Initial Value: 4
 
 ## Usage Examples
 
-### Example 1: Basic Home/Away Control
-**Scenario**: Turn off indoor cameras when home, on when away
+### Example 1: Basic Presence Control
+**Scenario**: Turn off indoor cameras when phone arrives, on when phone leaves
 
 **Configuration**:
-- Privacy Modes: Home, Day, Evening, Night
-- Security Modes: Away, Vacation
+- Phone Presence Switch: "Tim's iPhone"
 - Privacy Delay: 2 minutes
 - Enable Delay: 1 minute
 
 **Behavior**:
-1. Mode changes to "Away" → Wait 1 minute → Turn all cameras ON
-2. Mode changes to "Home" → Wait 2 minutes → Turn indoor cameras OFF (outdoor stay ON)
+1. Phone presence switch turns OFF (you left) → Wait 1 minute → Turn all cameras ON
+2. Phone presence switch turns ON (you arrived) → Wait 2 minutes → Turn indoor cameras OFF (outdoor stay ON)
 
 ### Example 2: Manual Privacy Override
 **Scenario**: Temporarily disable cameras for a guest visit
@@ -118,14 +124,29 @@ Initial Value: 4
 **Behavior**:
 1. Turn on "Camera Override" switch
 2. All indoor cameras immediately turn OFF
-3. After 4 hours, switch auto-resets and cameras return to mode-based control
+3. After 4 hours, switch auto-resets and cameras return to presence-based control
 
-### Example 3: Hub Variable Dynamic Control
+### Example 3: Traveling Mode
+**Scenario**: You're traveling for work, spouse is still home
+
+**Configuration**:
+- Traveling Switch: Virtual Switch "Traveling"
+
+**Behavior**:
+1. You turn ON the "Traveling" switch before leaving
+2. Your phone leaves the geofence (phone presence switch turns OFF)
+3. Normally cameras would turn ON, but Traveling is ON
+4. Cameras stay OFF because spouse is still home and doesn't need indoor surveillance
+5. When you return, turn OFF the Traveling switch
+
+**Why this matters**: Without this, when your phone leaves the geofence, the system turns on indoor cameras - but your spouse is still home and doesn't want cameras recording them.
+
+### Example 4: Hub Variable Dynamic Control
 **Scenario**: Adjust delays remotely without app reconfiguration
 
 **Setup**:
-1. Create hub variable `privacyModeDelay` = 5
-2. Create hub variable `enableDelay` = 3
+1. Create hub variable `PrivacyDelay` = 5
+2. Create hub variable `EnableDelay` = 3
 
 **Behavior**:
 - App reads hub variables first
@@ -136,16 +157,17 @@ Initial Value: 4
 ## Troubleshooting
 
 ### Cameras Not Turning Off
-1. Check that current mode is in "Privacy Modes" list
+1. Check that phone presence switch is ON (phone is home)
 2. Wait for privacy delay to expire
 3. Check manual override switch is OFF
 4. Enable debug logging and check logs
 
 ### Cameras Not Turning On
-1. Check that current mode is in "Security Modes" list
+1. Check that phone presence switch is OFF (phone has left)
 2. Wait for enable delay to expire
-3. Verify camera power switches are working
-4. Check hub events for switch commands
+3. **Check Traveling switch** - if ON, cameras won't turn on
+4. Verify camera power switches are working
+5. Check hub events for switch commands
 
 ### Manual Override Not Working
 1. Verify manual override switch is configured
@@ -163,19 +185,21 @@ Initial Value: 4
 
 ### App Behavior
 - **Single Threaded**: Uses `singleThreaded: true` for simpler state management
-- **Event-Driven**: Responds to mode changes and switch events
+- **Event-Driven**: Responds to phone presence switch changes
 - **Scheduled Jobs**: Uses delays for smooth transitions
-- **Persistent State**: No state required, drives entirely from mode and settings
+- **Persistent State**: No state required, drives entirely from switch states
 
-### Mode Change Logic
+### Presence Change Logic
 ```
-Mode Change → Check if Home or Away Mode
+Phone Switch OFF (left) → Check Traveling Switch
   ↓
-Home Mode → Schedule camerasOff() after privacy delay
+Traveling OFF → Schedule camerasOn() after enable delay
   ↓
-Away Mode → Schedule camerasOn() after enable delay
+Traveling ON → No action (spouse still home)
+
+Phone Switch ON (arrived) → Cancel any pending camerasOn()
   ↓
-Other Modes → No action (cameras maintain current state)
+Schedule camerasOff() after privacy delay
 ```
 
 ### Manual Override Logic
@@ -184,19 +208,25 @@ Override Switch ON → Immediate camerasOff()
   ↓
 Schedule auto-revert after duration
   ↓
-Duration Expires → Turn override switch OFF → Return to mode control
+Duration Expires → Turn override switch OFF → Return to presence control
 ```
 
 ## Best Practices
 
 1. **Set Privacy Delay**: Allow time to enter home before cameras turn off
 2. **Set Enable Delay**: Ensure you've left before cameras activate
-3. **Test Manual Override**: Verify it works before relying on it
-4. **Use Hub Variables**: For dynamic control without app updates
-5. **Monitor Logs**: Enable debug logging during setup
-6. **Separate Indoor/Outdoor**: Keep outdoor cameras for perimeter security
+3. **Use Traveling Switch**: When spouse is home but you're traveling
+4. **Test Manual Override**: Verify it works before relying on it
+5. **Use Hub Variables**: For dynamic control without app updates
+6. **Monitor Logs**: Enable debug logging during setup
+7. **Separate Indoor/Outdoor**: Keep outdoor cameras for perimeter security
 
 ## Version History
+
+### Version 1.1.0 (2025-01-XX)
+- Changed from mode-based to phone presence switch-based control
+- Works in any mode - presence switch is the trigger
+- Simplified configuration
 
 ### Version 1.0.0 (2025-12-04)
 - Initial release
