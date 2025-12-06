@@ -433,7 +433,7 @@ def handleGateClose(device, gateName) {
 def delayedGateAlert(data) {
     def gateName = data.gate
     logInfo "Gate alert timeout: ${gateName} remained open"
-    sendAlert("⏰ ${gateName} has been open for extended period")
+    sendAlert("${gateName} has been open for extended period")
 }
 
 def checkPerimeter() {

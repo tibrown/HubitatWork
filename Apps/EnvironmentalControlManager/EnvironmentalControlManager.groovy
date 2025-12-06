@@ -355,7 +355,7 @@ def checkFreezeRisk(BigDecimal temp) {
     
     if (temp <= freezeTemp) {
         logWarn "FREEZE ALERT: Greenhouse temperature ${temp}°F at or below ${freezeTemp}°F"
-        sendAlert("❄️ FREEZE ALERT: Greenhouse at ${temp}°F!")
+        sendAlert("FREEZE ALERT: Greenhouse at ${temp}°F!")
         announceAlexa("Freeze alert! Greenhouse temperature is ${temp} degrees!")
     }
 }
@@ -469,7 +469,7 @@ def waterAutoOff() {
     if (settings.waterValve?.currentValue("switch") == "on") {
         logInfo "Water timeout reached, turning off valve"
         settings.waterValve.off()
-        sendAlert("💧 Water valve auto-shutoff activated")
+        sendAlert("Water valve auto-shutoff activated")
     }
 }
 

@@ -292,7 +292,7 @@ def carportZoneActiveHandler(evt) {
         runIn(5, stopCarportSiren)
     }
     
-    notify("notification", "🐕 Dog detected in carport zone")
+    notify("notification", "Dog detected in carport zone")
 }
 
 def stopCarportSiren() {
@@ -361,7 +361,7 @@ def wakeUpAlarm() {
     if (wakeUpDays && today in wakeUpDays) {
         logInfo "Wake-up alarm triggered for ${today}"
         notify("alexa", "Good morning! Time to wake up")
-        notify("notification", "⏰ Wake-up alarm")
+        notify("notification", "Wake-up alarm")
         
         // Play audio if configured
         if (audioDevice && enableAudioNotifications) {
