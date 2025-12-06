@@ -8,7 +8,7 @@ Environmental Control Manager automates temperature control, fans, heaters, and 
 - Freeze protection alerts for greenhouse
 - Office climate management
 - Mode-based mosquito killer control
-- Water valve auto-shutoff safety
+- Water valve auto-shutoff safety8984
 - Alexa voice control integration
 - Hub variable support for dynamic configuration
 
@@ -36,7 +36,7 @@ This app replaces the following Rule Machine rules:
 - **Greenhouse Climate Control**: Automated fan and heater based on temperature
 - **Freeze Protection**: Alerts when temperature drops dangerously low
 - **Office Heating**: Maintains comfortable office temperature
-- **Mosquito Control**: Scheduled mosquito killer operation
+- **Mosquito Control**: Mode-based scheduling and Day mode illuminance-based control
 - **Water Safety**: Auto-shutoff prevents flooding
 - **Alexa Integration**: Voice control for greenhouse systems
 - **Temperature Monitoring**: Real-time sensor tracking
@@ -50,6 +50,7 @@ The app supports these hub variables for dynamic configuration:
 - `greenhouseHeaterOffTemp` - Override heater deactivation temperature (°F)
 - `freezeAlertThreshold` - Override freeze warning temperature (°F)
 - `officeHeaterTemp` - Override office heater temperature (°F)
+- `skeeterIlluminanceThreshold` - Override illuminance threshold for Day mode skeeter control (lux)
 - `waterTimeout` - Override water shutoff timeout (minutes)
 
 If hub variables are not set, the app uses the configured settings as defaults.
@@ -128,6 +129,8 @@ Initial Value: 30
 - **Mosquito Killer Device**: Mosquito killer switch
 - **Modes to Turn Skeeter ON**: Hub modes that activate mosquito killer
 - **Modes to Turn Skeeter OFF**: Hub modes that deactivate mosquito killer
+- **Illuminance Sensor**: Optional sensor for Day mode light-based control
+- **Illuminance Threshold**: Light level in lux - skeeter turns ON when below threshold (Day mode only, default: 500 lux)
 
 ### Water Control
 - **Water Control Valve**: Water valve switch
@@ -185,7 +188,21 @@ Initial Value: 30
 2. Mode changes to Day or Away → Mosquito killer turns OFF
 3. Current mode checked on app startup
 
-### Example 4: Water Safety Auto-Shutoff
+### Example 4: Illuminance-Based Mosquito Killer (Day Mode)
+**Scenario**: Run mosquito killer when it gets dark during Day mode
+
+**Configuration**:
+- Mosquito killer device configured
+- Illuminance sensor configured
+- Illuminance threshold: 500 lux
+
+**Behavior**:
+1. **Day mode only** - Illuminance drops below 500 lux → Mosquito killer turns ON
+2. **Day mode only** - Illuminance rises above 500 lux → Mosquito killer turns OFF
+3. Other modes use mode-based control instead
+4. Useful for cloudy/overcast days when it gets dark before mode change
+
+### Example 5: Water Safety Auto-Shutoff
 **Scenario**: Prevent water valve from being left on
 
 **Configuration**:

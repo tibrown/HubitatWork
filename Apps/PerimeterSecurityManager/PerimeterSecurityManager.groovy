@@ -37,10 +37,6 @@ def mainPage() {
                   title: "Front Gate Sensor",
                   required: false
             
-            input "rearGate", "capability.contactSensor",
-                  title: "Rear Gate Sensor",
-                  required: false
-            
             input "sideYardGate", "capability.contactSensor",
                   title: "Side Yard Gate Sensor",
                   required: false
@@ -76,25 +72,75 @@ def mainPage() {
                   required: false
         }
         
+        section("Carport Beam") {
+            input "carportBeam", "capability.contactSensor",
+                  title: "Carport Beam Sensor",
+                  description: "Infrared beam sensor (closed = beam broken)",
+                  required: false
+            
+            input "carportMotion", "capability.motionSensor",
+                  title: "Carport Front Motion Sensor",
+                  description: "Used to verify beam breaks",
+                  required: false
+            
+            input "frontDoorRingMotion", "capability.switch",
+                  title: "Front Door Ring Motion (Switch)",
+                  description: "Ring doorbell motion as verification",
+                  required: false
+        }
+        
+        section("Carport Beam Condition Switches") {
+            input "silentSwitch", "capability.switch",
+                  title: "Silent Switch",
+                  description: "Global silent mode suppresses alerts",
+                  required: false
+            
+            input "silentCarport", "capability.switch",
+                  title: "Silent Carport Switch",
+                  description: "Carport-specific silent mode",
+                  required: false
+            
+            input "pauseCarportBeam", "capability.switch",
+                  title: "Pause Carport Beam Switch",
+                  description: "Temporarily disable beam alerts",
+                  required: false
+        }
+        
+        section("Carport Beam Timing") {
+            input "carportBeamPauseDuration", "number",
+                  title: "Carport Beam Pause Duration (seconds)",
+                  description: "How long to pause after beam break in Day mode",
+                  defaultValue: 300,
+                  range: "60..600",
+                  required: false
+            
+            input "silentCarportTimeout", "number",
+                  title: "Silent Carport Auto-Off (seconds)",
+                  description: "How long silent carport stays on in Morning mode",
+                  defaultValue: 120,
+                  range: "30..300",
+                  required: false
+        }
+        
         section("Ring Person Detection") {
-            input "ringFrontDoor", "device.RingVirtualMotionSensor",
-                  title: "Ring Front Door",
+            input "ringFrontDoor", "capability.switch",
+                  title: "RPD Front Door Switch",
                   required: false
             
-            input "ringBackDoor", "device.RingVirtualMotionSensor",
-                  title: "Ring Back Door",
+            input "ringBackDoor", "capability.switch",
+                  title: "RPD Back Door Switch",
                   required: false
             
-            input "ringBirdHouse", "device.RingVirtualMotionSensor",
-                  title: "Ring Bird House",
+            input "ringBirdHouse", "capability.switch",
+                  title: "RPD Bird House Switch",
                   required: false
             
-            input "ringCPen", "device.RingVirtualMotionSensor",
-                  title: "Ring Chicken Pen",
+            input "ringCPen", "capability.switch",
+                  title: "RPD Chicken Pen Switch",
                   required: false
             
-            input "ringGarden", "device.RingVirtualMotionSensor",
-                  title: "Ring Garden",
+            input "ringGarden", "capability.switch",
+                  title: "RPD Garden Switch",
                   required: false
             
             input "ringPersonTimeout", "number",
@@ -147,7 +193,9 @@ def mainPage() {
                      "• <b>PerimeterCheckInterval</b> - Override check interval (minutes)\n" +
                      "• <b>AwayModeAlertEnabled</b> - Enable/disable away alerts (true/false)\n" +
                      "• <b>RingPersonTimeout</b> - Override Ring timeout (seconds)\n" +
-                     "• <b>GunCabinetAlertEnabled</b> - Enable/disable cabinet alerts (true/false)"
+                     "• <b>GunCabinetAlertEnabled</b> - Enable/disable cabinet alerts (true/false)\n" +
+                     "• <b>CarportBeamPauseDuration</b> - Override beam pause duration (seconds)\n" +
+                     "• <b>SilentCarportTimeout</b> - Override silent carport timeout (seconds)"
         }
         
         section("Logging") {
@@ -176,7 +224,6 @@ def initialize() {
     
     // Subscribe to gate sensors
     if (settings.frontGate) subscribe(settings.frontGate, "contact", gateHandler)
-    if (settings.rearGate) subscribe(settings.rearGate, "contact", gateHandler)
     if (settings.sideYardGate) subscribe(settings.sideYardGate, "contact", gateHandler)
     
     // Subscribe to shock sensors
@@ -186,12 +233,15 @@ def initialize() {
     if (settings.outsidePenSensor) subscribe(settings.outsidePenSensor, "motion.active", motionHandler)
     if (settings.gunCabinet) subscribe(settings.gunCabinet, "contact.open", gunCabinetHandler)
     
-    // Subscribe to Ring devices
-    if (settings.ringFrontDoor) subscribe(settings.ringFrontDoor, "motion.active", ringHandler)
-    if (settings.ringBackDoor) subscribe(settings.ringBackDoor, "motion.active", ringHandler)
-    if (settings.ringBirdHouse) subscribe(settings.ringBirdHouse, "motion.active", ringHandler)
-    if (settings.ringCPen) subscribe(settings.ringCPen, "motion.active", ringHandler)
-    if (settings.ringGarden) subscribe(settings.ringGarden, "motion.active", ringHandler)
+    // Subscribe to carport beam
+    if (settings.carportBeam) subscribe(settings.carportBeam, "contact", carportBeamHandler)
+    
+    // Subscribe to Ring devices (switches that turn on when person detected)
+    if (settings.ringFrontDoor) subscribe(settings.ringFrontDoor, "switch.on", ringHandler)
+    if (settings.ringBackDoor) subscribe(settings.ringBackDoor, "switch.on", ringHandler)
+    if (settings.ringBirdHouse) subscribe(settings.ringBirdHouse, "switch.on", ringHandler)
+    if (settings.ringCPen) subscribe(settings.ringCPen, "switch.on", ringHandler)
+    if (settings.ringGarden) subscribe(settings.ringGarden, "switch.on", ringHandler)
     
     // Schedule perimeter checks if enabled
     def interval = getConfigValue("perimeterCheckInterval", "PerimeterCheckInterval") as Integer
@@ -309,9 +359,6 @@ def checkPerimeter() {
     if (settings.frontGate?.currentValue("contact") == "open") {
         openGates << "Front Gate"
     }
-    if (settings.rearGate?.currentValue("contact") == "open") {
-        openGates << "Rear Gate"
-    }
     if (settings.sideYardGate?.currentValue("contact") == "open") {
         openGates << "Side Yard Gate"
     }
@@ -337,6 +384,134 @@ def isAwayMode() {
     def awayAlertEnabled = getConfigValue("awayModeAlertEnabled", "AwayModeAlertEnabled", true)
     
     return isAway && awayAlertEnabled
+}
+
+// ============================================================================
+// CARPORT BEAM HANDLERS
+// ============================================================================
+
+def carportBeamHandler(evt) {
+    String mode = location.mode
+    logDebug "Carport beam event: ${evt.value}, Mode: ${mode}"
+    
+    // Beam broken = contact closed (reversed wiring)
+    if (evt.value == "closed") {
+        handleCarportBeamBroken(mode)
+    }
+}
+
+def handleCarportBeamBroken(String mode) {
+    logInfo "Carport beam broken in ${mode} mode"
+    
+    switch(mode) {
+        case "Away":
+            handleBeamAway()
+            break
+        case "Day":
+            handleBeamDay()
+            break
+        case "Evening":
+            handleBeamEvening()
+            break
+        case "Morning":
+            handleBeamMorning()
+            break
+        default:
+            logDebug "No carport beam action for mode: ${mode}"
+    }
+}
+
+def handleBeamAway() {
+    // Check if motion is detected for verification
+    if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
+        logInfo "Away mode: Beam + motion detected"
+        sendAlert("🚨 Alert: Carport Beam Broken (Away Mode)")
+        announceAlexa("Alert! Carport beam broken!")
+    } else {
+        logDebug "Away mode: Beam broken but no motion verification"
+    }
+}
+
+def handleBeamDay() {
+    // Check silent switches
+    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silentCarport) || isSwitchOn(settings.pauseCarportBeam)) {
+        logDebug "Day mode: Silent or paused, skipping beam action"
+        return
+    }
+    
+    // Check for motion verification
+    Boolean motionDetected = false
+    if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
+        motionDetected = true
+    }
+    if (settings.frontDoorRingMotion && settings.frontDoorRingMotion.currentValue("switch") == "on") {
+        motionDetected = true
+    }
+    
+    if (!motionDetected) {
+        logDebug "Day mode: Beam broken but no motion detected"
+        return
+    }
+    
+    logInfo "Day mode: Beam + motion detected"
+    
+    // Activate pause switch to prevent repeated alerts
+    settings.pauseCarportBeam?.on()
+    
+    // Schedule auto-off
+    Integer delay = getConfigValue("carportBeamPauseDuration", "CarportBeamPauseDuration") as Integer
+    runIn(delay, turnOffPauseCarportBeam)
+    
+    // Send notification
+    sendAlert("🔔 Carport Beam Broken")
+}
+
+def handleBeamEvening() {
+    if (isSwitchOn(settings.silentSwitch)) {
+        logDebug "Evening mode: Silent is on, skipping"
+        return
+    }
+    
+    logInfo "Evening mode: Beam broken"
+    sendAlert("🔔 Carport Beam Broken")
+    announceAlexa("Carport beam broken")
+}
+
+def handleBeamMorning() {
+    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silentCarport)) {
+        logDebug "Morning mode: Silent is on, skipping"
+        return
+    }
+    
+    logInfo "Morning mode: Intruder alert - beam broken"
+    
+    // Activate silent carport to prevent repeated alerts
+    settings.silentCarport?.on()
+    
+    // Schedule auto-off
+    Integer timeout = getConfigValue("silentCarportTimeout", "SilentCarportTimeout") as Integer
+    runIn(timeout, turnOffSilentCarport)
+    
+    // Send notification - more urgent message for morning
+    sendAlert("🚨 Intruder in the carport!")
+    announceAlexa("Alert! Intruder in the carport!")
+}
+
+def turnOffPauseCarportBeam() {
+    logDebug "Auto-turning off pause carport beam"
+    settings.pauseCarportBeam?.off()
+}
+
+def turnOffSilentCarport() {
+    logDebug "Auto-turning off silent carport"
+    settings.silentCarport?.off()
+}
+
+/**
+ * Check if a switch is on
+ */
+def isSwitchOn(device) {
+    return device?.currentValue("switch") == "on"
 }
 
 // ============================================================================

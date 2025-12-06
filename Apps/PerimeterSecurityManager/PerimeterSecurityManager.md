@@ -1,11 +1,12 @@
 # Perimeter Security Manager
 
 ## Overview
-Perimeter Security Manager monitors all gates, fences, shock sensors, and perimeter security devices, providing comprehensive property boundary protection with Ring person detection integration.
+Perimeter Security Manager monitors all gates, fences, shock sensors, carport beam, and perimeter security devices, providing comprehensive property boundary protection with Ring person detection integration.
 
 ## Purpose
 - Monitor gate sensors for open/close status
 - Detect shock events on fences and gates
+- Monitor carport beam for intrusion detection
 - Integrate Ring person detection cameras
 - Provide mode-based security responses
 - Alert on gun cabinet access
@@ -26,14 +27,18 @@ This app replaces the following Rule Machine rules:
 11. **RPDFrontDoor** (1604) - Ring person detection at front door
 12. **RPDGarden** (1703) - Ring person detection at garden
 13. **EveningRPDGarden** (1702) - Evening-specific garden detection
+14. **CarportBeamDay** (686) - Carport beam daytime detection
+15. **CarportBeamEvening** (1575) - Carport beam evening detection
+16. **CarportBeamMorning** (1573) - Carport beam morning detection
 
-**Total Rules Replaced**: 13
+**Total Rules Replaced**: 16
 
 ## Features
 
 ### Core Functionality
 - **Gate Monitoring**: Track all property gates with configurable delays
 - **Shock Detection**: Tamper and impact detection on fences
+- **Carport Beam**: Infrared beam intrusion detection with mode-specific responses
 - **Ring Integration**: Person detection from Ring cameras
 - **Mode-Based Alerts**: Enhanced security in away modes
 - **Gun Cabinet Monitoring**: Alerts on cabinet access
@@ -48,6 +53,8 @@ The app supports these hub variables for dynamic configuration:
 - `awayModeAlertEnabled` - Enable/disable away alerts (true/false)
 - `ringPersonTimeout` - Override Ring timeout (seconds)
 - `gunCabinetAlertEnabled` - Enable/disable cabinet alerts (true/false)
+- `CarportBeamPauseDuration` - Override carport beam pause duration (seconds)
+- `SilentCarportTimeout` - Override silent carport timeout (seconds)
 
 If hub variables are not set, the app uses the configured settings as defaults.
 
@@ -116,13 +123,37 @@ Initial Value: true
 - **Outside Pen Motion Sensor**: Motion detection in pen area
 - **Gun Cabinet Sensor**: Contact sensor on gun cabinet
 
+### Carport Beam
+- **Carport Beam Sensor**: Infrared beam contact sensor (closed = beam broken)
+- **Carport Front Motion Sensor**: Motion sensor for beam break verification
+- **Front Door Ring Motion (Switch)**: Ring doorbell motion as verification source
+
+### Carport Beam Condition Switches
+- **Silent Switch**: Global silent mode - suppresses all carport beam alerts
+- **Silent Carport Switch**: Carport-specific silent mode
+- **Pause Carport Beam Switch**: Temporarily disable beam alerts (auto-managed)
+
+### Carport Beam Timing
+- **Carport Beam Pause Duration**: Seconds to pause after beam break in Day mode (default: 300)
+- **Silent Carport Auto-Off**: Seconds before silent carport resets in Morning mode (default: 120)
+
 ### Ring Person Detection
-Configure Ring devices for each monitored location:
-- **Ring Front Door**: Person detection at front entrance
-- **Ring Back Door**: Person detection at rear entrance
-- **Ring Bird House**: Person detection at bird house area
-- **Ring Chicken Pen**: Person detection at chicken pen
-- **Ring Garden**: Person detection in garden
+Ring Person Detection (RPD) uses virtual switches that are triggered through an integration chain:
+
+**How it works:**
+1. Ring camera detects a person
+2. Ring notifies Alexa via the Ring-Alexa integration
+3. Alexa routine triggers the corresponding virtual switch in Hubitat
+4. This app subscribes to the switch turning on and sends alerts
+
+**Configuration - Virtual Switches:**
+- **RPD Front Door Switch**: Triggered when person detected at front door
+- **RPD Back Door Switch**: Triggered when person detected at back door
+- **RPD Bird House Switch**: Triggered when person detected at bird house area
+- **RPD Chicken Pen Switch**: Triggered when person detected at chicken pen
+- **RPD Garden Switch**: Triggered when person detected in garden
+
+**Timing:**
 - **Ring Person Detection Timeout**: Seconds to wait for person detection (default: 30)
 
 ### Mode-Based Behavior
@@ -196,6 +227,35 @@ Configure Ring devices for each monitored location:
 1. Every 15 minutes → Check all gate states
 2. If away mode + gates open → Alert with list
 3. If home mode → No alert, just log
+
+### Example 5: Carport Beam Detection
+**Scenario**: Mode-aware intrusion detection at carport
+
+**Configuration**:
+- Carport Beam Sensor: Infrared beam
+- Carport Front Motion Sensor: For verification
+- Silent switches configured
+- Notification device selected
+
+**Behavior by Mode**:
+
+**Away Mode**:
+1. Beam broken + motion detected → "Alert: Carport Beam Broken (Away Mode)"
+2. Beam broken without motion → No alert (reduces false positives)
+
+**Day Mode**:
+1. Beam broken + motion detected → "Carport Beam Broken"
+2. Pause switch activates for 5 minutes (prevents repeated alerts)
+3. Respects silent/pause switches
+
+**Evening Mode**:
+1. Beam broken → "Carport Beam Broken" + Alexa announcement
+2. Respects silent switch
+
+**Morning Mode**:
+1. Beam broken → "Intruder in the carport!" (urgent message)
+2. Silent carport activates for 2 minutes
+3. Alexa announcement: "Alert! Intruder in the carport!"
 
 ## Troubleshooting
 

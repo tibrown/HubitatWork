@@ -1,13 +1,12 @@
 # Lights Automation Manager
 
 ## Overview
-Lights Automation Manager is a comprehensive Hubitat app that manages all automated lighting throughout your home. It consolidates mode-based schedules, motion-activated flood lights, carport beam triggers, desk lighting controls, color-changing light strips, and master light controls into a single, efficient application.
+Lights Automation Manager is a comprehensive Hubitat app that manages all automated lighting throughout your home. It consolidates mode-based schedules, motion-activated flood lights, desk lighting controls, color-changing light strips, and master light controls into a single, efficient application.
 
 ## Purpose
 - Centralize all lighting automation
 - Provide mode-based lighting schedules (Morning, Day, Evening, Night)
 - Motion-activated flood lights for security
-- Carport beam-triggered notifications and lighting
 - Desk light control with motion and button triggers
 - Color-changing light strip management
 - Master all-on/all-off controls
@@ -18,7 +17,6 @@ Lights Automation Manager is a comprehensive Hubitat app that manages all automa
 - **Desk Lighting**: Motion sensor and button control with brightness levels
 - **Color Light Strips**: Automated color changes based on mode
 - **Flood Lights**: Motion-activated security floods with auto-off timers
-- **Carport Beam**: Intelligent beam-break detection with mode-specific actions
 - **Master Controls**: Turn all lights on/off with single command
 - **Emergency Integration**: Red alert lighting when triggered by other apps
 - **Hub Variable Support**: Dynamic configuration overrides
@@ -30,7 +28,6 @@ Lights Automation Manager is a comprehensive Hubitat app that manages all automa
 1. **Hubitat Hub** running firmware 2.3.0 or later
 2. **Light Devices**: Various switches, dimmers, color-changing bulbs, strips
 3. **Motion Sensors**: For flood light activation
-4. **Contact Sensor**: For carport beam (optional)
 
 ### Installation Steps
 1. Open Hubitat web interface
@@ -66,12 +63,6 @@ Configure individual flood lights and their associated motion sensors:
 - **Office Flood Light** + **Office Flood Motion Sensor**
 - **Carport Flood Light**
 
-### Carport Beam Lighting
-- **Carport Beam Sensor**: Contact sensor on carport beam
-- **Carport Front Motion**: Motion sensor for validation
-- **Front Door Ring Motion**: Ring device motion detection
-- **Carport Lights**: Lights to control based on beam breaks
-
 ### Master Light Groups
 - **All Lights Group**: Collection of all lights for master control
 - **All Lights Master Switch**: Virtual or physical switch for all lights
@@ -79,9 +70,6 @@ Configure individual flood lights and their associated motion sensors:
 ### Condition Switches
 - **On PTO Switch**: When on, skips morning light automation
 - **Holiday Switch**: When on, skips morning light automation
-- **Silent Switch**: Suppresses carport beam notifications
-- **Silent Carport Switch**: Carport-specific silent mode
-- **Pause Carport Beam Switch**: Temporarily disable beam alerts
 - **Traveling Switch**: Travel mode indicator
 
 ### Lighting Configuration
@@ -93,14 +81,12 @@ Configure individual flood lights and their associated motion sensors:
 
 ### Motion Timeout Configuration
 - **Flood Light Motion Timeout**: Minutes before flood auto-off (default: 5)
-- **Carport Beam Pause Duration**: Seconds to pause beam alerts (default: 300)
-- **Silent Carport Auto-Off**: Seconds before silent carport resets (default: 120)
 
 ### Cross-App Communication
 - **Emergency Light Trigger**: Virtual switch for emergency red alert from other apps
 
 ### Notifications
-- **Notification Devices**: Devices to receive carport beam and motion alerts
+- **Notification Devices**: Devices to receive motion alerts
 
 ## Hub Variables
 
@@ -111,7 +97,6 @@ The app supports the following hub variables for dynamic configuration:
 - `floodTimeout` (Number): Override motion-activated flood timeout in minutes
 - `stripColorDay` (String): Override daytime strip color (e.g., "Soft White", "Blue")
 - `stripColorNight` (String): Override nighttime strip color (e.g., "Blue", "Red")
-- `beamLightDelay` (Number): Override carport beam light delay in seconds
 
 **Note**: Morning, Evening, and Night lighting modes are triggered by mode changes, not time schedules.
 
@@ -176,29 +161,6 @@ Motion sensors trigger associated flood lights:
 - Side  
 - Office
 
-### Carport Beam Detection
-
-The app monitors carport beam breaks and responds based on mode:
-
-#### Away Mode
-- **IF** beam broken **AND** motion detected:
-  - Send notification: "Alert:Carport Beam Broken"
-
-#### Day Mode
-- **IF** beam broken **AND** motion detected:
-  - **AND** NOT silent/paused:
-  - Activate pause switch for 5 minutes
-  - Send notification: "Carport Beam Broken"
-
-#### Evening Mode
-- **IF** beam broken **AND** NOT silent:
-  - Send notification: "Carport Beam Broken, Carport Beam Broken"
-
-#### Morning Mode
-- **IF** beam broken **AND** NOT silent:
-  - Activate silent carport mode for 2 minutes
-  - Send notification: "Intruder in the carport"
-
 ### Master Light Controls
 
 #### All Lights ON
@@ -241,7 +203,7 @@ Supported colors:
 
 ## Rules Replaced
 
-This app replaces the following 20 Rule Machine rules:
+This app replaces the following 17 Rule Machine rules:
 1. 1-FloodRearOff
 2. 1-FloodRearOn
 3. TurnAllLightsOff
@@ -257,19 +219,17 @@ This app replaces the following 20 Rule Machine rules:
 13. StripLightsWhite
 14. Lightstrip
 15. Motion-FloodOn
-16. CarportBeamDay
-17. CarportBeamEvening
-18. CarportBeamMorning
-19. ShowerHelpDeskRed
-20. WhisperToGuestroom
+16. ShowerHelpDeskRed
+17. WhisperToGuestroom
+
+**Note**: CarportBeamDay, CarportBeamEvening, and CarportBeamMorning rules are now consolidated in PerimeterSecurityManager.
 
 ## Apps Replaced
 
 This app consolidates and replaces:
 1. **LightsApp.groovy** (214 LOC) - Mode-based lighting and desk control
-2. **CarPortControl.groovy** (220 LOC) - Carport beam detection
 
-Total: 434 LOC consolidated into 700 LOC with expanded functionality
+**Note**: CarPortControl.groovy functionality has been moved to PerimeterSecurityManager.
 
 ## Example Configurations
 
@@ -285,16 +245,15 @@ Total: 434 LOC consolidated into 700 LOC with expanded functionality
 - Modes: Morning, Day, Evening, Night
 
 ### Advanced Multi-Zone System
-**Scenario**: Full automation with floods, carport beam, and emergency
+**Scenario**: Full automation with floods and emergency
 
 **Configuration**:
 - **Desk**: Office smart bulb + motion sensor + button
 - **Strips**: Living room strip + bedroom strip  
 - **Generic Switches**: 5 lamps throughout home
 - **Floods**: Rear, Side, Office (each with motion sensor)
-- **Carport**: Beam sensor + motion sensor + Ring motion
 - **Master**: Virtual "All Lights" switch + group of all lights
-- **Conditions**: PTO switch, Holiday switch, Silent switches
+- **Conditions**: PTO switch, Holiday switch
 - **Emergency Trigger**: Virtual switch from SecurityAlarmManager
 - **Notifications**: Phone notification device
 
@@ -330,13 +289,6 @@ Total: 434 LOC consolidated into 700 LOC with expanded functionality
 2. Verify timeout setting is reasonable
 3. Manually turn off to clear state
 4. Review logs for auto-off execution
-
-### Carport Beam Notifications Not Received
-1. Verify beam sensor is working (check device page)
-2. Check mode-specific conditions (silent switches, etc.)
-3. Ensure notification device is configured
-4. Review logs for beam events
-5. Test beam manually
 
 ### Morning Lights Don't Turn On
 1. Check Holiday switch state (should be OFF)
@@ -379,8 +331,6 @@ Total: 434 LOC consolidated into 700 LOC with expanded functionality
 
 ### Scheduled Jobs
 - Flood light auto-off (motion timeout)
-- Carport beam pause reset
-- Silent carport reset
 - Emergency trigger reset
 
 ### Methods Available
@@ -395,13 +345,14 @@ Total: 434 LOC consolidated into 700 LOC with expanded functionality
 ## Integration with Other Apps
 
 ### Security Alarm Manager
-- Carport beam alerts can trigger security alarms in Away/Night modes
-- Uses shared Silent switches for coordinated silence
+- Emergency light trigger integration
 
 ### Night Security Manager
-- Shares carport beam sensor and motion detection
-- Coordinates intruder alerts and lighting
-- Emergency light trigger integration
+- Emergency light trigger activates all lights + red strips
+
+### Perimeter Security Manager
+- Carport beam detection is handled by PerimeterSecurityManager
+- Uses shared notification devices for alerts
 
 ### Emergency Help Manager
 - Desk light turns red for shower emergency indicator
@@ -417,15 +368,17 @@ Total: 434 LOC consolidated into 700 LOC with expanded functionality
 
 ## Version History
 - **1.0.0** (2025-12-04): Initial release
-  - Consolidates LightsApp and CarPortControl
-  - 20 rules consolidated
+  - Consolidates LightsApp functionality
+  - 17 rules consolidated
   - Mode-based automation
   - Flood light motion activation
-  - Carport beam detection
   - Desk light control
   - Master light controls
   - Emergency lighting integration
   - Hub variable support
+- **1.1.0** (2025-12-05): Refactored
+  - Moved carport beam functionality to PerimeterSecurityManager
+  - Removed silent switches (used by carport beam only)
 
 ## License
 Licensed under the Apache License, Version 2.0. See LICENSE file for details.

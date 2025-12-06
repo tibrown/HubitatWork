@@ -18,7 +18,7 @@ definition(
     name: "Lights Automation Manager",
     namespace: "hubitat",
     author: "Tim Brown",
-    description: "Comprehensive lighting automation managing mode-based schedules, motion-activated floods, carport beam triggers, desk lighting, color strips, and master controls. Consolidates LightsApp and CarPortControl functionality.",
+    description: "Comprehensive lighting automation managing mode-based schedules, motion-activated floods, desk lighting, color strips, and master controls.",
     category: "Lighting",
     iconUrl: "",
     iconX2Url: "",
@@ -62,13 +62,6 @@ def mainPage() {
             input "officeFloodMotion", "capability.motionSensor", title: "Office Flood Motion Sensor", required: false
         }
         
-        section("Carport Beam Lighting") {
-            input "carportBeam", "capability.contactSensor", title: "Carport Beam Sensor", required: false
-            input "carportMotion", "capability.motionSensor", title: "Carport Front Motion", required: false
-            input "frontDoorRingMotion", "capability.switch", title: "Front Door Ring Motion (Switch)", required: false
-            input "carportLights", "capability.switch", title: "Carport Lights", multiple: true, required: false
-        }
-        
         section("Master Light Groups") {
             input "allLights", "capability.switch", title: "All Lights Group", multiple: true, required: false
             input "allLightsSwitch", "capability.switch", title: "All Lights Master Switch", required: false
@@ -77,18 +70,11 @@ def mainPage() {
         section("Condition Switches") {
             input "onPTO", "capability.switch", title: "On PTO Switch", required: false
             input "holiday", "capability.switch", title: "Holiday Switch", required: false
-            input "silentSwitch", "capability.switch", title: "Silent Switch", required: false
-            input "silentCarport", "capability.switch", title: "Silent Carport Switch", required: false
-            input "pauseCarportBeam", "capability.switch", title: "Pause Carport Beam Switch", required: false
             input "traveling", "capability.switch", title: "Traveling Switch", required: false
         }
         
         section("Cross-App Communication") {
             input "emergencyLightTrigger", "capability.switch", title: "Emergency Light Trigger (receives from other apps)", required: false
-        }
-        
-        section("Notifications") {
-            input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
         }
         
         section("Lighting Configuration") {
@@ -101,15 +87,12 @@ def mainPage() {
         
         section("Motion Timeout Configuration") {
             input "floodTimeout", "number", title: "Flood Light Motion Timeout (minutes)", defaultValue: 5, required: false
-            input "carportBeamDelay", "number", title: "Carport Beam Pause Duration (seconds)", defaultValue: 300, required: false
-            input "silentCarportTimeout", "number", title: "Silent Carport Auto-Off (seconds)", defaultValue: 120, required: false
         }
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• FloodTimeout - Override motion-activated flood timeout (minutes)"
             paragraph "• StripColorNight - Override nighttime strip color (color name)"
-            paragraph "• BeamLightDelay - Override carport beam light delay (seconds)"
         }
         
         section("Logging") {
@@ -148,9 +131,6 @@ def initialize() {
     if (rearFloodMotion) subscribe(rearFloodMotion, "motion.active", rearFloodMotionHandler)
     if (sideFloodMotion) subscribe(sideFloodMotion, "motion.active", sideFloodMotionHandler)
     if (officeFloodMotion) subscribe(officeFloodMotion, "motion.active", officeFloodMotionHandler)
-    
-    // Carport beam
-    if (carportBeam) subscribe(carportBeam, "contact", carportBeamHandler)
     
     // Cross-app communication
     if (emergencyLightTrigger) subscribe(emergencyLightTrigger, "switch.on", handleEmergencyLightTrigger)
@@ -440,123 +420,6 @@ def turnOffFloodOffice() {
 }
 
 // ========================================
-// CARPORT BEAM HANDLERS
-// ========================================
-
-def carportBeamHandler(evt) {
-    String mode = location.mode
-    logDebug "Carport beam event: ${evt.value}, Mode: ${mode}"
-    
-    if (evt.value == "closed") {
-        handleCarportBeamBroken(mode)
-    }
-}
-
-def handleCarportBeamBroken(String mode) {
-    logInfo "Carport beam broken in ${mode} mode"
-    
-    switch(mode) {
-        case "Away":
-            handleBeamAway()
-            break
-        case "Day":
-            handleBeamDay()
-            break
-        case "Evening":
-            handleBeamEvening()
-            break
-        case "Morning":
-            handleBeamMorning()
-            break
-        default:
-            logDebug "No carport beam action for mode: ${mode}"
-    }
-}
-
-def handleBeamAway() {
-    // Check if motion is detected
-    if (carportMotion && carportMotion.currentValue("motion") == "active") {
-        logInfo "Away mode: Beam + motion detected"
-        sendNotification("Alert:Carport Beam Broken")
-    } else {
-        logDebug "Away mode: Beam broken but no motion"
-    }
-}
-
-def handleBeamDay() {
-    // Check silent switches
-    if (isSwitchOn(silentSwitch) || isSwitchOn(silentCarport) || isSwitchOn(pauseCarportBeam)) {
-        logDebug "Day mode: Silent or paused, skipping beam action"
-        return
-    }
-    
-    // Check for motion
-    Boolean motionDetected = false
-    if (carportMotion && carportMotion.currentValue("motion") == "active") {
-        motionDetected = true
-    }
-    if (frontDoorRingMotion && frontDoorRingMotion.currentValue("switch") == "on") {
-        motionDetected = true
-    }
-    
-    if (!motionDetected) {
-        logDebug "Day mode: Beam broken but no motion detected"
-        return
-    }
-    
-    logInfo "Day mode: Beam + motion detected"
-    
-    // Activate pause switch
-    pauseCarportBeam?.on()
-    
-    // Schedule auto-off
-    Integer delay = getConfigValue("carportBeamDelay", "BeamLightDelay") as Integer
-    runIn(delay, turnOffPauseCarportBeam)
-    
-    // Send notification
-    sendNotification("Carport Beam Broken")
-}
-
-def handleBeamEvening() {
-    if (isSwitchOn(silentSwitch)) {
-        logDebug "Evening mode: Silent is on, skipping"
-        return
-    }
-    
-    logInfo "Evening mode: Beam broken"
-    sendNotification("Carport Beam Broken, Carport Beam Broken")
-}
-
-def handleBeamMorning() {
-    if (isSwitchOn(silentSwitch) || isSwitchOn(silentCarport)) {
-        logDebug "Morning mode: Silent is on, skipping"
-        return
-    }
-    
-    logInfo "Morning mode: Intruder alert - beam broken"
-    
-    // Activate silent carport
-    silentCarport?.on()
-    
-    // Schedule auto-off
-    Integer timeout = getConfigValue("silentCarportTimeout", "SilentCarportTimeout") as Integer
-    runIn(timeout, turnOffSilentCarport)
-    
-    // Send notification
-    sendNotification("Intruder in the carport")
-}
-
-def turnOffPauseCarportBeam() {
-    logDebug "Auto-turning off pause carport beam"
-    pauseCarportBeam?.off()
-}
-
-def turnOffSilentCarport() {
-    logDebug "Auto-turning off silent carport"
-    silentCarport?.off()
-}
-
-// ========================================
 // MASTER LIGHT CONTROLS
 // ========================================
 
@@ -670,15 +533,6 @@ def setHubVar(String varName, String value) {
 
 def isSwitchOn(device) {
     return device && device.currentValue("switch") == "on"
-}
-
-def sendNotification(String message) {
-    if (notificationDevices) {
-        notificationDevices.each { device ->
-            device.deviceNotification(message)
-        }
-        logDebug "Notification sent: ${message}"
-    }
 }
 
 // ========================================

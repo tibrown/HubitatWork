@@ -118,6 +118,17 @@ def mainPage() {
                   description: "Skeeter will be off during these modes",
                   multiple: true,
                   required: false
+            
+            input "skeeterIlluminanceSensor", "capability.illuminanceMeasurement",
+                  title: "Illuminance Sensor (Optional)",
+                  description: "Sensor for Day mode illuminance-based control",
+                  required: false
+            
+            input "skeeterIlluminanceThreshold", "number",
+                  title: "Illuminance Threshold (lux)",
+                  description: "Turn skeeter ON when illuminance drops below this (Day mode only)",
+                  defaultValue: 500,
+                  required: false
         }
         
         section("Water Control") {
@@ -209,12 +220,22 @@ def initialize() {
         subscribe(settings.waterResetSwitch, "switch.on", waterResetHandler)
     }
     
+    // Subscribe to illuminance sensor for Day mode skeeter control
+    if (settings.skeeterIlluminanceSensor) {
+        subscribe(settings.skeeterIlluminanceSensor, "illuminance", illuminanceHandler)
+    }
+    
     // Subscribe to mode changes for mosquito control
     subscribe(location, "mode", modeChangeHandler)
     
     // Initial temperature check and mode-based skeeter control
     checkAllTemperatures()
     handleCurrentMode()
+    
+    // Initial illuminance check if in Day mode
+    if (location.currentMode == "Day" && settings.skeeterIlluminanceSensor) {
+        checkIlluminance()
+    }
 }
 
 // ============================================================================
@@ -386,6 +407,14 @@ def handleSkeeterMode(String mode) {
     
     def currentState = settings.skeeterKiller.currentValue("switch")
     
+    // For Day mode, use illuminance-based control if configured
+    if (mode == "Day" && settings.skeeterIlluminanceSensor) {
+        logDebug "Day mode: using illuminance-based skeeter control"
+        checkIlluminance()
+        return
+    }
+    
+    // For other modes, use mode-based control
     if (settings.skeeterOnModes?.contains(mode) && currentState != "on") {
         logInfo "Mode ${mode} triggers mosquito killer ON"
         settings.skeeterKiller.on()
@@ -394,6 +423,41 @@ def handleSkeeterMode(String mode) {
         settings.skeeterKiller.off()
     } else {
         logDebug "Mode ${mode} has no mosquito killer action (current: ${currentState})"
+    }
+}
+
+def illuminanceHandler(evt) {
+    if (location.currentMode != "Day") {
+        logDebug "Illuminance change ignored - not in Day mode"
+        return
+    }
+    
+    logDebug "Illuminance changed to ${evt.value} lux"
+    checkIlluminance()
+}
+
+def checkIlluminance() {
+    if (!settings.skeeterKiller || !settings.skeeterIlluminanceSensor) {
+        return
+    }
+    
+    if (location.currentMode != "Day") {
+        logDebug "Not in Day mode, skipping illuminance check"
+        return
+    }
+    
+    def illuminance = settings.skeeterIlluminanceSensor.currentValue("illuminance")
+    def threshold = getConfigValue("skeeterIlluminanceThreshold", "SkeeterIlluminanceThreshold") ?: 500
+    def currentState = settings.skeeterKiller.currentValue("switch")
+    
+    logDebug "Illuminance check: ${illuminance} lux vs threshold ${threshold} lux (current: ${currentState})"
+    
+    if (illuminance < threshold && currentState != "on") {
+        logInfo "Illuminance ${illuminance} lux < ${threshold} lux, turning skeeter ON"
+        settings.skeeterKiller.on()
+    } else if (illuminance >= threshold && currentState != "off") {
+        logInfo "Illuminance ${illuminance} lux >= ${threshold} lux, turning skeeter OFF"
+        settings.skeeterKiller.off()
     }
 }
 
