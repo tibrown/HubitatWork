@@ -60,6 +60,13 @@ def mainPage() {
                   defaultValue: 5,
                   range: "1..10",
                   required: false
+            
+            input "shockPersonCorrelationSeconds", "number",
+                  title: "Shock + Person Detection Window (seconds)",
+                  description: "Time window to correlate shock with Ring CPen person detection",
+                  defaultValue: 30,
+                  range: "5..120",
+                  required: false
         }
         
         section("Additional Perimeter Sensors") {
@@ -274,12 +281,66 @@ def shockHandler(evt) {
     
     def sensitivity = getConfigValue("shockSensitivity", "ShockSensitivity") as Integer
     
-    // Check if shock is significant enough to alert
-    if (sensitivity >= 5) {
-        sendAlert("⚠️ Shock detected on ${sensorName}")
-        announceAlexa("Alert! Shock detected on rear gate!")
-    } else {
+    // Check if shock is significant enough to process
+    if (sensitivity < 5) {
         logDebug "Shock detected but below sensitivity threshold"
+        return
+    }
+    
+    // Get the correlation window from app settings (no hub variable for this)
+    def correlationWindow = (settings.shockPersonCorrelationSeconds ?: 30) as Integer
+    
+    if (wasRingCPenRecentlyTriggered(correlationWindow)) {
+        // Person was detected at chicken pen within the correlation window
+        logInfo "Shock + person correlation confirmed - sending alert"
+        sendAlert("⚠️ Shock detected on ${sensorName} + Person at Chicken Pen")
+        announceAlexa("Alert! Shock detected on rear gate with person at chicken pen!")
+    } else {
+        // No person detected yet - store shock event and wait for person detection
+        logInfo "Shock detected, waiting for person detection at chicken pen within ${correlationWindow} seconds"
+        state.lastShockTime = now()
+        state.lastShockSensor = sensorName
+        
+        // Schedule a check in case person is detected shortly after
+        runIn(correlationWindow, clearPendingShockAlert)
+    }
+}
+
+/**
+ * Check if Ring CPen was triggered within the correlation window
+ */
+def wasRingCPenRecentlyTriggered(Integer windowSeconds) {
+    if (!settings.ringCPen) {
+        logDebug "Ring CPen not configured"
+        return false
+    }
+    
+    // Check if the switch is currently on (recently triggered)
+    if (settings.ringCPen.currentValue("switch") == "on") {
+        logDebug "Ring CPen is currently on - person detected"
+        return true
+    }
+    
+    // Check if we have a stored recent trigger time
+    if (state.lastRingCPenTime) {
+        def elapsedSeconds = (now() - state.lastRingCPenTime) / 1000
+        if (elapsedSeconds <= windowSeconds) {
+            logDebug "Ring CPen was triggered ${elapsedSeconds} seconds ago - within window"
+            return true
+        }
+    }
+    
+    return false
+}
+
+/**
+ * Clear pending shock alert if no person was detected in time
+ */
+def clearPendingShockAlert() {
+    if (state.lastShockTime) {
+        logDebug "Clearing pending shock alert - no person detected within correlation window"
+        state.remove("lastShockTime")
+        state.remove("lastShockSensor")
     }
 }
 
@@ -304,10 +365,34 @@ def gunCabinetHandler(evt) {
 }
 
 def ringHandler(evt) {
-    def location = evt.displayName
-    logInfo "Ring person detected: ${location}"
+    def locationName = evt.displayName
+    logInfo "Ring person detected: ${locationName}"
     
     def currentMode = location.currentMode.toString()
+    
+    // Track Ring CPen triggers for shock correlation
+    if (evt.device == settings.ringCPen) {
+        state.lastRingCPenTime = now()
+        
+        // Check if we have a pending shock alert to correlate
+        if (state.lastShockTime) {
+            def correlationWindow = (settings.shockPersonCorrelationSeconds ?: 30) as Integer
+            def elapsedSeconds = (now() - state.lastShockTime) / 1000
+            
+            if (elapsedSeconds <= correlationWindow) {
+                def shockSensor = state.lastShockSensor ?: "rear gate"
+                logInfo "Person at chicken pen + recent shock - sending correlated alert"
+                sendAlert("⚠️ Shock detected on ${shockSensor} + Person at Chicken Pen")
+                announceAlexa("Alert! Shock detected on rear gate with person at chicken pen!")
+                
+                // Clear the pending shock
+                state.remove("lastShockTime")
+                state.remove("lastShockSensor")
+                unschedule("clearPendingShockAlert")
+                return
+            }
+        }
+    }
     
     // Special handling for garden in evening mode
     if (evt.device == settings.ringGarden && currentMode == settings.eveningMode?.toString()) {
@@ -317,8 +402,8 @@ def ringHandler(evt) {
     }
     
     // General person detection
-    sendAlert("🔔 Person detected: ${location}")
-    announceAlexa("Person detected at ${location}")
+    sendAlert("🔔 Person detected: ${locationName}")
+    announceAlexa("Person detected at ${locationName}")
 }
 
 // ============================================================================
