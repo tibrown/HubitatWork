@@ -9,10 +9,10 @@ The Special Automations Manager is a comprehensive Hubitat app that handles misc
 - Work-life balance features (meetings, PTO, wake-up)
 - Critical infrastructure monitoring (power, water)
 - Multi-channel communication routing
-- Convenience automations (coffee, safe monitoring)
+- Convenience automations (safe monitoring)
 
 ## Rules Consolidated
-This app consolidates **20 rules**:
+This app consolidates **19 rules**:
 
 | Rule Name | Rule ID | Category | Function |
 |-----------|---------|----------|----------|
@@ -35,7 +35,6 @@ This app consolidates **20 rules**:
 | TellAlexa | 694 | Communication | Alexa announcements |
 | TellMe | 1347 | Communication | General notifications |
 | PlaySO25 | 1658 | Audio | Audio playback |
-| Heat Coffee | 1697 | Convenience | Coffee maker automation |
 
 ## Features
 
@@ -68,8 +67,6 @@ This app consolidates **20 rules**:
 - **Message Routing**: Context-aware delivery
 
 ### Miscellaneous Automations
-- **Coffee Maker**: Scheduled morning coffee
-- **Auto-Shutoff**: Safety timeout for appliances
 - **Safe Monitoring**: Periodic lock status checks
 - **Away Mode Delay**: Graceful transition to away
 - **Audio Playback**: Scheduled or triggered sounds
@@ -83,12 +80,12 @@ This app consolidates **20 rules**:
 - **Dogs Fed Switch**: Daily feeding status
 - **Carport Zone Active**: Dog detection in carport
 - **Carport Siren**: Alert device for carport zone
-- **Feeding Reminder Time**: Daily reminder schedule
+- **Feeding Reminder Time**: Daily reminder schedule (optional - leave blank to disable)
   - Hub Variable: `dogFeedingReminderTime` (HH:mm)
-- **Fed Reset Time**: When to reset fed status
+- **Fed Reset Time**: When to reset fed status (optional)
 - **Dog Outside Timeout**: Minutes before alert (5-120)
   - Hub Variable: `dogOutsideTimeout`
-- **Enable Feeding Reminder**: Toggle reminders
+- **Enable Feeding Reminder**: Toggle reminders (requires Feeding Reminder Time to be set)
 - **Enable Outside Alerts**: Toggle timeout alerts
 
 ### Work Reminders Settings
@@ -121,11 +118,6 @@ This app consolidates **20 rules**:
 - **See Slack Switch**: Slack reminder trigger
 
 ### Miscellaneous Settings
-- **Coffee Maker**: Smart plug for coffee maker
-- **Coffee On Time**: Daily brew time
-  - Hub Variable: `coffeeOnTime` (HH:mm)
-- **Coffee On Days**: Days to brew
-- **Enable Coffee Automation**: Toggle coffee feature
 - **Safe Sensor**: Lock status sensor
 - **Safe Check Interval**: Hours between checks (1-168)
   - Hub Variable: `safeCheckInterval`
@@ -141,11 +133,10 @@ This app consolidates **20 rules**:
 The app supports the following hub variables for dynamic configuration:
 
 | Hub Variable | Type | Description | Default |
-|--------------|------|-------------|---------|
+|--------------|------|-------------|--------|
 | `dogFeedingReminderTime` | String | Feeding reminder time (HH:mm) | Setting value |
 | `dogOutsideTimeout` | Number | Dog outside timeout (minutes) | 30 |
 | `meetingReminderAdvance` | Number | Meeting reminder advance (minutes) | 15 |
-| `coffeeOnTime` | String | Coffee brew time (HH:mm) | Setting value |
 | `wakeUpTime` | String | Wake-up alarm time (HH:mm) | Setting value |
 | `safeCheckInterval` | Number | Safe check interval (hours) | 24 |
 | `powerMonitorDelay` | Number | Power alert delay (seconds) | 30 |
@@ -157,13 +148,13 @@ The app supports the following hub variables for dynamic configuration:
 
 ### Dog Feeding Reminder Flow
 ```
-1. Scheduled at dogFeedingReminderTime
-2. Check if dogsFedSwitch is ON
+1. Only scheduled if dogFeedingReminderTime is set
+2. At scheduled time, check if dogsFedSwitch is ON
 3. If not fed:
    - Alexa announcement
    - Push notification
 4. If fed: Skip reminder
-5. Daily reset at fedResetTime
+5. Daily reset at fedResetTime (if configured)
 ```
 
 ### Dogs Outside Timeout Flow
@@ -188,17 +179,6 @@ The app supports the following hub variables for dynamic configuration:
 5. When power restored:
    - Set onMainsSwitch to ON
    - Send restoration notification
-```
-
-### Coffee Automation Flow
-```
-1. Scheduled at coffeeOnTime
-2. Check if today in coffeeOnDays
-3. If yes:
-   - Turn on coffee maker
-   - Send notification
-   - Schedule auto-shutoff (2 hours)
-4. If no: Skip
 ```
 
 ### Meeting Reminder Flow
@@ -264,7 +244,6 @@ None - standalone automations
   - `seeSlackHandler(evt)`: Slack reminder
 
 - **Miscellaneous**:
-  - `heatCoffee()`: Coffee maker automation
   - `checkSafeLocked()`: Safe status verification
   - `setAwayDelayHandler(evt)`: Delayed away mode
   - `setAwayMode()`: Execute mode change
@@ -284,7 +263,6 @@ Minimal state usage - primarily event-driven
    - dogFeedingReminderTime (String): "18:00"
    - dogOutsideTimeout (Number): 30
    - meetingReminderAdvance (Number): 15
-   - coffeeOnTime (String): "06:30"
    - wakeUpTime (String): "06:00"
    - safeCheckInterval (Number): 24
    - powerMonitorDelay (Number): 30
@@ -337,7 +315,6 @@ Minimal state usage - primarily event-driven
 - [ ] See Slack reminder triggers
 
 ### Miscellaneous
-- [ ] Coffee maker turns on/off
 - [ ] Safe check alerts work
 - [ ] Away delay triggers correctly
 - [ ] Hub variables override settings
@@ -359,13 +336,12 @@ Minimal state usage - primarily event-driven
 - **No notifications**: Check notification devices configured
 - **Reminders not firing**: Verify time format (HH:mm)
 - **Slack not working**: Verify webhook URL
-- **Coffee not turning on**: Check day-of-week settings
 - **Safe alerts too frequent**: Increase check interval
 
 ## Performance Notes
-- **Lines of Code**: 660
+- **Lines of Code**: ~620
 - **State Variables**: Minimal (mostly event-driven)
-- **Scheduled Jobs**: ~8 (depending on enabled features)
+- **Scheduled Jobs**: ~6 (depending on enabled features)
 - **Subscriptions**: ~15 (depending on configured devices)
 - **Performance**: Lightweight, efficient
 - **Memory**: Low state usage

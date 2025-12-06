@@ -154,17 +154,6 @@ def communicationPage() {
 
 def miscellaneousPage() {
     dynamicPage(name: "miscellaneousPage", title: "Miscellaneous Automations", install: false, uninstall: false) {
-        section("Coffee Maker") {
-            input "coffeeMaker", "capability.switch", title: "Coffee Maker Switch", required: false
-            input "coffeeOnTime", "time", title: "Coffee On Time", required: false,
-                description: "Hub variable: coffeeOnTime (HH:mm format)"
-            input "coffeeOnDays", "enum", title: "Coffee On Days", 
-                options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], 
-                multiple: true, required: false
-            input "enableCoffeeAutomation", "bool", title: "Enable Coffee Automation", 
-                defaultValue: true, required: false
-        }
-        
         section("Safe Monitoring") {
             input "safeSensor", "capability.lockCodes", title: "Safe Lock Sensor", required: false
             input "safeCheckInterval", "number", title: "Safe Check Interval (hours)", 
@@ -275,7 +264,7 @@ def dogsOutsideHandler(evt) {
 def dogsOutsideTimeout() {
     if (dogsOutsideSwitch?.currentValue("switch") == "on") {
         logInfo "Dogs have been outside for extended period"
-        notify("notification", "⚠️ Dogs have been outside for a while")
+        notify("notification", "Dogs have been outside for a while")
     }
 }
 
@@ -283,7 +272,7 @@ def checkDogsFed() {
     if (dogsFedSwitch?.currentValue("switch") != "on") {
         logInfo "Dogs not fed yet - sending reminder"
         notify("alexa", "Reminder: Time to feed the dogs")
-        notify("notification", "🐕 Reminder: Time to feed the dogs")
+        notify("notification", "Reminder: Time to feed the dogs")
     } else {
         logDebug "Dogs already fed"
     }
@@ -419,17 +408,17 @@ def handleMainsDown() {
 
 def sendMainsDownAlert() {
     if (onMainsSwitch?.currentValue("switch") == "off") {
-        notify("notification", "⚠️ ALERT: Mains power is DOWN - running on battery")
+        notify("notification", "ALERT: Mains power is DOWN - running on battery")
         notify("alexa", "Alert: Main power is down. Running on battery backup")
-        notify("slack", "🔋 POWER ALERT: Mains power down - hub on battery")
+        notify("slack", "POWER ALERT: Mains power down - hub on battery")
     }
 }
 
 def handleMainsRestored() {
     logInfo "Mains power restored"
     onMainsSwitch?.on()
-    notify("notification", "✅ Mains power restored")
-    notify("slack", "⚡ Power restored - back on mains")
+    notify("notification", "Mains power restored")
+    notify("slack", "Power restored - back on mains")
 }
 
 // ========================================
@@ -520,11 +509,6 @@ def sendSlackMessage(String message) {
 // ========================================
 
 def initializeMiscellaneous() {
-    // Schedule coffee automation
-    if (enableCoffeeAutomation && coffeeOnTime && coffeeMaker) {
-        schedule(coffeeOnTime, heatCoffee)
-    }
-    
     // Schedule safe checks
     if (enableSafeChecks && safeSensor) {
         Integer interval = getConfigValue("safeCheckInterval", "safeCheckInterval") ?: 24
@@ -539,26 +523,6 @@ def initializeMiscellaneous() {
     logDebug "Miscellaneous automations initialized"
 }
 
-def heatCoffee() {
-    String today = new Date().format("EEEE")
-    
-    if (coffeeOnDays && today in coffeeOnDays) {
-        logInfo "Turning on coffee maker for ${today}"
-        coffeeMaker?.on()
-        notify("notification", "☕ Coffee maker turned on")
-        
-        // Auto-off after 2 hours for safety
-        runIn(2 * 60 * 60, turnOffCoffee)
-    } else {
-        logDebug "Coffee automation skipped for ${today}"
-    }
-}
-
-def turnOffCoffee() {
-    logInfo "Auto-shutoff coffee maker"
-    coffeeMaker?.off()
-}
-
 def checkSafeLocked() {
     if (!safeSensor) return
     
@@ -566,7 +530,7 @@ def checkSafeLocked() {
     
     if (lockState != "locked") {
         logInfo "WARNING: Safe is not locked!"
-        notify("notification", "⚠️ WARNING: Safe is not locked")
+        notify("notification", "WARNING: Safe is not locked")
         notify("alexa", "Warning: The safe is not locked")
     } else {
         logDebug "Safe is locked"
@@ -577,7 +541,7 @@ def setAwayDelayHandler(evt) {
     Integer delay = getConfigValue("awayModeDelay", "awayModeDelay") ?: 5
     logInfo "Away mode change scheduled in ${delay} minutes"
     
-    notify("notification", "🏠 Switching to Away mode in ${delay} minutes")
+    notify("notification", "Switching to Away mode in ${delay} minutes")
     runIn(delay * 60, setAwayMode)
 }
 
@@ -585,7 +549,7 @@ def setAwayMode() {
     logInfo "Setting location mode to Away"
     location.setMode("Away")
     setAwayDelaySwitch?.off()
-    notify("notification", "🏠 Mode changed to Away")
+    notify("notification", "Mode changed to Away")
 }
 
 // ========================================
@@ -615,7 +579,7 @@ def convertValue(value, String settingName) {
     // Boolean settings
     if (settingName in ["enableFeedingReminder", "enableOutsideAlerts", "enableMeetingReminders", 
                         "enablePtoMode", "enableWakeUpAlarm", "enableMainsMonitoring", 
-                        "enableSlackNotifications", "enableCoffeeAutomation", "enableSafeChecks", 
+                        "enableSlackNotifications", "enableSafeChecks", 
                         "enableAudioNotifications"]) {
         if (value instanceof Boolean) return value
         return value.toString().toLowerCase() in ["true", "1", "yes", "on"]
@@ -629,7 +593,7 @@ def convertValue(value, String settingName) {
     }
     
     // Time settings (HH:mm format)
-    if (settingName in ["dogFeedingReminderTime", "wakeUpTime", "coffeeOnTime"]) {
+    if (settingName in ["dogFeedingReminderTime", "wakeUpTime"]) {
         return value.toString()
     }
     

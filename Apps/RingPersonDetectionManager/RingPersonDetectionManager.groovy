@@ -18,7 +18,7 @@ definition(
     name: "Ring Person Detection Manager",
     namespace: "timbrown",
     author: "Tim Brown",
-    description: "Centralized management of Ring doorbell/camera motion and person detection with location-based responses",
+    description: "Monitors RPD switches, sets LRP* timestamps, and takes mode-based actions for Ring person detection",
     category: "Security",
     iconUrl: "",
     iconX2Url: "",
@@ -32,65 +32,57 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Ring Person Detection Manager", install: true, uninstall: true) {
-        section("Ring Devices") {
-            input "ringBackdoor", "capability.motionSensor", title: "Ring Backdoor Camera", required: false
-            input "ringBirdHouse", "capability.motionSensor", title: "Ring Birdhouse Camera", required: false
-            input "ringRearGate", "capability.motionSensor", title: "Ring Rear Gate Camera", required: false
-            input "ringPen", "capability.motionSensor", title: "Ring Pen Camera", required: false
-            input "ringGarden", "capability.motionSensor", title: "Ring Garden Camera", required: false
-            input "ringFrontDoor", "capability.motionSensor", title: "Ring Front Door Camera", required: false
+        section("<b>RPD Switches</b>") {
+            paragraph "Select the Ring Person Detection virtual switches."
+            input "rpdBackDoor", "capability.switch", title: "RPD BackDoor Switch", required: false
+            input "rpdBirdHouse", "capability.switch", title: "RPD BirdHouse Switch", required: false
+            input "rpdFrontDoor", "capability.switch", title: "RPD FrontDoor Switch", required: false
+            input "rpdGarden", "capability.switch", title: "RPD Garden Switch", required: false
+            input "rpdCPen", "capability.switch", title: "RPD CPen Switch", required: false
+            input "rpdRearGate", "capability.switch", title: "RPD RearGate Switch", required: false
         }
         
-        section("Motion Detection Settings") {
-            input "motionResetDelay", "number", title: "Motion Auto-Reset Delay (seconds)", 
-                defaultValue: 60, range: "10..600", required: false,
-                description: "Hub variable: motionResetDelay"
-            input "enableMotionReset", "bool", title: "Enable Automatic Motion Reset", 
-                defaultValue: true, required: false
-        }
-        
-        section("Person Detection Settings") {
-            input "personDetectionTimeout", "number", title: "Person Detection Timeout (seconds)", 
-                defaultValue: 120, range: "30..600", required: false,
-                description: "Hub variable: personDetectionTimeout"
-            input "notificationDelay", "number", title: "Notification Delay (seconds)", 
-                defaultValue: 5, range: "0..60", required: false,
-                description: "Hub variable: notificationDelay"
-            input "cooldownPeriod", "number", title: "Notification Cooldown Period (minutes)", 
-                defaultValue: 5, range: "1..60", required: false,
-                description: "Hub variable: cooldownPeriod"
-            input "sensitivityLevel", "number", title: "Detection Sensitivity Level (1-10)", 
-                defaultValue: 5, range: "1..10", required: false,
-                description: "Hub variable: sensitivityLevel"
-        }
-        
-        section("Night Mode Settings") {
-            input "nightModeEnabled", "bool", title: "Enable Night Mode Detection", 
-                defaultValue: true, required: false,
-                description: "Hub variable: nightModeEnabled (true/false)"
+        section("<b>Mode Configuration</b>") {
             input "nightModes", "mode", title: "Night Modes", multiple: true, required: false,
-                description: "Modes considered 'night' for enhanced security"
+                description: "Modes for enhanced night security actions"
+            input "eveningModes", "mode", title: "Evening Modes", multiple: true, required: false,
+                description: "Modes for evening-specific actions"
         }
         
-        section("Notification Settings") {
-            input "notificationDevices", "capability.notification", title: "Push Notification Devices", 
+        section("<b>Notification Devices</b>") {
+            input "notificationDevices", "capability.notification", title: "Notification Devices", 
                 multiple: true, required: false
             input "alexaDevice", "capability.speechSynthesis", title: "Alexa Device for Announcements", 
                 required: false
-            input "silentSwitch", "capability.switch", title: "Silent Mode Switch (disables audible alerts)", 
+            input "guestRoomEcho", "capability.notification", title: "Guest Room Echo (for whisper)", 
                 required: false
         }
         
-        section("Security Integration") {
-            input "nightSecurityAlert", "capability.switch", title: "Night Security Alert Switch", 
-                required: false,
-                description: "Trigger night security actions for person detection"
-            input "alarmTrigger", "capability.switch", title: "Alarm Trigger Switch", 
-                required: false,
-                description: "Trigger alarm system for critical detections"
+        section("<b>Control Switches</b>") {
+            input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
+            input "silentBackdoorSwitch", "capability.switch", title: "Silent Backdoor Switch", required: false
+            input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
+            input "rearGateActiveSwitch", "capability.switch", title: "Rear Gate Active Switch", required: false
         }
         
-        section("Logging") {
+        section("<b>Timing Configuration</b>") {
+            input "backdoorResetDelay", "number", title: "Backdoor Reset Delay (seconds)", 
+                defaultValue: 3, range: "1..30", required: false
+            input "frontDoorResetDelay", "number", title: "Front Door Reset Delay (seconds)", 
+                defaultValue: 10, range: "1..60", required: false
+        }
+        
+        section("<b>Hub Variables</b>") {
+            paragraph "The following hub variables will be set when person detection occurs:"
+            paragraph "• <b>LRPBackDoor</b> - Last Ring Person BackDoor timestamp\n" +
+                      "• <b>LRPBirdHouse</b> - Last Ring Person BirdHouse timestamp\n" +
+                      "• <b>LRPFrontDoor</b> - Last Ring Person FrontDoor timestamp\n" +
+                      "• <b>LRPGarden</b> - Last Ring Person Garden timestamp\n" +
+                      "• <b>LRPCPen</b> - Last Ring Person CPen timestamp\n" +
+                      "• <b>LRPRearGate</b> - Last Ring Person RearGate timestamp"
+        }
+        
+        section("<b>Logging</b>") {
             input "logLevel", "enum", title: "Logging Level", 
                 options: ["None", "Info", "Debug", "Trace"], 
                 defaultValue: "Info", required: true
@@ -112,311 +104,222 @@ def updated() {
 def initialize() {
     logInfo "Initializing Ring Person Detection Manager"
     
-    // Subscribe to all Ring devices
-    if (ringBackdoor) {
-        subscribe(ringBackdoor, "motion", handleMotionBackdoor)
-        subscribe(ringBackdoor, "personDetected", handlePersonBackdoor)
+    // Subscribe to RPD switches - react when they turn on
+    if (rpdBackDoor) {
+        subscribe(rpdBackDoor, "switch.on", handleRPDBackDoor)
+        logDebug "Subscribed to RPDBackDoor"
     }
-    if (ringBirdHouse) {
-        subscribe(ringBirdHouse, "motion", handleMotionBirdHouse)
-        subscribe(ringBirdHouse, "personDetected", handlePersonBirdHouse)
+    if (rpdBirdHouse) {
+        subscribe(rpdBirdHouse, "switch.on", handleRPDBirdHouse)
+        logDebug "Subscribed to RPDBirdHouse"
     }
-    if (ringRearGate) {
-        subscribe(ringRearGate, "motion", handleMotionRearGate)
-        subscribe(ringRearGate, "personDetected", handlePersonRearGate)
+    if (rpdFrontDoor) {
+        subscribe(rpdFrontDoor, "switch.on", handleRPDFrontDoor)
+        logDebug "Subscribed to RPDFrontDoor"
     }
-    if (ringPen) {
-        subscribe(ringPen, "motion", handleMotionPen)
-        subscribe(ringPen, "personDetected", handlePersonPen)
+    if (rpdGarden) {
+        subscribe(rpdGarden, "switch.on", handleRPDGarden)
+        logDebug "Subscribed to RPDGarden"
     }
-    if (ringGarden) {
-        subscribe(ringGarden, "motion", handleMotionGarden)
-        subscribe(ringGarden, "personDetected", handlePersonGarden)
+    if (rpdCPen) {
+        subscribe(rpdCPen, "switch.on", handleRPDCPen)
+        logDebug "Subscribed to RPDCPen"
     }
-    if (ringFrontDoor) {
-        subscribe(ringFrontDoor, "motion", handleMotionFrontDoor)
-        subscribe(ringFrontDoor, "personDetected", handlePersonFrontDoor)
-    }
-    
-    logInfo "Subscriptions complete for ${getAllRingDevices().size()} Ring devices"
-}
-
-// Motion Handlers
-def handleMotionBackdoor(evt) {
-    handleMotion(evt, "Backdoor", ringBackdoor)
-}
-
-def handleMotionBirdHouse(evt) {
-    handleMotion(evt, "Birdhouse", ringBirdHouse)
-}
-
-def handleMotionRearGate(evt) {
-    handleMotion(evt, "Rear Gate", ringRearGate)
-}
-
-def handleMotionPen(evt) {
-    handleMotion(evt, "Pen", ringPen)
-}
-
-def handleMotionGarden(evt) {
-    handleMotion(evt, "Garden", ringGarden)
-}
-
-def handleMotionFrontDoor(evt) {
-    handleMotion(evt, "Front Door", ringFrontDoor)
-}
-
-def handleMotion(evt, String location, device) {
-    if (evt.value != "active") {
-        logDebug "Motion inactive at ${location}"
-        return
+    if (rpdRearGate) {
+        subscribe(rpdRearGate, "switch.on", handleRPDRearGate)
+        logDebug "Subscribed to RPDRearGate"
     }
     
-    logInfo "Motion detected at ${location}"
+    logInfo "Subscriptions complete"
+}
+
+// ==================== RPD Switch Handlers ====================
+
+def handleRPDBackDoor(evt) {
+    logInfo "Person detected at BackDoor"
     
-    // Store motion time for debouncing
-    String stateKey = "lastMotion_${location.replaceAll(' ', '')}"
-    state[stateKey] = now()
+    // Set timestamp (from RPDBackDoor rule - but it didn't set LRP, just reset switch with delay)
+    setLastPersonTime("BackDoor", "LRPBackDoor")
     
-    // Schedule auto-reset if enabled
-    if (getConfigValue("enableMotionReset", null)) {
-        Integer delay = getConfigValue("motionResetDelay", "motionResetDelay") ?: 60
-        runIn(delay, "resetMotion", [data: [location: location, device: device]])
-        logDebug "Scheduled motion reset for ${location} in ${delay} seconds"
+    // Reset switch after delay (from RPDBackDoor rule: 3 second delay)
+    def delay = backdoorResetDelay ?: 3
+    runIn(delay, "resetRPDBackDoor")
+    
+    // Mode-based actions (from RPDBackDoor rule: Night mode, silent switches off)
+    if (isNightMode() && !isSilent() && !isSilentBackdoor()) {
+        sendNotification("Alert, person detected at the backdoor")
     }
 }
 
-def resetMotion(data) {
-    String location = data.location
-    def device = data.device
+def handleRPDBirdHouse(evt) {
+    logInfo "Person detected at BirdHouse"
     
-    logDebug "Auto-resetting motion for ${location}"
+    // Set timestamp and reset switch (from RPDBirdHouse rule)
+    setLastPersonTime("BirdHouse", "LRPBirdHouse")
+    rpdBirdHouse.off()
     
-    // Clear motion state
-    String stateKey = "lastMotion_${location.replaceAll(' ', '')}"
-    state.remove(stateKey)
-    
-    logInfo "Motion reset complete for ${location}"
-}
-
-// Person Detection Handlers
-def handlePersonBackdoor(evt) {
-    handlePerson(evt, "Backdoor", ringBackdoor, true)
-}
-
-def handlePersonBirdHouse(evt) {
-    handlePerson(evt, "Birdhouse", ringBirdHouse, false)
-}
-
-def handlePersonRearGate(evt) {
-    handlePerson(evt, "Rear Gate", ringRearGate, true)
-}
-
-def handlePersonPen(evt) {
-    handlePerson(evt, "Pen", ringPen, false)
-}
-
-def handlePersonGarden(evt) {
-    handlePerson(evt, "Garden", ringGarden, false)
-}
-
-def handlePersonFrontDoor(evt) {
-    handlePerson(evt, "Front Door", ringFrontDoor, true)
-}
-
-def handlePerson(evt, String location, device, Boolean criticalLocation) {
-    if (evt.value != "detected") {
-        logDebug "Person detection cleared at ${location}"
-        return
-    }
-    
-    logInfo "Person detected at ${location}"
-    
-    // Check cooldown period to prevent notification spam
-    if (!shouldNotify(location)) {
-        logDebug "Person detection at ${location} within cooldown period, skipping notification"
-        return
-    }
-    
-    // Store detection time
-    String stateKey = "lastPerson_${location.replaceAll(' ', '')}"
-    state[stateKey] = now()
-    
-    // Check if we should notify based on mode and settings
-    String currentMode = location.mode
-    Boolean isNightMode = isNightMode()
-    
-    // Build notification message
-    String message = "Person detected at ${location}"
-    if (isNightMode) {
-        message = "⚠️ NIGHT ALERT: ${message}"
-    }
-    
-    // Delay notification if configured
-    Integer delay = getConfigValue("notificationDelay", "notificationDelay") ?: 0
-    if (delay > 0) {
-        runIn(delay, "sendPersonNotification", 
-            [data: [location: location, message: message, critical: criticalLocation, nightMode: isNightMode]])
-    } else {
-        sendPersonNotification([location: location, message: message, critical: criticalLocation, nightMode: isNightMode])
+    // Night mode actions (from Night-RPDBirdHouse rule)
+    if (isNightMode()) {
+        sendNotification("Person Detected at the Bird House")
+        setGlobalVar("EchoMessage", "Person detected at the birdhouse")
+        
+        // Turn on lights
+        if (allLightsSwitch) {
+            allLightsSwitch.on()
+        }
+        
+        // Whisper to guest room
+        if (guestRoomEcho) {
+            guestRoomEcho.deviceNotification("Person detected at birdhouse")
+        }
     }
 }
 
-def sendPersonNotification(data) {
-    String location = data.location
-    String message = data.message
-    Boolean critical = data.critical
-    Boolean nightMode = data.nightMode
+def handleRPDFrontDoor(evt) {
+    logInfo "Person detected at FrontDoor"
     
+    // Set timestamp
+    setLastPersonTime("FrontDoor", "LRPFrontDoor")
+    
+    // Reset switch after delay (from RPDFrontDoor rule: 10 second delay)
+    def delay = frontDoorResetDelay ?: 10
+    runIn(delay, "resetRPDFrontDoor")
+    
+    // Night mode actions (from Night-PersonAtFrontDoor - if it exists)
+    if (isNightMode()) {
+        sendNotification("Person detected at the front door")
+        if (allLightsSwitch) {
+            allLightsSwitch.on()
+        }
+    }
+}
+
+def handleRPDGarden(evt) {
+    logInfo "Person detected at Garden"
+    
+    // Set timestamp and reset switch (from RPDGarden rule)
+    setLastPersonTime("Garden", "LRPGarden")
+    rpdGarden.off()
+    
+    // Night mode actions (from Night-RPDGarden rule)
+    if (isNightMode()) {
+        sendNotification("Person detected at the greenhouse")
+        if (allLightsSwitch) {
+            allLightsSwitch.on()
+        }
+    }
+    
+    // Evening mode actions (from EveningRPDGarden rule)
+    if (isEveningMode()) {
+        sendNotification("Person detected at the garden")
+    }
+}
+
+def handleRPDCPen(evt) {
+    logInfo "Person detected at CPen"
+    
+    // Set timestamp and reset switch (from RPDCPen rule)
+    setLastPersonTime("CPen", "LRPCPen")
+    rpdCPen.off()
+    
+    // Night mode actions - this location triggers Night-RPDRearGate
+    // which checks time since last detection at pen
+    if (isNightMode()) {
+        // Turn on rear gate active switch
+        if (rearGateActiveSwitch) {
+            rearGateActiveSwitch.on()
+        }
+        sendNotification("Someone at rear gate/pen area")
+    }
+}
+
+def handleRPDRearGate(evt) {
+    logInfo "Person detected at RearGate"
+    
+    // Set timestamp
+    setLastPersonTime("RearGate", "LRPRearGate")
+    
+    // Reset switch
+    if (rpdRearGate) {
+        rpdRearGate.off()
+    }
+    
+    // Mode-based actions
+    if (isNightMode()) {
+        if (rearGateActiveSwitch) {
+            rearGateActiveSwitch.on()
+        }
+        sendNotification("Person detected at rear gate")
+    }
+}
+
+// ==================== Reset Methods ====================
+
+def resetRPDBackDoor() {
+    if (rpdBackDoor) {
+        rpdBackDoor.off()
+        logDebug "Reset RPDBackDoor switch"
+    }
+}
+
+def resetRPDFrontDoor() {
+    if (rpdFrontDoor) {
+        rpdFrontDoor.off()
+        logDebug "Reset RPDFrontDoor switch"
+    }
+}
+
+// ==================== Helper Methods ====================
+
+/**
+ * Sets the hub variable timestamp for person detection
+ */
+def setLastPersonTime(String location, String hubVarName) {
+    def timestamp = now() / 1000  // Convert to seconds for consistency with existing vars
+    
+    logInfo "Setting ${hubVarName} = ${timestamp}"
+    setGlobalVar(hubVarName, timestamp)
+}
+
+/**
+ * Send notification to all configured devices
+ */
+def sendNotification(String message) {
     logInfo "Sending notification: ${message}"
     
-    // Send push notification
     if (notificationDevices) {
         notificationDevices.each { device ->
             device.deviceNotification(message)
         }
     }
     
-    // Alexa announcement (unless in silent mode)
-    if (alexaDevice && !isSilentMode()) {
+    // Alexa announcement (unless silent)
+    if (alexaDevice && !isSilent()) {
         alexaDevice.speak(message)
     }
-    
-    // Trigger security actions for critical locations at night
-    if (critical && nightMode) {
-        triggerNightSecurity(location)
-    }
-    
-    // Trigger alarm for very critical situations
-    if (critical && nightMode && location in ["Backdoor", "Front Door"]) {
-        triggerAlarm(location)
-    }
-}
-
-def triggerNightSecurity(String location) {
-    if (!nightSecurityAlert) {
-        logDebug "Night security alert switch not configured"
-        return
-    }
-    
-    logInfo "Triggering night security alert for person at ${location}"
-    nightSecurityAlert.on()
-    
-    // Auto-reset after processing
-    runIn(5, resetNightSecurityAlert)
-}
-
-def resetNightSecurityAlert() {
-    if (nightSecurityAlert) {
-        nightSecurityAlert.off()
-    }
-}
-
-def triggerAlarm(String location) {
-    if (!alarmTrigger) {
-        logDebug "Alarm trigger switch not configured"
-        return
-    }
-    
-    logInfo "ALARM: Person detected at critical location ${location} during night mode"
-    alarmTrigger.on()
-    
-    // Auto-reset after processing
-    runIn(5, resetAlarmTrigger)
-}
-
-def resetAlarmTrigger() {
-    if (alarmTrigger) {
-        alarmTrigger.off()
-    }
-}
-
-// Helper Methods
-
-def shouldNotify(String location) {
-    String stateKey = "lastPerson_${location.replaceAll(' ', '')}"
-    Long lastDetection = state[stateKey] ?: 0
-    
-    if (lastDetection == 0) {
-        return true
-    }
-    
-    Integer cooldown = getConfigValue("cooldownPeriod", "cooldownPeriod") ?: 5
-    Long cooldownMs = cooldown * 60 * 1000
-    Long elapsed = now() - lastDetection
-    
-    return elapsed >= cooldownMs
 }
 
 def isNightMode() {
-    if (!getConfigValue("nightModeEnabled", "nightModeEnabled")) {
-        return false
-    }
-    
-    if (!nightModes) {
-        return false
-    }
-    
-    String currentMode = location.mode
-    return currentMode in nightModes
+    if (!nightModes) return false
+    return location.mode in nightModes
 }
 
-def isSilentMode() {
-    if (!silentSwitch) {
-        return false
-    }
+def isEveningMode() {
+    if (!eveningModes) return false
+    return location.mode in eveningModes
+}
+
+def isSilent() {
+    if (!silentSwitch) return false
     return silentSwitch.currentValue("switch") == "on"
 }
 
-def getAllRingDevices() {
-    def devices = []
-    if (ringBackdoor) devices << ringBackdoor
-    if (ringBirdHouse) devices << ringBirdHouse
-    if (ringRearGate) devices << ringRearGate
-    if (ringPen) devices << ringPen
-    if (ringGarden) devices << ringGarden
-    if (ringFrontDoor) devices << ringFrontDoor
-    return devices
+def isSilentBackdoor() {
+    if (!silentBackdoorSwitch) return false
+    return silentBackdoorSwitch.currentValue("switch") == "on"
 }
 
-def getConfigValue(String settingName, String hubVarName) {
-    // Try to get value from hub variable first (if hubVarName provided)
-    if (hubVarName) {
-        def hubVar = getGlobalVar(hubVarName)
-        if (hubVar != null) {
-            logDebug "Using hub variable ${hubVarName}: ${hubVar}"
-            return convertValue(hubVar, settingName)
-        }
-    }
-    
-    // Fall back to app setting
-    def settingValue = settings[settingName]
-    logTrace "Using app setting ${settingName}: ${settingValue}"
-    return settingValue
-}
-
-def convertValue(value, String settingName) {
-    // Convert hub variable value to appropriate type based on setting name
-    if (value == null) return null
-    
-    // Boolean settings
-    if (settingName in ["enableMotionReset", "nightModeEnabled"]) {
-        if (value instanceof Boolean) return value
-        return value.toString().toLowerCase() in ["true", "1", "yes", "on"]
-    }
-    
-    // Number settings
-    if (settingName in ["motionResetDelay", "personDetectionTimeout", "notificationDelay", 
-                        "cooldownPeriod", "sensitivityLevel"]) {
-        if (value instanceof Number) return value
-        return value.toString().toInteger()
-    }
-    
-    // Default: return as string
-    return value.toString()
-}
-
-// Logging Methods
+// ==================== Logging Methods ====================
 
 def logInfo(String msg) {
     if (logLevel in ["Info", "Debug", "Trace"]) {

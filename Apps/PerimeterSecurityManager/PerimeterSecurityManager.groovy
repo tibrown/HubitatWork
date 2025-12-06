@@ -293,7 +293,7 @@ def shockHandler(evt) {
     if (wasRingCPenRecentlyTriggered(correlationWindow)) {
         // Person was detected at chicken pen within the correlation window
         logInfo "Shock + person correlation confirmed - sending alert"
-        sendAlert("⚠️ Shock detected on ${sensorName} + Person at Chicken Pen")
+        sendAlert("Shock detected on ${sensorName} + Person at Chicken Pen")
         announceAlexa("Alert! Shock detected on rear gate with person at chicken pen!")
     } else {
         // No person detected yet - store shock event and wait for person detection
@@ -349,7 +349,7 @@ def motionHandler(evt) {
     logInfo "Motion detected: ${sensorName}"
     
     if (isAwayMode()) {
-        sendAlert("🚨 Motion detected: ${sensorName} (Away Mode)")
+        sendAlert("Motion detected: ${sensorName} (Away Mode)")
         announceAlexa("Alert! Motion detected at ${sensorName}")
     }
 }
@@ -359,7 +359,7 @@ def gunCabinetHandler(evt) {
     
     if (enabled) {
         logInfo "Gun cabinet opened!"
-        sendAlert("🔓 Gun Cabinet Opened")
+        sendAlert("Gun Cabinet Opened")
         announceAlexa("Alert! Gun cabinet has been opened!")
     }
 }
@@ -382,7 +382,7 @@ def ringHandler(evt) {
             if (elapsedSeconds <= correlationWindow) {
                 def shockSensor = state.lastShockSensor ?: "rear gate"
                 logInfo "Person at chicken pen + recent shock - sending correlated alert"
-                sendAlert("⚠️ Shock detected on ${shockSensor} + Person at Chicken Pen")
+                sendAlert("Shock detected on ${shockSensor} + Person at Chicken Pen")
                 announceAlexa("Alert! Shock detected on rear gate with person at chicken pen!")
                 
                 // Clear the pending shock
@@ -397,12 +397,12 @@ def ringHandler(evt) {
     // Special handling for garden in evening mode
     if (evt.device == settings.ringGarden && currentMode == settings.eveningMode?.toString()) {
         logInfo "Ring Garden person detected in evening mode"
-        sendAlert("🔔 Person detected at garden (Evening)")
+        sendAlert("Person detected at garden (Evening)")
         return
     }
     
     // General person detection
-    sendAlert("🔔 Person detected: ${locationName}")
+    sendAlert("Person detected: ${locationName}")
     announceAlexa("Person detected at ${locationName}")
 }
 
@@ -415,7 +415,7 @@ def handleGateOpen(device, gateName) {
     
     if (isAwayMode()) {
         // Immediate alert in away mode
-        sendAlert("🚨 ${gateName} opened (AWAY MODE)")
+        sendAlert("${gateName} opened (AWAY MODE)")
         announceAlexa("Alert! ${gateName} has been opened!")
     } else {
         // Delayed alert in home mode
@@ -452,7 +452,7 @@ def checkPerimeter() {
         logInfo "Perimeter check found open gates: ${openGates.join(', ')}"
         
         if (isAwayMode()) {
-            sendAlert("⚠️ Perimeter Check: Gates open - ${openGates.join(', ')}")
+            sendAlert("Perimeter Check: Gates open - ${openGates.join(', ')}")
         }
     } else {
         logDebug "Perimeter check: All gates closed"
@@ -510,7 +510,7 @@ def handleBeamAway() {
     // Check if motion is detected for verification
     if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
         logInfo "Away mode: Beam + motion detected"
-        sendAlert("🚨 Alert: Carport Beam Broken (Away Mode)")
+        sendAlert("Alert: Carport Beam Broken (Away Mode)")
         announceAlexa("Alert! Carport beam broken!")
     } else {
         logDebug "Away mode: Beam broken but no motion verification"
@@ -548,7 +548,7 @@ def handleBeamDay() {
     runIn(delay, turnOffPauseCarportBeam)
     
     // Send notification
-    sendAlert("🔔 Carport Beam Broken")
+    sendAlert("Carport Beam Broken")
 }
 
 def handleBeamEvening() {
@@ -558,7 +558,7 @@ def handleBeamEvening() {
     }
     
     logInfo "Evening mode: Beam broken"
-    sendAlert("🔔 Carport Beam Broken")
+    sendAlert("Carport Beam Broken")
     announceAlexa("Carport beam broken")
 }
 
@@ -578,7 +578,7 @@ def handleBeamMorning() {
     runIn(timeout, turnOffSilentCarport)
     
     // Send notification - more urgent message for morning
-    sendAlert("🚨 Intruder in the carport!")
+    sendAlert("Intruder in the carport!")
     announceAlexa("Alert! Intruder in the carport!")
 }
 

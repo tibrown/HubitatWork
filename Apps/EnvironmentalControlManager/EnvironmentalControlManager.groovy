@@ -342,7 +342,7 @@ def controlGreenhouseHeater(BigDecimal temp) {
         logInfo "Greenhouse temperature ${temp}°F <= ${heaterOn}°F, turning heater ON"
         settings.greenhouseHeater.on()
         announceAlexa("Greenhouse heater turned on, temperature is ${temp} degrees")
-        sendAlert("🌡️ Greenhouse heater activated (${temp}°F)")
+        sendAlert("Greenhouse heater activated (${temp}°F)")
     } else if (temp >= heaterOff && currentState == "on") {
         logInfo "Greenhouse temperature ${temp}°F >= ${heaterOff}°F, turning heater OFF"
         settings.greenhouseHeater.off()

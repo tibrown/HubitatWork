@@ -1,265 +1,205 @@
 # Ring Person Detection Manager
 
 ## Overview
-The Ring Person Detection Manager is a comprehensive Hubitat app that centralizes all Ring doorbell and camera motion/person detection logic. It provides intelligent monitoring, notification management, and integration with the broader home security system.
+The Ring Person Detection Manager monitors RPD (Ring Person Detection) virtual switches, sets corresponding LRP (Last Ring Person) hub variable timestamps, and takes mode-based actions (notifications, lights, etc.) when person detection occurs.
 
 ## Purpose
-- Centralize Ring device motion and person detection
-- Provide location-based security responses
-- Intelligent notification management with cooldown periods
-- Integration with night security and alarm systems
-- Eliminate notification spam through debouncing
+- Monitor RPD* virtual switches for person detection events
+- Set LRP* hub variable timestamps when detection occurs
+- Take mode-specific actions (Night, Evening, Day)
+- Reset RPD switches after detection (with configurable delays)
+- Send notifications and control lights based on current mode
+- Consolidate all RPD-related rules into one app
 
 ## Rules Consolidated
-This app consolidates **7 rules**:
+This app consolidates **11 rules**:
 
 | Rule Name | Rule ID | Function |
 |-----------|---------|----------|
+| RPDBirdHouse | 1677 | Set LRPBirdHouse, reset switch |
+| RPDGarden | 1703 | Set LRPGarden, reset switch |
+| RPDCPen | 1632 | Set LRPCPen, reset switch |
+| RPDBackDoor | 1687 | Reset switch with delay, conditional night notification |
+| RPDFrontDoor | 1604 | Reset switch with 10s delay |
+| Night-RPDBirdHouse | 1700 | Night mode: notify, set EchoMessage, lights, whisper |
+| Night-RPDGarden | 1701 | Night mode: notify, turn on all lights |
+| Night-RPDRearGate | 865 | Night mode: time calcs with LRPCPen, notify, RearGateActive |
+| EveningRPDGarden | 1702 | Evening mode actions for garden detection |
 | RingBackdoorMotionReset | 1725 | Auto-reset backdoor motion detection |
-| RingMotionBackdoor | 1693 | Handle backdoor motion events |
 | TurnRingMotionOff | 1190 | Reset motion detection states |
-| RingPersonBirdHouse | - | Person detection at birdhouse camera |
-| RingPersonDetected | - | General person detection handling |
-| RingPersonRearDetected | - | Person detection at rear locations |
-| RingPersonPen | - | Person detection at pen camera |
 
-## Features
+## RPD Switches Monitored
 
-### Motion Detection
-- **Automatic Reset**: Configurable auto-reset for motion sensors
-- **Debouncing**: Prevents multiple triggers from same event
-- **Per-Location Tracking**: Independent state for each camera
-- **Configurable Delays**: Customize reset timing per use case
+| Switch Name | Device ID | Hub Variable Set | Reset Delay |
+|-------------|-----------|------------------|-------------|
+| RPDBackDoor | 1283 | LRPBackDoor | 3 seconds |
+| RPDBirdHouse | 1319 | LRPBirdHouse | Immediate |
+| RPDFrontDoor | 1257 | LRPFrontDoor | 10 seconds |
+| RPDGarden | 1333 | LRPGarden | Immediate |
+| RPDCPen | 1318 | LRPCPen | Immediate |
+| RPDRearGate | - | LRPRearGate | Immediate |
 
-### Person Detection
-- **Location-Based Responses**: Different actions for different camera locations
-- **Critical Location Identification**: Front door and backdoor treated as high-priority
-- **Night Mode Enhancement**: Elevated security during night modes
-- **Cooldown Periods**: Prevents notification spam
+## How It Works
 
-### Notification Management
-- **Multi-Channel**: Push notifications and Alexa announcements
-- **Silent Mode Support**: Respects silent mode switch
-- **Delayed Notifications**: Optional delay before sending alerts
-- **Smart Cooldown**: Per-location cooldown to prevent spam
+```
+1. Ring camera detects person
+2. Ring integration turns on RPD* virtual switch
+3. This app detects switch turning on
+4. App sets LRP* hub variable to current timestamp
+5. App resets RPD switch (immediately or after delay)
+6. App takes mode-based actions:
+   - Night Mode: Notifications, lights on, whisper announcements
+   - Evening Mode: Evening-specific actions
+   - Day Mode: Minimal actions
+7. Other apps can also react to LRP* timestamps
+```
 
-### Security Integration
-- **Night Security Alerts**: Triggers broader night security actions
-- **Alarm Integration**: Direct alarm triggering for critical detections
-- **Mode-Aware**: Different behaviors based on house mode
-- **Auto-Reset Switches**: Automatic cleanup of trigger switches
+## Mode-Based Actions
+
+### Night Mode Actions
+| Location | Actions |
+|----------|---------|
+| BackDoor | Notify (if not silent) |
+| BirdHouse | Notify, set EchoMessage, all lights on, whisper to guest room |
+| FrontDoor | Notify, all lights on |
+| Garden | Notify "greenhouse", all lights on |
+| CPen | Notify, turn on RearGateActive switch |
+| RearGate | Notify, turn on RearGateActive switch |
+
+### Evening Mode Actions
+| Location | Actions |
+|----------|--------|
+| Garden | Announce "Person detected at the garden" |
+
+## Hub Variables Set
+
+| Hub Variable | Type | Description |
+|--------------|------|-------------|
+| LRPBackDoor | Decimal | Timestamp of last person at backdoor |
+| LRPBirdHouse | Decimal | Timestamp of last person at birdhouse |
+| LRPFrontDoor | Decimal | Timestamp of last person at front door |
+| LRPGarden | Decimal | Timestamp of last person at garden/greenhouse |
+| LRPCPen | Decimal | Timestamp of last person at chicken pen |
+| LRPRearGate | Decimal | Timestamp of last person at rear gate |
+| EchoMessage | String | Set to detection message for Alexa announcements |
 
 ## Configuration
 
-### Ring Devices
-Configure Ring cameras/doorbells for each monitored location:
-- **Ring Backdoor Camera**: Backdoor monitoring
-- **Ring Birdhouse Camera**: Birdhouse area monitoring
-- **Ring Rear Gate Camera**: Rear gate monitoring
-- **Ring Pen Camera**: Animal pen monitoring
-- **Ring Garden Camera**: Garden area monitoring
-- **Ring Front Door Camera**: Front entrance monitoring
+### RPD Switches
+Select the RPD virtual switches triggered by Ring person detection.
 
-### Motion Detection Settings
-- **Motion Auto-Reset Delay**: Time before motion state is cleared (10-600 seconds)
-  - Default: 60 seconds
-  - Hub Variable: `motionResetDelay`
-- **Enable Automatic Motion Reset**: Toggle auto-reset feature
-  - Default: true
+### Mode Configuration
+- **Night Modes**: Modes for enhanced security actions
+- **Evening Modes**: Modes for evening-specific actions
 
-### Person Detection Settings
-- **Person Detection Timeout**: Duration person detection stays active (30-600 seconds)
-  - Default: 120 seconds
-  - Hub Variable: `personDetectionTimeout`
-- **Notification Delay**: Wait time before sending notifications (0-60 seconds)
-  - Default: 5 seconds
-  - Hub Variable: `notificationDelay`
-- **Notification Cooldown Period**: Minimum time between notifications (1-60 minutes)
-  - Default: 5 minutes
-  - Hub Variable: `cooldownPeriod`
-- **Detection Sensitivity Level**: Sensitivity for detection logic (1-10)
-  - Default: 5
-  - Hub Variable: `sensitivityLevel`
+### Notification Devices
+- **Notification Devices**: Push notification devices
+- **Alexa Device**: For spoken announcements
+- **Guest Room Echo**: For whisper notifications
 
-### Night Mode Settings
-- **Enable Night Mode Detection**: Toggle enhanced night security
-  - Default: true
-  - Hub Variable: `nightModeEnabled` (true/false)
-- **Night Modes**: Select which modes are considered "night"
+### Control Switches
+- **Silent Mode Switch**: Disables all audible alerts
+- **Silent Backdoor Switch**: Disables backdoor alerts specifically
+- **All Lights ON Switch**: Turned on during night detections
+- **Rear Gate Active Switch**: Turned on for rear gate/pen detections
 
-### Notification Settings
-- **Push Notification Devices**: Devices for push notifications
-- **Alexa Device**: Device for voice announcements
-- **Silent Mode Switch**: Disables audible alerts when on
-
-### Security Integration
-- **Night Security Alert Switch**: Triggers night security actions
-- **Alarm Trigger Switch**: Triggers alarm system for critical events
-
-## Hub Variable Support
-
-The app supports the following hub variables for dynamic configuration:
-
-| Hub Variable | Type | Description | Default |
-|--------------|------|-------------|---------|
-| `motionResetDelay` | Number | Motion auto-reset delay (seconds) | 60 |
-| `personDetectionTimeout` | Number | Person detection timeout (seconds) | 120 |
-| `notificationDelay` | Number | Delay before notifications (seconds) | 5 |
-| `cooldownPeriod` | Number | Notification cooldown (minutes) | 5 |
-| `sensitivityLevel` | Number | Detection sensitivity (1-10) | 5 |
-| `nightModeEnabled` | Boolean | Enable night mode detection | true |
-
-**Hub Variable Priority**: Hub variables take precedence over app settings. If a hub variable is not set, the app falls back to the configured setting value.
-
-## Logic Flow
-
-### Motion Detection Flow
-```
-1. Ring camera detects motion
-2. Check if motion is "active"
-3. Log detection and store timestamp
-4. If auto-reset enabled:
-   - Schedule reset based on motionResetDelay
-   - Reset clears state and logs completion
-```
-
-### Person Detection Flow
-```
-1. Ring camera detects person
-2. Check if detection is "detected" state
-3. Check cooldown period for this location
-4. If within cooldown → Skip notification
-5. If past cooldown:
-   - Store detection timestamp
-   - Determine if night mode active
-   - Build notification message
-   - If notification delay > 0 → Schedule notification
-   - Else → Send immediately
-6. Send push notifications
-7. If not silent → Alexa announcement
-8. If critical location + night mode:
-   - Trigger night security alert
-   - If front/back door → Trigger alarm
-```
-
-### Cooldown Logic
-```
-Per-location cooldown prevents spam:
-- Each location tracks last detection time
-- Compare current time to last detection
-- If elapsed < cooldown period → Skip
-- If elapsed >= cooldown period → Allow
-```
+### Timing Configuration
+- **Backdoor Reset Delay**: Seconds before resetting backdoor switch (default: 3)
+- **Front Door Reset Delay**: Seconds before resetting front door switch (default: 10)
 
 ## Integration Points
 
-### Outbound (This App Calls)
-- **Night Security Alert Switch**: Activates when person detected at critical location during night
-- **Alarm Trigger Switch**: Activates for front/back door detection at night
-- **Push Notification Devices**: Sends alerts
-- **Alexa Device**: Voice announcements
+### Inbound (Triggers This App)
+- **RPD* Switches**: When any RPD switch turns on
 
-### Inbound (Other Apps Can Monitor)
-None - this app responds to Ring device events only
+### Outbound (This App Controls)
+- **LRP* Hub Variables**: Timestamps for other apps to monitor
+- **EchoMessage Hub Variable**: For Alexa announcements
+- **All Lights ON Switch**: Activated during night detections
+- **Rear Gate Active Switch**: Activated for rear gate/pen detections
+- **Notification Devices**: Receives alerts
+- **Alexa/Echo Devices**: Voice announcements and whispers
 
 ## Code Structure
 
 ### Key Methods
-- `handleMotion(evt, location, device)`: Process motion events
-- `resetMotion(data)`: Auto-reset motion state
-- `handlePerson(evt, location, device, critical)`: Process person detection
-- `sendPersonNotification(data)`: Send notifications with context
-- `shouldNotify(location)`: Check cooldown period
-- `isNightMode()`: Determine if in night mode
-- `triggerNightSecurity(location)`: Activate night security
-- `triggerAlarm(location)`: Activate alarm system
-- `getConfigValue(settingName, hubVarName)`: Get value from hub variable or setting
-
-### State Variables
-- `lastMotion_[Location]`: Timestamp of last motion at each location
-- `lastPerson_[Location]`: Timestamp of last person detection at each location
+- `handleRPD[Location](evt)`: Handler for each RPD switch
+- `setLastPersonTime(location, hubVarName)`: Sets hub variable timestamp
+- `sendNotification(message)`: Sends to all notification devices
+- `isNightMode()`: Checks if current mode is night
+- `isEveningMode()`: Checks if current mode is evening
+- `isSilent()`: Checks silent switch state
+- `resetRPD[Location]()`: Delayed switch reset methods
 
 ## Installation
 
-1. **Create Hub Variables** (optional, for dynamic configuration):
+1. **Ensure Hub Variables Exist**:
    ```
    Settings → Hub Variables → Add Variable
-   - motionResetDelay (Number): 60
-   - personDetectionTimeout (Number): 120
-   - notificationDelay (Number): 5
-   - cooldownPeriod (Number): 5
-   - sensitivityLevel (Number): 5
-   - nightModeEnabled (Boolean): true
+   - LRPBackDoor (Decimal): 0
+   - LRPBirdHouse (Decimal): 0
+   - LRPFrontDoor (Decimal): 0
+   - LRPGarden (Decimal): 0
+   - LRPCPen (Decimal): 0
+   - LRPRearGate (Decimal): 0
+   - EchoMessage (String): ""
    ```
 
-2. **Create Connector Switches** (for security integration):
-   ```
-   Devices → Add Virtual Device → Connector Switch
-   - NightSecurityAlert
-   - AlarmTrigger
-   ```
-
-3. **Install App**:
+2. **Install App**:
    - Apps → Add User App → Ring Person Detection Manager
-   - Configure all Ring devices
-   - Set notification preferences
-   - Configure security integration switches
-   - Set logging level (recommend "Info" initially)
+   - Configure RPD switches
+   - Set Night and Evening modes
+   - Configure notification devices
+   - Configure control switches
+   - Set timing delays
+   - Set logging level
+
+3. **Disable Old Rules**:
+   - Disable RPDBirdHouse (1677)
+   - Disable RPDGarden (1703)
+   - Disable RPDCPen (1632)
+   - Disable RPDBackDoor (1687)
+   - Disable RPDFrontDoor (1604)
+   - Disable Night-RPDBirdHouse (1700)
+   - Disable Night-RPDGarden (1701)
+   - Disable Night-RPDRearGate (865)
+   - Disable EveningRPDGarden (1702)
 
 4. **Test**:
-   - Trigger motion on each Ring device
-   - Verify auto-reset works
-   - Test person detection
-   - Verify cooldown prevents spam
-   - Check night mode responses
-   - Verify silent mode works
+   - Turn on each RPD switch manually
+   - Verify LRP* hub variables update
+   - Test in Night mode - verify notifications and lights
+   - Test in Evening mode
+   - Verify silent switches work
+   - Check that switch resets happen
 
 ## Testing Checklist
 
-- [ ] Motion detection triggers for each camera
-- [ ] Motion auto-reset completes successfully
-- [ ] Person detection notifications sent
-- [ ] Cooldown period prevents spam
-- [ ] Night mode enhances messages
-- [ ] Critical locations trigger security alerts
-- [ ] Front/back door triggers alarms at night
-- [ ] Silent mode suppresses Alexa announcements
-- [ ] Hub variables override app settings
-- [ ] Push notifications delivered
-- [ ] Alexa announcements work (when not silent)
-- [ ] Night security switch activates correctly
-- [ ] Alarm trigger switch activates correctly
+- [ ] RPDBackDoor: LRPBackDoor updated, switch resets after 3s
+- [ ] RPDBirdHouse: LRPBirdHouse updated, switch resets immediately
+- [ ] RPDFrontDoor: LRPFrontDoor updated, switch resets after 10s
+- [ ] RPDGarden: LRPGarden updated, switch resets immediately
+- [ ] RPDCPen: LRPCPen updated, switch resets immediately
+- [ ] RPDRearGate: LRPRearGate updated, switch resets immediately
+- [ ] Night mode: Notifications sent
+- [ ] Night mode: All lights switch turns on
+- [ ] Night mode: EchoMessage set correctly
+- [ ] Night mode: Guest room whisper works
+- [ ] Night mode: RearGateActive turns on for pen/gate detections
+- [ ] Silent switch: Suppresses notifications
+- [ ] Silent backdoor switch: Suppresses backdoor notifications only
+- [ ] Evening mode: Evening actions work
 
-## Maintenance
-
-### Adjusting Sensitivity
-- Increase `cooldownPeriod` if too many notifications
-- Decrease `notificationDelay` for faster alerts
-- Adjust `motionResetDelay` based on camera behavior
-
-### Monitoring
-- Check logs for detection patterns
-- Review cooldown effectiveness
-- Monitor false positive rate
-- Verify security integrations trigger correctly
-
-### Troubleshooting
-- **No notifications**: Check notification devices configured
-- **Too many notifications**: Increase cooldown period
-- **Missed detections**: Check Ring device connectivity
-- **Silent mode not working**: Verify silent switch configured
-- **Alarms not triggering**: Check alarm trigger switch and night mode settings
+## Troubleshooting
+- **Hub variable not updating**: Check RPD switch is configured in app
+- **No notifications**: Check notification devices configured, check silent switches
+- **Lights not turning on**: Check All Lights ON switch configured
+- **Switch not resetting**: Check timing configuration
+- **Wrong mode actions**: Verify modes configured correctly
 
 ## Performance Notes
-- **Lines of Code**: 437
-- **State Variables**: ~12 (2 per location: motion + person)
-- **Subscriptions**: 12 (2 per Ring device)
+- **Lines of Code**: ~300
+- **State Variables**: 0 (stateless)
+- **Subscriptions**: Up to 6 (one per RPD switch)
 - **Performance**: Lightweight, event-driven
-- **Memory**: Minimal state usage
-
-## Future Enhancements
-- Multiple notification profiles based on time of day
-- Integration with video recording triggers
-- Advanced pattern detection (repeated visits)
-- Geofencing integration for away vs. home
-- Machine learning for false positive reduction
+- **Memory**: Minimal - no persistent state
