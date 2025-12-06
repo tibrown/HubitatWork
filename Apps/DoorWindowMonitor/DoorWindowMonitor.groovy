@@ -52,7 +52,10 @@ def mainPage() {
         }
         
         section("Windows") {
-            input "lrWindow", "capability.contactSensor", title: "Living Room Window", required: false
+            input "lrWindow1", "capability.contactSensor", title: "Living Room Window 1", required: false
+            input "lrWindow2", "capability.contactSensor", title: "Living Room Window 2", required: false
+            input "lrWindow3", "capability.contactSensor", title: "Living Room Window 3", required: false
+            input "lrWindow4", "capability.contactSensor", title: "Living Room Window 4", required: false
         }
         
         section("Pause Switches") {
@@ -118,7 +121,10 @@ def initialize() {
     if (woodshedDoor) subscribe(woodshedDoor, "contact", handleContact)
     if (freezerDoor) subscribe(freezerDoor, "contact", handleContact)
     if (safeDoor) subscribe(safeDoor, "contact", handleContact)
-    if (lrWindow) subscribe(lrWindow, "contact", handleContact)
+    if (lrWindow1) subscribe(lrWindow1, "contact", handleContact)
+    if (lrWindow2) subscribe(lrWindow2, "contact", handleContact)
+    if (lrWindow3) subscribe(lrWindow3, "contact", handleContact)
+    if (lrWindow4) subscribe(lrWindow4, "contact", handleContact)
     
     // Subscribe to pause switches
     if (pauseDRDoorAlarm) subscribe(pauseDRDoorAlarm, "switch.on", handlePauseDRDoor)
@@ -183,8 +189,14 @@ def handleDoorOpen(device, String mode) {
         handleFreezerDoorOpen()
     } else if (device.id == safeDoor?.id) {
         handleSafeDoorOpen()
-    } else if (device.id == lrWindow?.id) {
-        handleLRWindowOpen(mode)
+    } else if (device.id == lrWindow1?.id) {
+        handleLRWindowOpen(mode, 1)
+    } else if (device.id == lrWindow2?.id) {
+        handleLRWindowOpen(mode, 2)
+    } else if (device.id == lrWindow3?.id) {
+        handleLRWindowOpen(mode, 3)
+    } else if (device.id == lrWindow4?.id) {
+        handleLRWindowOpen(mode, 4)
     }
 }
 
@@ -242,11 +254,11 @@ def handleSafeDoorOpen() {
     sendNotification("Safe door has been opened")
 }
 
-def handleLRWindowOpen(String mode) {
+def handleLRWindowOpen(String mode, Integer windowNum) {
     if (mode == "Day") {
-        sendNotification("Living room window is open, living room window is open")
+        sendNotification("Living room window ${windowNum} is open, living room window ${windowNum} is open")
     } else if (mode == "Evening" || mode == "Night" || mode == "Morning") {
-        sendNotification("Living room window is open")
+        sendNotification("Living room window ${windowNum} is open")
     }
 }
 
@@ -289,7 +301,8 @@ def checkLeftOpen() {
             
             // Determine threshold based on device type
             Integer threshold = doorThreshold
-            if (device.id == lrWindow?.id) {
+            if (device.id == lrWindow1?.id || device.id == lrWindow2?.id || 
+                device.id == lrWindow3?.id || device.id == lrWindow4?.id) {
                 threshold = windowThreshold
             } else if (device.id == freezerDoor?.id) {
                 threshold = freezerThreshold
@@ -312,7 +325,7 @@ def findDeviceById(String deviceId) {
     def allDevices = [
         frontDoor, diningRoomDoor, frenchDoors, backdoor,
         birdHouseDoor, birdHouseScreen, concreteShedDoor, woodshedDoor,
-        freezerDoor, safeDoor, lrWindow
+        freezerDoor, safeDoor, lrWindow1, lrWindow2, lrWindow3, lrWindow4
     ]
     
     return allDevices.find { it && it.id == deviceId }
