@@ -49,6 +49,7 @@ def mainPage() {
         section("Special Doors") {
             input "freezerDoor", "capability.contactSensor", title: "Freezer Door", required: false
             input "safeDoor", "capability.contactSensor", title: "Safe Door", required: false
+            input "officeDoor", "capability.contactSensor", title: "Office Door", required: false
         }
         
         section("Windows") {
@@ -121,6 +122,7 @@ def initialize() {
     if (woodshedDoor) subscribe(woodshedDoor, "contact", handleContact)
     if (freezerDoor) subscribe(freezerDoor, "contact", handleContact)
     if (safeDoor) subscribe(safeDoor, "contact", handleContact)
+    if (officeDoor) subscribe(officeDoor, "contact", handleContact)
     if (lrWindow1) subscribe(lrWindow1, "contact", handleContact)
     if (lrWindow2) subscribe(lrWindow2, "contact", handleContact)
     if (lrWindow3) subscribe(lrWindow3, "contact", handleContact)
@@ -130,9 +132,47 @@ def initialize() {
     if (pauseDRDoorAlarm) subscribe(pauseDRDoorAlarm, "switch.on", handlePauseDRDoor)
     if (pauseBDAlarm) subscribe(pauseBDAlarm, "switch.on", handlePauseBD)
     
-    // Schedule periodic left-open check
-    Integer interval = getConfigValue("checkInterval", "CheckInterval") as Integer
-    schedule("0 */${interval} * * * ?", checkLeftOpen)
+    // Subscribe to mode changes to check doors when entering Night mode
+    subscribe(location, "mode", handleModeChange)
+    
+    // Disabled: Schedule periodic left-open check
+    // Integer interval = getConfigValue("checkInterval", "CheckInterval") as Integer
+    // schedule("0 */${interval} * * * ?", checkLeftOpen)
+}
+
+// ========================================
+// MODE CHANGE HANDLER
+// ========================================
+
+def handleModeChange(evt) {
+    logDebug "Mode changed to: ${evt.value}"
+    
+    if (evt.value == "Night") {
+        logInfo "Entering Night mode - checking for open doors"
+        checkDoorsForNightMode()
+    }
+}
+
+def checkDoorsForNightMode() {
+    def openDoors = []
+    
+    // Check all doors except birdhouse door and office door
+    if (frontDoor?.currentValue("contact") == "open") openDoors.add("Front door")
+    if (diningRoomDoor?.currentValue("contact") == "open") openDoors.add("Dining room door")
+    if (frenchDoors?.currentValue("contact") == "open") openDoors.add("French doors")
+    if (backdoor?.currentValue("contact") == "open") openDoors.add("Backdoor")
+    if (birdHouseScreen?.currentValue("contact") == "open") openDoors.add("Birdhouse screen door")
+    if (concreteShedDoor?.currentValue("contact") == "open") openDoors.add("Concrete shed door")
+    if (woodshedDoor?.currentValue("contact") == "open") openDoors.add("Woodshed door")
+    // Note: Excluded birdHouseDoor and officeDoor as requested
+    
+    if (openDoors.size() > 0) {
+        String doorList = openDoors.join(", ")
+        logInfo "Night mode alert: Open doors detected: ${doorList}"
+        sendNotification("NIGHT MODE ALERT: The following doors are open: ${doorList}")
+    } else {
+        logInfo "Night mode: All monitored doors are closed"
+    }
 }
 
 // ========================================
@@ -189,6 +229,8 @@ def handleDoorOpen(device, String mode) {
         handleFreezerDoorOpen()
     } else if (device.id == safeDoor?.id) {
         handleSafeDoorOpen()
+    } else if (device.id == officeDoor?.id) {
+        handleOfficeDoorOpen()
     } else if (device.id == lrWindow1?.id) {
         handleLRWindowOpen(mode, 1)
     } else if (device.id == lrWindow2?.id) {
@@ -252,6 +294,11 @@ def handleFreezerDoorOpen() {
 def handleSafeDoorOpen() {
     logInfo "Safe door opened"
     sendNotification("Safe door has been opened")
+}
+
+def handleOfficeDoorOpen() {
+    logInfo "Office door opened"
+    // No notification for office door during day
 }
 
 def handleLRWindowOpen(String mode, Integer windowNum) {
@@ -325,7 +372,7 @@ def findDeviceById(String deviceId) {
     def allDevices = [
         frontDoor, diningRoomDoor, frenchDoors, backdoor,
         birdHouseDoor, birdHouseScreen, concreteShedDoor, woodshedDoor,
-        freezerDoor, safeDoor, lrWindow1, lrWindow2, lrWindow3, lrWindow4
+        freezerDoor, safeDoor, officeDoor, lrWindow1, lrWindow2, lrWindow3, lrWindow4
     ]
     
     return allDevices.find { it && it.id == deviceId }
