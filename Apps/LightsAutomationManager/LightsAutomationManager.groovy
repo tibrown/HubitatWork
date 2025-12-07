@@ -69,6 +69,7 @@ def mainPage() {
         
         section("Condition Switches") {
             input "onPTO", "capability.switch", title: "On PTO Switch", required: false
+            paragraph "<small><i>Note: PTO switch automatically turns ON at sunset on Fridays and OFF at sunrise on Sundays</i></small>"
             input "holiday", "capability.switch", title: "Holiday Switch", required: false
         }
         
@@ -136,6 +137,13 @@ def initialize() {
     
     // All lights master switch
     if (allLightsSwitch) subscribe(allLightsSwitch, "switch", allLightsSwitchHandler)
+    
+    // Schedule PTO weekend automation (on at sunset Friday, off at sunrise Sunday)
+    if (onPTO) {
+        schedulePTOWeekend()
+        subscribe(location, "sunsetTime", sunsetTimeHandler)
+        subscribe(location, "sunriseTime", sunriseTimeHandler)
+    }
 }
 
 // ========================================
@@ -489,6 +497,64 @@ def handleEmergencyLightTrigger(evt) {
 
 def resetEmergencyTrigger() {
     emergencyLightTrigger?.off()
+}
+
+// ========================================
+// PTO WEEKEND SCHEDULING
+// ========================================
+
+def schedulePTOWeekend() {
+    logInfo "Scheduling PTO weekend automation"
+    
+    // Schedule sunset check for Fridays
+    def sunsetTime = location.sunset
+    if (sunsetTime) {
+        schedule(sunsetTime, "checkFridaySunset")
+        logDebug "Scheduled sunset check at ${sunsetTime}"
+    }
+    
+    // Schedule sunrise check for Sundays
+    def sunriseTime = location.sunrise
+    if (sunriseTime) {
+        schedule(sunriseTime, "checkSundaySunrise")
+        logDebug "Scheduled sunrise check at ${sunriseTime}"
+    }
+}
+
+def sunsetTimeHandler(evt) {
+    logDebug "Sunset time updated, rescheduling PTO automation"
+    schedulePTOWeekend()
+}
+
+def sunriseTimeHandler(evt) {
+    logDebug "Sunrise time updated, rescheduling PTO automation"
+    schedulePTOWeekend()
+}
+
+def checkFridaySunset() {
+    def dayOfWeek = new Date().format("EEEE", location.timeZone)
+    logDebug "Sunset check - Day of week: ${dayOfWeek}"
+    
+    if (dayOfWeek == "Friday") {
+        logInfo "Friday sunset - turning ON PTO switch"
+        onPTO?.on()
+    }
+    
+    // Reschedule for tomorrow's sunset
+    schedulePTOWeekend()
+}
+
+def checkSundaySunrise() {
+    def dayOfWeek = new Date().format("EEEE", location.timeZone)
+    logDebug "Sunrise check - Day of week: ${dayOfWeek}"
+    
+    if (dayOfWeek == "Sunday") {
+        logInfo "Sunday sunrise - turning OFF PTO switch"
+        onPTO?.off()
+    }
+    
+    // Reschedule for tomorrow's sunrise
+    schedulePTOWeekend()
 }
 
 // ========================================
