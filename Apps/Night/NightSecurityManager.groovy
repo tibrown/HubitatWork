@@ -84,10 +84,7 @@ def mainPage() {
         }
         
         section("Time Window Configuration") {
-            input "carportNightStart", "time", title: "Carport Night Alert Start Time", defaultValue: "22:30", required: false
-            input "carportNightEnd", "time", title: "Carport Night Alert End Time", defaultValue: "06:00", required: false
-            input "rearGateStart", "time", title: "Rear Gate Alert Start Time", defaultValue: "20:00", required: false
-            input "rearGateEnd", "time", title: "Rear Gate Alert End Time", defaultValue: "06:00", required: false
+            input "nightAlertStartTime", "time", title: "Night Alert Start Time (ends when mode changes to Morning)", defaultValue: "20:00", required: false
         }
         
         section("Alert Configuration") {
@@ -98,6 +95,7 @@ def mainPage() {
         
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
+            paragraph "• NightAlertStartTime - Override night alert start time (HH:mm format)"
             paragraph "• AlertDelay - Override delay before alerting (seconds)"
             paragraph "• BeamLogEnabled - Enable/disable detailed beam logging (true/false)"
             paragraph "• AlarmsEnabled - Read alarm status from SecurityAlarmManager (read-only)"
@@ -138,6 +136,17 @@ def initialize() {
     subscribe(doorBirdHouse, "contact", evtHandler)
     subscribe(outsideBackdoor, "motion", evtHandler)
     subscribe(doorLanai, "contact", evtHandler)
+    subscribe(location, "mode", modeChangeHandler)
+}
+
+def modeChangeHandler(evt) {
+    logDebug "Mode changed from ${evt.value} to ${location.mode}"
+    
+    // If mode changed away from restricted modes after night alert start time, disable security
+    if (restrictedModes && !restrictedModes.contains(location.mode) && isAfterNightAlertStart()) {
+        logInfo "Mode changed to ${location.mode} after night alert start time - disabling night security"
+        disableNightSecurity()
+    }
 }
 
 def evtHandler(evt) {
@@ -175,17 +184,13 @@ def handleCarportBeam(evt) {
     if (evt.value == "open") { // Beam Broken/Active
          logBeamActivity("Carport beam broken")
          
-         // Check Time Logic (configurable via settings or hub vars)
-         def now = new Date()
-         def start = carportNightStart ? toDateTime(carportNightStart) : timeToday("22:30", location.timeZone)
-         def end = carportNightEnd ? toDateTime(carportNightEnd) : timeToday("06:00", location.timeZone)
-         
-         boolean timeCondition = timeOfDayIsBetween(start, end, now, location.timeZone)
+         // Check if past night alert start time
+         boolean timeCondition = isAfterNightAlertStart()
          
          if (silent.currentSwitch == "off" && carportFrontMotion.currentMotion == "active" && (timeCondition || highAlert.currentSwitch == "on")) {
              logInfo "Intruder detected in carport - time condition or high alert active"
              notificationDevices.each { it.deviceNotification("Alert! Intruder in the carport!") }
-             Integer delay = getConfigValue("alertDelay", "alertDelay") as Integer
+             Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
              runIn(delay, executeAlarmsOn)
          }
     } else if (evt.value == "closed") {
@@ -298,17 +303,9 @@ def handleRPDGarden(evt) {
 }
 
 def handleRPDRearGate(evt) {
-    if (evt.value == "on" && chickenPenOutside.currentMotion == "active") {
-         // Time Logic: 8:00 PM to 6:00 AM
-         def now = new Date()
-         def start = timeToday("20:00", location.timeZone)
-         def end = timeToday("06:00", location.timeZone)
-         
-         if (timeOfDayIsBetween(start, end, now, location.timeZone)) {
-             // Set Vars omitted (assuming local usage)
-             rearGateActive.on()
-             notificationDevices.each { it.deviceNotification("Intruder at the Rear Gate") }
-         }
+    if (evt.value == "on" && chickenPenOutside.currentMotion == "active" && isAfterNightAlertStart()) {
+        rearGateActive.on()
+        notificationDevices.each { it.deviceNotification("Intruder at the Rear Gate") }
     }
 }
 
@@ -414,8 +411,36 @@ def logBeamActivity(String activity) {
 }
 
 // ========================================
+// NIGHT SECURITY CONTROL
+// ========================================
+
+def disableNightSecurity() {
+    logInfo "Disabling night security - stopping alarms, turning off alerts"
+    
+    // Stop any active alarms
+    triggerAlarmStop()
+    
+    // Turn off any active switches
+    rearGateActive?.off()
+    allLightsOn?.off()
+    
+    // Cancel any pending alarm executions
+    unschedule(executeAlarmsOn)
+    unschedule(executeShedSirenOn)
+    
+    logInfo "Night security disabled"
+}
+
+// ========================================
 // HELPER METHODS
 // ========================================
+
+def isAfterNightAlertStart() {
+    def startTimeStr = getConfigValue("nightAlertStartTime", "NightAlertStartTime") ?: "20:00"
+    def startTime = timeToday(startTimeStr, location.timeZone)
+    def now = new Date()
+    return now.after(startTime)
+}
 
 def getConfigValue(String settingName, String hubVarName) {
     // Try to get value from hub variable first

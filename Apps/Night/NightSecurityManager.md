@@ -35,7 +35,7 @@
 ### Configuration Options
 
 #### Sensors Section
-- **BH Screen Door** (required): Contact sensor for bedroom screen door
+- **BH Screen Door** (required): Contact sensor for birdhouse screen door
 - **Carport Beam** (required): Contact sensor (beam break detector)
 - **Carport Front Motion** (required): Motion sensor in carport area
 - **Concrete Shed Door** (required): Contact sensor for shed door
