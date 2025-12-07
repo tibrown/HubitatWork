@@ -137,6 +137,7 @@ def initialize() {
     subscribe(outsideBackdoor, "motion", evtHandler)
     subscribe(doorLanai, "contact", evtHandler)
     subscribe(location, "mode", modeChangeHandler)
+    subscribe(alarmsEnabled, "switch", handleAlarmsEnabledSwitch)
 }
 
 def modeChangeHandler(evt) {
@@ -146,6 +147,18 @@ def modeChangeHandler(evt) {
     if (restrictedModes && !restrictedModes.contains(location.mode) && isAfterNightAlertStart()) {
         logInfo "Mode changed to ${location.mode} after night alert start time - disabling night security"
         disableNightSecurity()
+    }
+}
+
+def handleAlarmsEnabledSwitch(evt) {
+    logDebug "AlarmsEnabled switch changed to: ${evt.value}"
+    
+    if (evt.value == "off") {
+        logInfo "Alarms disabled - stopping all night security sirens"
+        stopAlarms()
+        // Cancel any scheduled alarm executions
+        unschedule(executeAlarmsOn)
+        unschedule(executeShedSirenOn)
     }
 }
 
