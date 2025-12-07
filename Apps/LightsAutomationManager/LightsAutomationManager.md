@@ -82,6 +82,11 @@ Configure individual flood lights and their associated motion sensors:
 ### Motion Timeout Configuration
 - **Flood Light Motion Timeout**: Minutes before flood auto-off (default: 5)
 
+### Day Mode Delay
+- **Day Mode Delay**: Wait time in minutes after mode becomes Day before adjusting lights (0-60, default: 0)
+  - When set to 0, lights adjust immediately
+  - Useful to prevent lights from turning off prematurely during brief Day mode transitions
+
 ### Cross-App Communication
 - **Emergency Light Trigger**: Virtual switch for emergency red alert from other apps
 
@@ -136,6 +141,9 @@ The app automatically adjusts lighting when hub mode changes:
 - Generic switches: OFF
 - Light strips: OFF
 - Desk light: Manual control only
+- **Optional Delay**: If configured, waits specified minutes before turning off lights
+  - Useful to prevent lights from turning off immediately during brief mode transitions
+  - Default is 0 (no delay, immediate execution)
 
 ### Desk Light Control
 

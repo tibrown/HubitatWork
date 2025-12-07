@@ -89,6 +89,10 @@ def mainPage() {
             input "floodTimeout", "number", title: "Flood Light Motion Timeout (minutes)", defaultValue: 5, required: false
         }
         
+        section("Day Mode Delay") {
+            input "dayModeDelay", "number", title: "Day Mode Delay (minutes)", description: "Wait time after mode becomes Day before adjusting lights", defaultValue: 0, range: "0..60", required: false
+        }
+        
         section("Hub Variable Overrides") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• FloodTimeout - Override motion-activated flood timeout (minutes)"
@@ -237,6 +241,21 @@ def handleMorningMode() {
 
 def handleDayMode() {
     logInfo "Executing Day mode lighting"
+    
+    // Check if delay is configured
+    Integer delayMinutes = settings.dayModeDelay ?: 0
+    
+    if (delayMinutes > 0) {
+        logInfo "Day mode: Scheduling light adjustments in ${delayMinutes} minute(s)"
+        runIn(delayMinutes * 60, executeDayModeLighting)
+    } else {
+        // No delay, execute immediately
+        executeDayModeLighting()
+    }
+}
+
+def executeDayModeLighting() {
+    logInfo "Executing Day mode lighting adjustments"
     
     // Turn off all mode-controlled lights
     if (genericSwitches) genericSwitches.off()
