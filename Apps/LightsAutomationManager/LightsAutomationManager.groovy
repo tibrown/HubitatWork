@@ -54,6 +54,7 @@ def mainPage() {
             input "floodWoodshed", "capability.switch", title: "Woodshed Flood Light", required: false
             input "floodOffice", "capability.switch", title: "Office Flood Light", required: false
             input "floodCarport", "capability.switch", title: "Carport Flood Light", required: false
+            input "turnFloodsOn", "capability.switch", title: "Turn Floods On Switch (turns on all floods)", required: false
         }
         
         section("Flood Motion Sensors") {
@@ -141,6 +142,9 @@ def initialize() {
     
     // All lights master switch
     if (allLightsSwitch) subscribe(allLightsSwitch, "switch", allLightsSwitchHandler)
+    
+    // Turn floods on switch
+    if (turnFloodsOn) subscribe(turnFloodsOn, "switch.on", turnFloodsOnHandler)
     
     // Schedule PTO weekend automation (on at sunset Friday, off at sunrise Sunday)
     if (onPTO) {
@@ -443,6 +447,37 @@ def turnOffFloodSide() {
 def turnOffFloodOffice() {
     logDebug "Auto-turning off office flood"
     floodOffice?.off()
+}
+
+def turnFloodsOnHandler(evt) {
+    logInfo "Turn Floods On switch activated - turning on all flood lights"
+    
+    def floodLights = [
+        floodRear,
+        floodSide,
+        floodShower,
+        floodWoodshed,
+        floodOffice,
+        floodCarport
+    ].findAll { it != null }
+    
+    if (floodLights.isEmpty()) {
+        logDebug "No flood lights configured"
+    } else {
+        floodLights.each { flood ->
+            logDebug "Turning on ${flood.displayName}"
+            flood.on()
+        }
+        logInfo "Turned on ${floodLights.size()} flood light(s)"
+    }
+    
+    // Reset the switch after a short delay
+    runIn(2, resetTurnFloodsOnSwitch)
+}
+
+def resetTurnFloodsOnSwitch() {
+    turnFloodsOn?.off()
+    logDebug "Reset Turn Floods On switch"
 }
 
 // ========================================
