@@ -90,7 +90,8 @@ def mainPage() {
             input "floodTimeout", "number", title: "Flood Light Motion Timeout (minutes)", defaultValue: 5, required: false
         }
         
-        section("Day Mode Delay") {
+        section("Mode Timing Adjustments") {
+            input "eveningModeAdvance", "number", title: "Evening Mode Advance (minutes)", description: "Turn on Evening lights this many minutes BEFORE mode changes to Evening", defaultValue: 0, range: "0..60", required: false
             input "dayModeDelay", "number", title: "Day Mode Delay (minutes)", description: "Wait time after mode becomes Day before adjusting lights", defaultValue: 0, range: "0..60", required: false
         }
         
@@ -124,6 +125,9 @@ def initialize() {
     
     // Mode changes
     subscribe(location, "mode", modeHandler)
+    
+    // Schedule Evening mode advance if configured
+    scheduleEveningAdvance()
     
     // Desk controls
     if (deskMotion) subscribe(deskMotion, "motion.active", deskMotionHandler)
@@ -202,6 +206,15 @@ def handleNightMode() {
 
 def handleEveningMode() {
     logInfo "Executing Evening mode lighting"
+    
+    // Cancel any pending advance execution (in case mode changed manually before scheduled time)
+    unschedule("executeEveningModeLighting")
+    
+    executeEveningModeLighting()
+}
+
+def executeEveningModeLighting() {
+    logInfo "Executing Evening mode lighting adjustments"
     
     // Turn on generic switches
     if (genericSwitches) {
@@ -609,6 +622,52 @@ def checkSundaySunrise() {
     
     // Reschedule for tomorrow's sunrise
     schedulePTOWeekend()
+}
+
+// ========================================
+// EVENING MODE ADVANCE SCHEDULING
+// ========================================
+
+def scheduleEveningAdvance() {
+    Integer advanceMinutes = settings.eveningModeAdvance ?: 0
+    
+    if (advanceMinutes <= 0) {
+        logDebug "Evening mode advance disabled (${advanceMinutes} minutes)"
+        return
+    }
+    
+    // Get the time when Evening mode typically starts
+    // This could be based on sunset or a fixed time depending on your mode manager
+    // For now, we'll use a reasonable assumption that Evening mode is tied to sunset
+    def sunsetTime = location.sunset
+    
+    if (sunsetTime) {
+        // Calculate the advance time
+        def advanceTime = new Date(sunsetTime.time - (advanceMinutes * 60 * 1000))
+        
+        logInfo "Scheduling Evening lights to turn on at ${advanceTime.format('HH:mm', location.timeZone)} (${advanceMinutes} min before sunset)"
+        
+        runOnce(advanceTime, "checkAndExecuteEveningAdvance")
+    } else {
+        logDebug "Unable to determine sunset time for Evening advance scheduling"
+    }
+}
+
+def checkAndExecuteEveningAdvance() {
+    String currentMode = location.mode
+    
+    logDebug "Evening advance trigger - Current mode: ${currentMode}"
+    
+    // Only execute if we're not already in Evening or Night mode
+    if (currentMode != "Evening" && currentMode != "Night") {
+        logInfo "Executing Evening lights in advance of mode change"
+        executeEveningModeLighting()
+    } else {
+        logDebug "Skipping Evening advance - already in ${currentMode} mode"
+    }
+    
+    // Reschedule for tomorrow
+    runIn(300, "scheduleEveningAdvance") // Wait 5 minutes then reschedule
 }
 
 // ========================================
