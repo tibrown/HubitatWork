@@ -32,22 +32,56 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Lights Automation Manager", install: true, uninstall: true) {
-        section("Desk Lighting") {
+        section("<b>═══════════════════════════════════════</b>\n<b>DESK LIGHTING</b>\n<b>═══════════════════════════════════════</b>") {
             input "deskMotion", "capability.motionSensor", title: "Desk Motion Sensor", required: false
             input "deskButton", "capability.pushableButton", title: "Desk Button", required: false
             input "deskLight", "capability.switchLevel", title: "Desk Light (with CT/Color)", required: false
+            paragraph ""
+            input "deskBrightLevel", "number", title: "Desk Bright Level (0-100)", defaultValue: 100, range: "0..100", required: false
+            input "deskDimLevel", "number", title: "Desk Dim Level (0-100)", defaultValue: 5, range: "0..100", required: false
+            input "deskColorTemp", "number", title: "Desk Color Temperature (K)", defaultValue: 2700, range: "2000..6500", required: false
         }
         
-        section("Light Strips") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
             input "lightStrip", "capability.colorControl", title: "Main Light Strip", required: false
             input "lanStrip", "capability.colorControl", title: "LAN Strip", required: false
         }
         
-        section("Generic Switches & Outlets") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - MORNING SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "lightStripMorningColor", "enum", title: "Light Strip Morning Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Soft White", required: false
+            input "lightStripMorningCustomColor", "color", title: "Light Strip Morning Custom Color (if Custom selected)", required: false
+            input "lightStripMorningLevel", "number", title: "Light Strip Morning Level (0-100)", defaultValue: 50, range: "0..100", required: false
+            paragraph ""
+            input "lanStripMorningColor", "enum", title: "LAN Strip Morning Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Yellow", required: false
+            input "lanStripMorningCustomColor", "color", title: "LAN Strip Morning Custom Color (if Custom selected)", required: false
+            input "lanStripMorningLevel", "number", title: "LAN Strip Morning Level (0-100)", defaultValue: 96, range: "0..100", required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - EVENING SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "lightStripEveningColor", "enum", title: "Light Strip Evening Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Soft White", required: false
+            input "lightStripEveningCustomColor", "color", title: "Light Strip Evening Custom Color (if Custom selected)", required: false
+            input "lightStripEveningLevel", "number", title: "Light Strip Evening Level (0-100)", defaultValue: 50, range: "0..100", required: false
+            paragraph ""
+            input "lanStripEveningColor", "enum", title: "LAN Strip Evening Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Yellow", required: false
+            input "lanStripEveningCustomColor", "color", title: "LAN Strip Evening Custom Color (if Custom selected)", required: false
+            input "lanStripEveningLevel", "number", title: "LAN Strip Evening Level (0-100)", defaultValue: 96, range: "0..100", required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - NIGHT SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "lightStripNightColor", "enum", title: "Light Strip Night Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Blue", required: false
+            input "lightStripNightCustomColor", "color", title: "Light Strip Night Custom Color (if Custom selected)", required: false
+            input "lightStripNightLevel", "number", title: "Light Strip Night Level (0-100)", defaultValue: 30, range: "0..100", required: false
+            paragraph ""
+            input "lanStripNightColor", "enum", title: "LAN Strip Night Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Blue", required: false
+            input "lanStripNightCustomColor", "color", title: "LAN Strip Night Custom Color (if Custom selected)", required: false
+            input "lanStripNightLevel", "number", title: "LAN Strip Night Level (0-100)", defaultValue: 30, range: "0..100", required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>GENERIC SWITCHES & OUTLETS</b>\n<b>═══════════════════════════════════════</b>") {
             input "genericSwitches", "capability.switch", title: "Generic Switches/Outlets (mode-controlled)", multiple: true, required: false
         }
         
-        section("Flood Lights") {
+        section("<b>═══════════════════════════════════════</b>\n<b>FLOOD LIGHTS</b>\n<b>═══════════════════════════════════════</b>") {
             input "floodRear", "capability.switch", title: "Rear Flood Light", required: false
             input "floodSide", "capability.switch", title: "Side Flood Light", required: false
             input "floodShower", "capability.switch", title: "Shower Flood Light", required: false
@@ -57,51 +91,41 @@ def mainPage() {
             input "turnFloodsOn", "capability.switch", title: "Turn Floods On Switch (turns on all floods)", required: false
         }
         
-        section("Flood Motion Sensors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>FLOOD MOTION SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "rearFloodMotion", "capability.motionSensor", title: "Rear Flood Motion Sensor", required: false
             input "sideFloodMotion", "capability.motionSensor", title: "Side Flood Motion Sensor", required: false
             input "officeFloodMotion", "capability.motionSensor", title: "Office Flood Motion Sensor", required: false
+            paragraph ""
+            input "floodTimeout", "number", title: "Flood Light Motion Timeout (minutes)", defaultValue: 5, required: false
         }
         
-        section("Master Light Groups") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MASTER LIGHT CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
             input "allLights", "capability.switch", title: "All Lights Group", multiple: true, required: false
             input "allLightsSwitch", "capability.switch", title: "All Lights Master Switch", required: false
         }
         
-        section("Condition Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CONDITION SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "onPTO", "capability.switch", title: "On PTO Switch", required: false
             paragraph "<small><i>Note: PTO switch automatically turns ON at sunset on Fridays and OFF at sunrise on Sundays</i></small>"
             input "holiday", "capability.switch", title: "Holiday Switch", required: false
         }
         
-        section("Cross-App Communication") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CROSS-APP COMMUNICATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "emergencyLightTrigger", "capability.switch", title: "Emergency Light Trigger (receives from other apps)", required: false
         }
         
-        section("Lighting Configuration") {
-            input "deskBrightLevel", "number", title: "Desk Bright Level (0-100)", defaultValue: 100, range: "0..100", required: false
-            input "deskDimLevel", "number", title: "Desk Dim Level (0-100)", defaultValue: 5, range: "0..100", required: false
-            input "deskColorTemp", "number", title: "Desk Color Temperature (K)", defaultValue: 2700, range: "2000..6500", required: false
-            input "stripNightLevel", "number", title: "Strip Night Mode Level (0-100)", defaultValue: 30, range: "0..100", required: false
-            input "stripDayLevel", "number", title: "Strip Day Mode Level (0-100)", defaultValue: 50, range: "0..100", required: false
-        }
-        
-        section("Motion Timeout Configuration") {
-            input "floodTimeout", "number", title: "Flood Light Motion Timeout (minutes)", defaultValue: 5, required: false
-        }
-        
-        section("Mode Timing Adjustments") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MODE TIMING ADJUSTMENTS</b>\n<b>═══════════════════════════════════════</b>") {
             input "eveningModeAdvance", "number", title: "Evening Mode Advance (minutes)", description: "Turn on Evening lights this many minutes BEFORE mode changes to Evening", defaultValue: 0, range: "0..60", required: false
             input "dayModeDelay", "number", title: "Day Mode Delay (minutes)", description: "Wait time after mode becomes Day before adjusting lights", defaultValue: 0, range: "0..60", required: false
         }
         
-        section("Hub Variable Overrides") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• FloodTimeout - Override motion-activated flood timeout (minutes)"
             paragraph "• StripColorNight - Override nighttime strip color (color name)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
         }
@@ -118,6 +142,32 @@ def updated() {
     unsubscribe()
     unschedule()
     initialize()
+    
+    // Apply current mode lighting settings immediately when Done is clicked
+    applyCurrentModeLighting()
+}
+
+def applyCurrentModeLighting() {
+    String currentMode = location.mode
+    logInfo "Applying lighting settings for current mode: ${currentMode}"
+    
+    switch(currentMode) {
+        case "Night":
+            handleNightMode()
+            break
+        case "Evening":
+            executeEveningModeLighting()
+            break
+        case "Morning":
+            handleMorningMode()
+            break
+        case "Day":
+            // Day mode turns lights off, so don't reapply unless user wants that
+            logDebug "Current mode is Day - not reapplying (lights would turn off)"
+            break
+        default:
+            logDebug "No specific lighting to apply for mode: ${currentMode}"
+    }
 }
 
 def initialize() {
@@ -193,12 +243,16 @@ def handleNightMode() {
         logDebug "Turned off ${genericSwitches.size()} generic switches"
     }
     
-    // Set light strips to blue at night level
-    Integer nightLevel = getConfigValue("stripNightLevel", "StripNightLevel") as Integer
-    String nightColor = getConfigValue("stripColorNight", "StripColorNight") ?: "Blue"
+    // Set light strips with individual settings - with safe defaults
+    def lightStripColorInfo = resolveColor("lightStripNightColor", "lightStripNightCustomColor", "LightStripNightColor", "Blue")
+    Integer lightStripLevel = (getConfigValue("lightStripNightLevel", "LightStripNightLevel") ?: 30) as Integer
+    def lanStripColorInfo = resolveColor("lanStripNightColor", "lanStripNightCustomColor", "LanStripNightColor", "Blue")
+    Integer lanStripLevel = (getConfigValue("lanStripNightLevel", "LanStripNightLevel") ?: 30) as Integer
     
-    setStrip(lightStrip, nightColor, nightLevel)
-    setStrip(lanStrip, nightColor, nightLevel)
+    logInfo "Night mode - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
+    
+    setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
+    setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
     
     // Set desk light to dimmest
     setDeskLight(getConfigValue("deskDimLevel", "DeskDimLevel") as Integer)
@@ -224,10 +278,16 @@ def executeEveningModeLighting() {
         }
     }
     
-    // Set light strips
-    Integer dayLevel = getConfigValue("stripDayLevel", "StripDayLevel") as Integer
-    setStrip(lightStrip, "Soft White", dayLevel)
-    setStrip(lanStrip, "Yellow", 96)
+    // Set light strips with individual settings - with safe defaults
+    def lightStripColorInfo = resolveColor("lightStripEveningColor", "lightStripEveningCustomColor", "LightStripEveningColor", "Soft White")
+    Integer lightStripLevel = (getConfigValue("lightStripEveningLevel", "LightStripEveningLevel") ?: 50) as Integer
+    def lanStripColorInfo = resolveColor("lanStripEveningColor", "lanStripEveningCustomColor", "LanStripEveningColor", "Yellow")
+    Integer lanStripLevel = (getConfigValue("lanStripEveningLevel", "LanStripEveningLevel") ?: 96) as Integer
+    
+    logInfo "Evening mode - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
+    
+    setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
+    setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
 }
 
 def handleMorningMode() {
@@ -243,16 +303,26 @@ def handleMorningMode() {
         // Turn on generic switches
         if (genericSwitches) genericSwitches.on()
         
-        // Set light strips
-        Integer dayLevel = getConfigValue("stripDayLevel", "StripDayLevel") as Integer
-        setStrip(lightStrip, "Soft White", dayLevel)
-        setStrip(lanStrip, "Yellow", 96)
+        // Set light strips with individual settings - with safe defaults
+        def lightStripColorInfo = resolveColor("lightStripMorningColor", "lightStripMorningCustomColor", "LightStripMorningColor", "Soft White")
+        Integer lightStripLevel = (getConfigValue("lightStripMorningLevel", "LightStripMorningLevel") ?: 50) as Integer
+        def lanStripColorInfo = resolveColor("lanStripMorningColor", "lanStripMorningCustomColor", "LanStripMorningColor", "Yellow")
+        Integer lanStripLevel = (getConfigValue("lanStripMorningLevel", "LanStripMorningLevel") ?: 96) as Integer
+        
+        logInfo "Morning mode - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
+        
+        setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
+        setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
     } else {
         logInfo "Morning lights skipped (Holiday: ${holidayOn}, PTO: ${ptoOn})"
         
-        // Still update light strip per mode
-        Integer dayLevel = getConfigValue("stripDayLevel", "StripDayLevel") as Integer
-        setStrip(lightStrip, "Soft White", dayLevel)
+        // Still update light strip per mode - with safe defaults
+        def lightStripColorInfo = resolveColor("lightStripMorningColor", "lightStripMorningCustomColor", "LightStripMorningColor", "Soft White")
+        Integer lightStripLevel = (getConfigValue("lightStripMorningLevel", "LightStripMorningLevel") ?: 50) as Integer
+        
+        logInfo "Morning mode (holiday/PTO) - Light strip only: ${lightStripColorInfo.name}@${lightStripLevel}%"
+        
+        setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
     }
 }
 
@@ -355,6 +425,16 @@ def setStrip(device, String colorName, Integer level) {
         return
     }
     
+    // Validate inputs
+    if (level == null) {
+        logDebug "setStrip: level is null for ${device.displayName}, using default 50"
+        level = 50
+    }
+    if (!colorName) {
+        logDebug "setStrip: colorName is null for ${device.displayName}, using default White"
+        colorName = "White"
+    }
+    
     logDebug "setStrip: ${device.displayName} -> ${colorName} @ ${level}%"
     
     if (level == 0) {
@@ -362,23 +442,23 @@ def setStrip(device, String colorName, Integer level) {
         return
     }
     
-    // Ensure device is on
+    // Ensure device is on first
     if (device.currentValue("switch") != "on") {
         logDebug "Turning on ${device.displayName}"
         device.on()
-        pauseExecution(500)
+        pauseExecution(1000) // Increased wait time for device to be ready
     }
     
-    // Set level
-    device.setLevel(level)
-    
-    // Set color
+    // Set color first (which includes level), then confirm level
+    // This prevents the setLevel call from being overwritten by setColor
     switch(colorName) {
         case "Blue":
             device.setColor([hue: 66, saturation: 100, level: level])
             break
         case "Soft White":
             if (device.hasCommand("setColorTemperature")) {
+                device.setLevel(level)
+                pauseExecution(300)
                 device.setColorTemperature(2700)
             } else {
                 device.setColor([hue: 23, saturation: 56, level: level])
@@ -395,14 +475,29 @@ def setStrip(device, String colorName, Integer level) {
             break
         case "White":
             if (device.hasCommand("setColorTemperature")) {
+                device.setLevel(level)
+                pauseExecution(300)
                 device.setColorTemperature(5000)
             } else {
                 device.setColor([hue: 0, saturation: 0, level: level])
             }
             break
         default:
-            logDebug "Unknown color: ${colorName}"
+            logDebug "Unknown color: ${colorName}, defaulting to White"
+            if (device.hasCommand("setColorTemperature")) {
+                device.setLevel(level)
+                pauseExecution(300)
+                device.setColorTemperature(5000)
+            } else {
+                device.setColor([hue: 0, saturation: 0, level: level])
+            }
     }
+    
+    // Small delay to allow command to process
+    pauseExecution(300)
+    
+    // Verify and log the final state
+    logDebug "Strip ${device.displayName} final state - Switch: ${device.currentValue('switch')}, Level: ${device.currentValue('level')}"
 }
 
 def setStripColor(String color) {
@@ -673,6 +768,131 @@ def checkAndExecuteEveningAdvance() {
 // ========================================
 // HELPER METHODS
 // ========================================
+
+def resolveColor(String colorSettingName, String customColorSettingName, String hubVarName, String defaultColor) {
+    // Get the selected color option
+    String selectedColor = getConfigValue(colorSettingName, hubVarName) ?: defaultColor
+    
+    if (selectedColor == "Custom") {
+        // Use the custom color from color picker
+        String customColorHex = settings[customColorSettingName]
+        if (customColorHex) {
+            def rgbMap = hexToRgb(customColorHex)
+            def hsvMap = rgbToHsv(rgbMap.r, rgbMap.g, rgbMap.b)
+            logDebug "Custom color: ${customColorHex} -> HSV(${hsvMap.hue}, ${hsvMap.saturation}, ${hsvMap.value})"
+            return [
+                name: "Custom (${customColorHex})",
+                isCustom: true,
+                hue: hsvMap.hue,
+                saturation: hsvMap.saturation
+            ]
+        } else {
+            logDebug "Custom color selected but no color picker value, using default: ${defaultColor}"
+            return [name: defaultColor, isCustom: false]
+        }
+    } else {
+        return [name: selectedColor, isCustom: false]
+    }
+}
+
+def hexToRgb(String hex) {
+    // Remove # if present
+    hex = hex.replaceAll("#", "")
+    
+    def r = Integer.parseInt(hex.substring(0, 2), 16)
+    def g = Integer.parseInt(hex.substring(2, 4), 16)
+    def b = Integer.parseInt(hex.substring(4, 6), 16)
+    
+    return [r: r, g: g, b: b]
+}
+
+def rgbToHsv(int r, int g, int b) {
+    def rf = r / 255.0
+    def gf = g / 255.0
+    def bf = b / 255.0
+    
+    def max = Math.max(rf, Math.max(gf, bf))
+    def min = Math.min(rf, Math.min(gf, bf))
+    def delta = max - min
+    
+    def h = 0
+    def s = 0
+    def v = max
+    
+    if (delta != 0) {
+        s = delta / max
+        
+        if (rf == max) {
+            h = ((gf - bf) / delta) % 6
+        } else if (gf == max) {
+            h = ((bf - rf) / delta) + 2
+        } else {
+            h = ((rf - gf) / delta) + 4
+        }
+        
+        h = h * 60
+        if (h < 0) h += 360
+    }
+    
+    // Convert to Hubitat's 0-100 scale
+    def hue = Math.round(h / 3.6) as Integer  // 0-100
+    def saturation = Math.round(s * 100) as Integer  // 0-100
+    
+    return [hue: hue, saturation: saturation, value: v]
+}
+
+def setStripWithColor(device, colorInfo, Integer level) {
+    if (!device) {
+        logDebug "setStripWithColor called with null device"
+        return
+    }
+    
+    if (colorInfo.isCustom) {
+        // Use custom HSV values
+        setStripCustom(device, colorInfo.hue, colorInfo.saturation, level)
+    } else {
+        // Use preset color name
+        setStrip(device, colorInfo.name, level)
+    }
+}
+
+def setStripCustom(device, Integer hue, Integer saturation, Integer level) {
+    if (!device) {
+        logDebug "setStripCustom called with null device"
+        return
+    }
+    
+    // Validate inputs
+    if (level == null) {
+        logDebug "setStripCustom: level is null for ${device.displayName}, using default 50"
+        level = 50
+    }
+    if (hue == null) hue = 0
+    if (saturation == null) saturation = 100
+    
+    logDebug "setStripCustom: ${device.displayName} -> HSV(${hue}, ${saturation}) @ ${level}%"
+    
+    if (level == 0) {
+        device.off()
+        return
+    }
+    
+    // Ensure device is on first
+    if (device.currentValue("switch") != "on") {
+        logDebug "Turning on ${device.displayName}"
+        device.on()
+        pauseExecution(1000)
+    }
+    
+    // Set custom color
+    device.setColor([hue: hue, saturation: saturation, level: level])
+    
+    // Small delay to allow command to process
+    pauseExecution(300)
+    
+    // Verify and log the final state
+    logDebug "Strip ${device.displayName} final state - Switch: ${device.currentValue('switch')}, Level: ${device.currentValue('level')}"
+}
 
 def getConfigValue(String settingName, String hubVarName) {
     // Try to get value from hub variable first
