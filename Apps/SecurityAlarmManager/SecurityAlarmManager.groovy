@@ -32,51 +32,51 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Security Alarm Manager", install: true, uninstall: true) {
-        section("Siren Devices") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SIREN DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
             input "siren1", "capability.alarm", title: "Siren 1 (Office)", required: true
             input "siren2", "capability.alarm", title: "Siren 2", required: true
             input "siren3", "capability.alarm", title: "Siren 3 (Chime)", required: true
             input "alarmPlug", "capability.switch", title: "Alarm Plug Switch", required: false
         }
         
-        section("Control Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmsEnabledSwitch", "capability.switch", title: "Alarms Enabled Switch", required: true
             input "audibleAlarmsSwitch", "capability.switch", title: "Audible Alarms On Switch", required: true
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
         }
         
-        section("Control Buttons") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CONTROL BUTTONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmOffButton", "capability.pushableButton", title: "Alarm Off Button", required: false
             input "alarmOffBackup", "capability.pushableButton", title: "Alarm Off Backup Button", required: false
             input "alarmOnButton", "capability.pushableButton", title: "Alarm On Button", required: false
         }
         
-        section("Cross-App Communication") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CROSS-APP COMMUNICATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmTriggerSwitch", "capability.switch", title: "Alarm Trigger Switch (receives from other apps)", required: false
             input "alarmStopSwitch", "capability.switch", title: "Alarm Stop Switch (receives from other apps)", required: false
             input "panicButtonSwitch", "capability.switch", title: "Panic Button Switch (receives from other apps)", required: false
         }
         
-        section("Camera Integration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CAMERA INTEGRATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "indoorCamsSwitch", "capability.switch", title: "Indoor Cameras Switch", required: false
         }
         
-        section("Alarm Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ALARM CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmVolume", "number", title: "Default Alarm Volume (0-100)", range: "0..100", defaultValue: 80, required: false
             input "alarmDuration", "number", title: "Alarm Auto-Stop Duration (seconds)", defaultValue: 300, required: false
             input "armDelay", "number", title: "Arm Delay (seconds)", defaultValue: 0, required: false
             input "disarmDelay", "number", title: "Disarm Delay (seconds)", defaultValue: 0, required: false
         }
         
-        section("Mode Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmEnabledModes", "mode", title: "Modes that enable alarms", multiple: true, required: false
         }
         
-        section("Notifications") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
         }
         
-        section("Hub Variable Overrides") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• AlarmVolume - Override default siren volume (0-100)"
             paragraph "• AlarmDuration - Override alarm sound duration (seconds)"
@@ -86,7 +86,7 @@ def mainPage() {
             paragraph "• AlarmsEnabled - Status variable (written by this app, read by others)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
         }

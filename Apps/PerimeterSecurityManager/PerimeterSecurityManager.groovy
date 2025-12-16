@@ -32,7 +32,7 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Perimeter Security Manager", install: true, uninstall: true) {
-        section("Gate Sensors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>GATE SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "frontGate", "capability.contactSensor",
                   title: "Front Gate Sensor",
                   required: false
@@ -49,7 +49,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Shock & Tamper Sensors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SHOCK & TAMPER SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "rearGateShock", "capability.shockSensor",
                   title: "Rear Gate Shock Sensor",
                   required: false
@@ -69,7 +69,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Additional Perimeter Sensors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ADDITIONAL PERIMETER SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "outsidePenSensor", "capability.motionSensor",
                   title: "Outside Pen Motion Sensor",
                   required: false
@@ -79,7 +79,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Carport Beam") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CARPORT BEAM</b>\n<b>═══════════════════════════════════════</b>") {
             input "carportBeam", "capability.contactSensor",
                   title: "Carport Beam Sensor",
                   description: "Infrared beam sensor (closed = beam broken)",
@@ -96,7 +96,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Carport Beam Condition Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CARPORT BEAM CONDITION SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch",
                   title: "Silent Switch",
                   description: "Global silent mode suppresses alerts",
@@ -113,7 +113,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Carport Beam Timing") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CARPORT BEAM TIMING</b>\n<b>═══════════════════════════════════════</b>") {
             input "carportBeamPauseDuration", "number",
                   title: "Carport Beam Pause Duration (seconds)",
                   description: "How long to pause after beam break in Day mode",
@@ -129,7 +129,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Ring Person Detection") {
+        section("<b>═══════════════════════════════════════</b>\n<b>RING PERSON DETECTION</b>\n<b>═══════════════════════════════════════</b>") {
             input "ringFrontDoor", "capability.switch",
                   title: "RPD Front Door Switch",
                   required: false
@@ -158,7 +158,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Mode-Based Behavior") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MODE-BASED BEHAVIOR</b>\n<b>═══════════════════════════════════════</b>") {
             input "awayModes", "mode",
                   title: "Away Modes",
                   description: "Modes when enhanced security is active",
@@ -171,7 +171,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Notification Settings") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification",
                   title: "Notification Devices",
                   description: "Devices to receive perimeter alerts",
@@ -179,7 +179,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Perimeter Check Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PERIMETER CHECK CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "enablePerimeterChecks", "bool",
                   title: "Enable Perimeter Checks",
                   description: "Enable/disable scheduled perimeter monitoring",
@@ -236,7 +236,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Night Mode Preparation Check") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE PREPARATION CHECK</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "Schedule a specific check time to ensure all doors/gates are closed before night mode"
             
             input "enableNightPrepCheck", "bool",
@@ -251,7 +251,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Devices to Monitor in Perimeter Checks") {
+        section("<b>═══════════════════════════════════════</b>\n<b>DEVICES TO MONITOR IN PERIMETER CHECKS</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "Select which devices should be included in periodic perimeter checks:"
             
             input "checkFrontGate", "bool",
@@ -276,7 +276,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Hub Variables Support") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES SUPPORT</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
             paragraph "• <b>GateAlertDelay</b> - Override gate alert delay (seconds)\n" +
                      "• <b>ShockSensitivity</b> - Override shock sensitivity (1-10)\n" +
@@ -288,7 +288,7 @@ def mainPage() {
                      "• <b>SilentCarportTimeout</b> - Override silent carport timeout (seconds)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool",
                   title: "Enable Debug Logging",
                   defaultValue: false,

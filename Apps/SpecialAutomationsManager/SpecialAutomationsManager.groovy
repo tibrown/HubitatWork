@@ -37,7 +37,7 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Special Automations Manager", install: true, uninstall: true) {
-        section("Configuration Sections") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CONFIGURATION SECTIONS</b>\n<b>═══════════════════════════════════════</b>") {
             href "petMonitoringPage", title: "Pet Monitoring", description: "Dog tracking and feeding reminders"
             href "workRemindersPage", title: "Work Reminders", description: "Meetings, PTO, wake-up alarms"
             href "powerMonitoringPage", title: "Power Monitoring", description: "Mains power and utility monitoring"
@@ -45,7 +45,7 @@ def mainPage() {
             href "miscellaneousPage", title: "Miscellaneous", description: "Coffee, safe, delays, and more"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logLevel", "enum", title: "Logging Level", 
                 options: ["None", "Info", "Debug", "Trace"], 
                 defaultValue: "Info", required: true
@@ -55,7 +55,7 @@ def mainPage() {
 
 def petMonitoringPage() {
     dynamicPage(name: "petMonitoringPage", title: "Pet Monitoring", install: false, uninstall: false) {
-        section("Dog Sensors & Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>DOG SENSORS & SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "dogFloorSensor", "capability.contactSensor", title: "Dog Floor Sensor", required: false
             input "dogOnFloorSwitch", "capability.switch", title: "Dog On Floor Switch", required: false
             input "dogsOutsideSwitch", "capability.switch", title: "Dogs Outside Switch", required: false
@@ -64,7 +64,7 @@ def petMonitoringPage() {
             input "carportSiren", "capability.alarm", title: "Carport Siren", required: false
         }
         
-        section("Dog Feeding Reminders") {
+        section("<b>═══════════════════════════════════════</b>\n<b>DOG FEEDING REMINDERS</b>\n<b>═══════════════════════════════════════</b>") {
             input "dogFeedingReminderTime", "time", title: "Feeding Reminder Time", required: false,
                 description: "Hub variable: dogFeedingReminderTime (HH:mm format)"
             input "enableFeedingReminder", "bool", title: "Enable Feeding Reminders", 
@@ -72,7 +72,7 @@ def petMonitoringPage() {
             input "fedResetTime", "time", title: "Daily Fed Status Reset Time", required: false
         }
         
-        section("Dog Outside Monitoring") {
+        section("<b>═══════════════════════════════════════</b>\n<b>DOG OUTSIDE MONITORING</b>\n<b>═══════════════════════════════════════</b>") {
             input "dogOutsideTimeout", "number", title: "Dog Outside Timeout (minutes)", 
                 defaultValue: 30, range: "5..120", required: false,
                 description: "Hub variable: dogOutsideTimeout"
@@ -84,7 +84,7 @@ def petMonitoringPage() {
 
 def workRemindersPage() {
     dynamicPage(name: "workRemindersPage", title: "Work Reminders", install: false, uninstall: false) {
-        section("Meeting Reminders") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MEETING REMINDERS</b>\n<b>═══════════════════════════════════════</b>") {
             input "calendarDevice", "capability.sensor", title: "Calendar Device", required: false
             input "meetingReminderAdvance", "number", title: "Meeting Reminder Advance Time (minutes)", 
                 defaultValue: 15, range: "5..60", required: false,
@@ -94,13 +94,13 @@ def workRemindersPage() {
                 defaultValue: true, required: false
         }
         
-        section("PTO Management") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PTO MANAGEMENT</b>\n<b>═══════════════════════════════════════</b>") {
             input "ptoSwitch", "capability.switch", title: "PTO Switch", required: false
             input "enablePtoMode", "bool", title: "Enable PTO Mode Features", 
                 defaultValue: true, required: false
         }
         
-        section("Wake-Up Alarm") {
+        section("<b>═══════════════════════════════════════</b>\n<b>WAKE-UP ALARM</b>\n<b>═══════════════════════════════════════</b>") {
             input "wakeUpTime", "time", title: "Wake-Up Time", required: false,
                 description: "Hub variable: wakeUpTime (HH:mm format)"
             input "wakeUpDays", "enum", title: "Wake-Up Days", 
@@ -114,7 +114,7 @@ def workRemindersPage() {
 
 def powerMonitoringPage() {
     dynamicPage(name: "powerMonitoringPage", title: "Power Monitoring", install: false, uninstall: false) {
-        section("Mains Power Monitoring") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MAINS POWER MONITORING</b>\n<b>═══════════════════════════════════════</b>") {
             input "mainsPowerSensor", "capability.powerSource", title: "Mains Power Sensor", required: false
             input "onMainsSwitch", "capability.switch", title: "On Mains Switch", required: false
             input "powerMonitorDelay", "number", title: "Power Alert Delay (seconds)", 
@@ -124,7 +124,7 @@ def powerMonitoringPage() {
                 defaultValue: true, required: false
         }
         
-        section("Water Monitoring") {
+        section("<b>═══════════════════════════════════════</b>\n<b>WATER MONITORING</b>\n<b>═══════════════════════════════════════</b>") {
             input "waterSwitch", "capability.switch", title: "Water Is On Switch", required: false
         }
     }
@@ -132,20 +132,20 @@ def powerMonitoringPage() {
 
 def communicationPage() {
     dynamicPage(name: "communicationPage", title: "Communication", install: false, uninstall: false) {
-        section("Notification Devices") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Push Notification Devices", 
                 multiple: true, required: false
             input "alexaDevice", "capability.speechSynthesis", title: "Alexa Device", required: false
             input "phoneDevice", "capability.notification", title: "Phone Notification Device", required: false
         }
         
-        section("Slack Integration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SLACK INTEGRATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "slackWebhook", "text", title: "Slack Webhook URL", required: false
             input "enableSlackNotifications", "bool", title: "Enable Slack Notifications", 
                 defaultValue: false, required: false
         }
         
-        section("Communication Routing") {
+        section("<b>═══════════════════════════════════════</b>\n<b>COMMUNICATION ROUTING</b>\n<b>═══════════════════════════════════════</b>") {
             input "seeSlackSwitch", "capability.switch", title: "See Slack Switch (check Slack messages)", 
                 required: false
         }
@@ -154,7 +154,7 @@ def communicationPage() {
 
 def miscellaneousPage() {
     dynamicPage(name: "miscellaneousPage", title: "Miscellaneous Automations", install: false, uninstall: false) {
-        section("Safe Monitoring") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SAFE MONITORING</b>\n<b>═══════════════════════════════════════</b>") {
             input "safeSensor", "capability.lockCodes", title: "Safe Lock Sensor", required: false
             input "safeCheckInterval", "number", title: "Safe Check Interval (hours)", 
                 defaultValue: 24, range: "1..168", required: false,
@@ -163,14 +163,14 @@ def miscellaneousPage() {
                 defaultValue: true, required: false
         }
         
-        section("Mode Changes") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MODE CHANGES</b>\n<b>═══════════════════════════════════════</b>") {
             input "setAwayDelaySwitch", "capability.switch", title: "Set Away Delay Switch", required: false
             input "awayModeDelay", "number", title: "Away Mode Delay (minutes)", 
                 defaultValue: 5, range: "1..60", required: false,
                 description: "Hub variable: awayModeDelay"
         }
         
-        section("Audio Playback") {
+        section("<b>═══════════════════════════════════════</b>\n<b>AUDIO PLAYBACK</b>\n<b>═══════════════════════════════════════</b>") {
             input "audioDevice", "capability.audioNotification", title: "Audio Playback Device", required: false
             input "enableAudioNotifications", "bool", title: "Enable Audio Notifications", 
                 defaultValue: true, required: false

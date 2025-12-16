@@ -32,7 +32,7 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Ring Person Detection Manager", install: true, uninstall: true) {
-        section("<b>RPD Switches</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>RPD SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "Select the Ring Person Detection virtual switches."
             input "rpdBackDoor", "capability.switch", title: "RPD BackDoor Switch", required: false
             input "rpdBirdHouse", "capability.switch", title: "RPD BirdHouse Switch", required: false
@@ -42,14 +42,14 @@ def mainPage() {
             input "rpdRearGate", "capability.switch", title: "RPD RearGate Switch", required: false
         }
         
-        section("<b>Mode Configuration</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "nightModes", "mode", title: "Night Modes", multiple: true, required: false,
                 description: "Modes for enhanced night security actions"
             input "eveningModes", "mode", title: "Evening Modes", multiple: true, required: false,
                 description: "Modes for evening-specific actions"
         }
         
-        section("<b>Notification Devices</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", 
                 multiple: true, required: false
             input "alexaDevice", "capability.speechSynthesis", title: "Alexa Device for Announcements", 
@@ -58,21 +58,21 @@ def mainPage() {
                 required: false
         }
         
-        section("<b>Control Switches</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
             input "silentBackdoorSwitch", "capability.switch", title: "Silent Backdoor Switch", required: false
             input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
             input "rearGateActiveSwitch", "capability.switch", title: "Rear Gate Active Switch", required: false
         }
         
-        section("<b>Timing Configuration</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>TIMING CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "backdoorResetDelay", "number", title: "Backdoor Reset Delay (seconds)", 
                 defaultValue: 3, range: "1..30", required: false
             input "frontDoorResetDelay", "number", title: "Front Door Reset Delay (seconds)", 
                 defaultValue: 10, range: "1..60", required: false
         }
         
-        section("<b>Hub Variables</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "The following hub variables will be set when person detection occurs:"
             paragraph "• <b>LRPBackDoor</b> - Last Ring Person BackDoor timestamp\n" +
                       "• <b>LRPBirdHouse</b> - Last Ring Person BirdHouse timestamp\n" +
@@ -82,7 +82,7 @@ def mainPage() {
                       "• <b>LRPRearGate</b> - Last Ring Person RearGate timestamp"
         }
         
-        section("<b>Logging</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logLevel", "enum", title: "Logging Level", 
                 options: ["None", "Info", "Debug", "Trace"], 
                 defaultValue: "Info", required: true

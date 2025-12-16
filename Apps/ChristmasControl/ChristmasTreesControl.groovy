@@ -30,7 +30,7 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Christmas Control Settings", install: true, uninstall: true) {
-        section("Triggers") {
+        section("<b>═══════════════════════════════════════</b>\n<b>TRIGGERS</b>\n<b>═══════════════════════════════════════</b>") {
             input "masterSwitch", "capability.switch", title: "Master Switch (Optional)", required: false, multiple: false, description: "A switch to manually control all Christmas devices."
             input "enableSchedule", "bool", title: "Enable Schedule?", submitOnChange: true
             if (enableSchedule) {
@@ -52,14 +52,14 @@ def mainPage() {
                 }
             }
         }
-        section("Virtual Control Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>VIRTUAL CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "christmasTreesSwitch", "capability.switch", title: "ChristmasTrees Virtual Switch", required: false, multiple: false, description: "Virtual switch to control all trees"
             input "christmasLightsSwitch", "capability.switch", title: "ChristmasLights Virtual Switch", required: false, multiple: false, description: "Virtual switch to control all outdoor lights"
         }
-        section("Indoor Devices (Trees)") {
+        section("<b>═══════════════════════════════════════</b>\n<b>INDOOR DEVICES (TREES)</b>\n<b>═══════════════════════════════════════</b>") {
             input "treeSwitches", "capability.switch", title: "Tree Switches", required: false, multiple: true
         }
-        section("Outdoor Devices (Lights)") {
+        section("<b>═══════════════════════════════════════</b>\n<b>OUTDOOR DEVICES (LIGHTS)</b>\n<b>═══════════════════════════════════════</b>") {
             input "mainLights", "capability.switch", title: "Main Christmas Lights", required: false, multiple: true
             input "porchLights", "capability.switch", title: "Porch Lights", required: false, multiple: true
             input "rainSensor", "capability.switch", title: "Rain Sensor", required: false, multiple: false
