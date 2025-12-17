@@ -32,7 +32,7 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Night Security Manager", install: true, uninstall: true) {
-        section("Sensors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: true
             input "carportBeam", "capability.contactSensor", title: "Carport Beam", required: true
             input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion", required: true
@@ -52,7 +52,7 @@ def mainPage() {
             input "doorLanai", "capability.contactSensor", title: "Lanai Door (Backdoor)", required: true
         }
         
-        section("Switches & Controls") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SWITCHES & CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
             input "traveling", "capability.switch", title: "Traveling Switch", required: true
             input "silent", "capability.switch", title: "Silent Switch", required: true
             input "highAlert", "capability.switch", title: "High Alert Switch", required: true
@@ -63,37 +63,37 @@ def mainPage() {
             input "allLightsOn", "capability.switch", title: "All Lights ON Switch", required: true
         }
 
-        section("Notification Devices") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: true
         }
 
-        section("Actions / Outputs") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ACTIONS / OUTPUTS</b>\n<b>═══════════════════════════════════════</b>") {
             input "sirens", "capability.alarm", title: "Sirens", multiple: true, required: true
             input "allLights", "capability.switch", title: "All Lights", multiple: true, required: true
             input "guestRoomEcho", "capability.notification", title: "Guest Room Echo", required: true
         }
 
-        section("Restrictions") {
+        section("<b>═══════════════════════════════════════</b>\n<b>RESTRICTIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "restrictedModes", "mode", title: "Only run in these modes", multiple: true, required: true
         }
         
-        section("Cross-App Communication") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CROSS-APP COMMUNICATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmTriggerSwitch", "capability.switch", title: "Alarm Trigger Switch (sends to SecurityAlarmManager)", required: false
             input "alarmStopSwitch", "capability.switch", title: "Alarm Stop Switch (sends to SecurityAlarmManager)", required: false
             input "emergencyLightsSwitch", "capability.switch", title: "Emergency Lights Switch (sends to LightsAutomationManager)", required: false
         }
         
-        section("Time Window Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>TIME WINDOW CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "nightAlertStartTime", "time", title: "Night Alert Start Time (ends when mode changes to Morning)", defaultValue: "20:00", required: false
         }
         
-        section("Alert Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ALERT CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "alertDelay", "number", title: "Delay before triggering alarms (seconds)", defaultValue: 5, required: false
             input "sirenDuration", "number", title: "Siren duration (seconds)", defaultValue: 300, required: false
             input "beamLogging", "bool", title: "Enable detailed carport beam logging", defaultValue: true, required: false
         }
         
-        section("Hub Variable Overrides") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• NightAlertStartTime - Override night alert start time (HH:mm format)"
             paragraph "• AlertDelay - Override delay before alerting (seconds)"
@@ -102,7 +102,7 @@ def mainPage() {
             paragraph "• AlarmActive - Check if alarms are currently active (read-only)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
         }

@@ -32,32 +32,32 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Emergency Help Manager", install: true, uninstall: true) {
-        section("Shower Help Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SHOWER HELP CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "showerHelpButton", "capability.pushableButton", title: "Shower Help Button", required: false
             input "stopShowerHelp", "capability.switch", title: "Stop Shower Help Switch", required: false
             input "deskButton", "capability.pushableButton", title: "Desk Button (to stop alerts)", required: false
         }
         
-        section("Other Help Buttons") {
+        section("<b>═══════════════════════════════════════</b>\n<b>OTHER HELP BUTTONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "keyFobButton", "capability.pushableButton", title: "Key Fob Help Button", required: false
             input "birdHouseButton", "capability.pushableButton", title: "Bird House Help Button (NanoMote)", required: false
         }
         
-        section("Visual Alert Devices") {
+        section("<b>═══════════════════════════════════════</b>\n<b>VISUAL ALERT DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
             input "flashLights", "capability.switch", title: "Lights to Flash for Alerts", multiple: true, required: false
             input "deskLight", "capability.switchLevel", title: "Desk Light (for color/dimming)", required: false
         }
         
-        section("Silent Mode Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SILENT MODE SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
             input "silentCarportSwitch", "capability.switch", title: "Silent Carport Switch", required: false
         }
         
-        section("Alarm Integration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ALARM INTEGRATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmTriggerSwitch", "capability.switch", title: "Alarm Trigger Switch (to trigger alarms)", required: false
         }
         
-        section("Alert Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ALERT CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "helpAlertDuration", "number", title: "Help Alert Duration (seconds)", defaultValue: 300, required: false
             input "repeatCount", "number", title: "Alert Repeat Count", defaultValue: 5, required: false
             input "repeatInterval", "number", title: "Alert Repeat Interval (seconds)", defaultValue: 300, required: false
@@ -65,11 +65,11 @@ def mainPage() {
             input "silentModeAutoOffTime", "time", title: "Time to Automatically Turn Off Silent Mode", required: false
         }
         
-        section("Notifications") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
         }
         
-        section("Hub Variable Overrides") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• HelpAlertDuration - Override help alert duration (seconds)"
             paragraph "• FlashRate - Override light flash rate (flashes per second)"
@@ -79,7 +79,7 @@ def mainPage() {
             paragraph "• VisualOnlyMode - Enable visual-only alerts (boolean: true/false)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
         }

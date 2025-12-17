@@ -32,7 +32,7 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Environmental Control Manager", install: true, uninstall: true) {
-        section("Greenhouse Controls") {
+        section("<b>═══════════════════════════════════════</b>\n<b>GREENHOUSE CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
             input "greenhouseTempSensor", "capability.temperatureMeasurement",
                   title: "Greenhouse Temperature Sensor",
                   required: false
@@ -81,7 +81,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Office Controls") {
+        section("<b>═══════════════════════════════════════</b>\n<b>OFFICE CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
             input "officeTempSensor", "capability.temperatureMeasurement",
                   title: "Office Temperature Sensor",
                   required: false
@@ -102,7 +102,7 @@ def mainPage() {
                   required: false
         }
         
-        section("Mosquito Control") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MOSQUITO CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
             input "skeeterKiller", "capability.switch",
                   title: "Mosquito Killer Device",
                   required: false
@@ -131,11 +131,11 @@ def mainPage() {
                   required: false
         }
         
-        section("Water Control") {
+        section("<b>═══════════════════════════════════════</b>\n<b>WATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
             input "waterValve", "capability.switch",
                   title: "Water Control Valve",
                   required: false
-            
+            paragraph ""
             input "waterTimeoutMinutes", "number",
                   title: "Water Auto-Off Timeout (minutes)",
                   description: "Automatically turn off water after this duration",
@@ -149,20 +149,20 @@ def mainPage() {
                   required: false
         }
         
-        section("Notification Settings") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification",
                   title: "Notification Devices",
                   description: "Devices to receive environmental alerts",
                   multiple: true,
                   required: false
-            
+            paragraph ""
             input "alexaDevices", "capability.speechSynthesis",
                   title: "Alexa Devices for Announcements",
                   multiple: true,
                   required: false
         }
         
-        section("Hub Variables Support") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
             paragraph "• <b>GreenhouseFanOnTemp</b> - Override fan on temperature (°F)\n" +
                      "• <b>GreenhouseFanOffTemp</b> - Override fan off temperature (°F)\n" +
@@ -173,7 +173,7 @@ def mainPage() {
                      "• <b>WaterTimeout</b> - Override water shutoff timeout (minutes)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool",
                   title: "Enable Debug Logging",
                   defaultValue: false,

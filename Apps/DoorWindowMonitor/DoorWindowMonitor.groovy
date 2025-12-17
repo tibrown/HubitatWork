@@ -32,54 +32,59 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Door Window Monitor", install: true, uninstall: true) {
-        section("Exterior Doors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>EXTERIOR DOORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "frontDoor", "capability.contactSensor", title: "Front Door (Living Room)", required: false
             input "diningRoomDoor", "capability.contactSensor", title: "Dining Room Front Door", required: false
             input "frenchDoors", "capability.contactSensor", title: "Living Room French Doors", required: false
             input "backdoor", "capability.contactSensor", title: "Backdoor (Lanai)", required: false
         }
         
-        section("Shed & Storage Doors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SHED & STORAGE DOORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "birdHouseDoor", "capability.contactSensor", title: "Bird House Door (She Shed)", required: false
             input "birdHouseScreen", "capability.contactSensor", title: "Bird House Screen Door", required: false
             input "concreteShedDoor", "capability.contactSensor", title: "Concrete Shed Door", required: false
             input "woodshedDoor", "capability.contactSensor", title: "Woodshed Door", required: false
         }
         
-        section("Special Doors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>SPECIAL DOORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "freezerDoor", "capability.contactSensor", title: "Freezer Door", required: false
             input "safeDoor", "capability.contactSensor", title: "Safe Door", required: false
             input "officeDoor", "capability.contactSensor", title: "Office Door", required: false
         }
         
-        section("Windows") {
+        section("<b>═══════════════════════════════════════</b>\n<b>WINDOWS</b>\n<b>═══════════════════════════════════════</b>") {
             input "lrWindow1", "capability.contactSensor", title: "Living Room Window 1", required: false
             input "lrWindow2", "capability.contactSensor", title: "Living Room Window 2", required: false
             input "lrWindow3", "capability.contactSensor", title: "Living Room Window 3", required: false
             input "lrWindow4", "capability.contactSensor", title: "Living Room Window 4", required: false
         }
         
-        section("Pause Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PAUSE SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "pauseDRDoorAlarm", "capability.switch", title: "Pause DR Door Alarm Switch", required: false
             input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm Switch", required: false
         }
         
-        section("Notifications") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
+            input "birdHouseSilentModes", "mode", title: "Modes to suppress Bird House alerts", multiple: true, required: false
+            input "leftOpenSilentModes", "mode", title: "Modes to suppress left-open alerts", multiple: true, required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
         }
         
-        section("Alert Thresholds") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ALERT THRESHOLDS</b>\n<b>═══════════════════════════════════════</b>") {
             input "doorOpenThreshold", "number", title: "Door Left Open Alert (minutes)", defaultValue: 5, required: false
             input "windowOpenThreshold", "number", title: "Window Left Open Alert (minutes)", defaultValue: 10, required: false
             input "freezerDoorThreshold", "number", title: "Freezer Door Left Open Alert (minutes)", defaultValue: 2, required: false
             input "checkInterval", "number", title: "Check Interval for Left Open (minutes)", defaultValue: 1, required: false
         }
         
-        section("Pause Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PAUSE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "pauseDuration", "number", title: "Auto Pause Duration (minutes)", defaultValue: 5, required: false
         }
         
-        section("Hub Variable Overrides") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• DoorOpenThreshold - Override time before alerting on open door (minutes)"
             paragraph "• WindowOpenThreshold - Override time before alerting on open window (minutes)"
@@ -89,7 +94,7 @@ def mainPage() {
             paragraph "• TamperAlertEnabled - Enable/disable tamper detection (true/false)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
         }
@@ -228,6 +233,7 @@ def handleDoorOpen(device, String mode) {
     } else if (device.id == freezerDoor?.id) {
         handleFreezerDoorOpen()
     } else if (device.id == safeDoor?.id) {
+        log.warn "Door Window Monitor: Safe door match detected - calling handler"
         handleSafeDoorOpen()
     } else if (device.id == officeDoor?.id) {
         handleOfficeDoorOpen()
@@ -271,10 +277,18 @@ def handleBackdoorOpen(String mode) {
 }
 
 def handleBirdHouseDoorOpen(String mode) {
+    if (shouldSuppressBirdHouseAlert(mode)) {
+        logDebug "Bird House door alert suppressed in ${mode} mode"
+        return
+    }
     sendNotification("Bird House door is open")
 }
 
 def handleBirdHouseScreenOpen(String mode) {
+    if (shouldSuppressBirdHouseAlert(mode)) {
+        logDebug "Bird House screen door alert suppressed in ${mode} mode"
+        return
+    }
     sendNotification("Bird House screen door is open")
 }
 
@@ -286,14 +300,31 @@ def handleWoodshedOpen(String mode) {
     sendNotification("Woodshed door is open")
 }
 
+def shouldSuppressBirdHouseAlert(String mode) {
+    if (!birdHouseSilentModes) return false
+    return birdHouseSilentModes.contains(mode)
+}
+
 def handleFreezerDoorOpen() {
     logInfo "Freezer door opened - will alert if left open"
     // Alert handled by checkLeftOpen periodic scan
 }
 
 def handleSafeDoorOpen() {
-    logInfo "Safe door opened"
-    sendNotification("Safe door has been opened")
+    logInfo "SAFE DOOR OPENED - Sending immediate notification"
+    
+    // Send notification immediately - no delays
+    if (notificationDevices) {
+        notificationDevices.each { device ->
+            device.deviceNotification("ALERT: Safe door has been opened")
+            logInfo "Safe door notification sent to: ${device.displayName}"
+        }
+    } else {
+        log.warn "Door Window Monitor: Safe door opened but NO notification devices configured!"
+    }
+    
+    // Also log to hub for tracking
+    log.warn "Door Window Monitor: SAFE DOOR OPENED at ${new Date()}"
 }
 
 def handleOfficeDoorOpen() {
@@ -327,6 +358,13 @@ def handleDoorClosed(device) {
 
 def checkLeftOpen() {
     logDebug "Checking for doors/windows left open"
+    
+    // Check if current mode suppresses left-open alerts
+    String currentMode = location.mode
+    if (leftOpenSilentModes && leftOpenSilentModes.contains(currentMode)) {
+        logDebug "Left-open alerts suppressed in ${currentMode} mode"
+        return
+    }
     
     Long currentTime = now()
     Integer doorThreshold = (getConfigValue("doorOpenThreshold", "DoorOpenThreshold") as Integer) * 60000 // Convert to ms

@@ -32,7 +32,7 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Motion Presence Manager", install: true, uninstall: true) {
-        section("Motion Sensors by Zone") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MOTION SENSORS BY ZONE</b>\n<b>═══════════════════════════════════════</b>") {
             input "carportMotion", "capability.motionSensor", title: "Carport Motion Sensor", required: false
             input "frontDoorMotion", "capability.motionSensor", title: "Front Door Motion Sensor", required: false
             input "sideYardMotion", "capability.motionSensor", title: "Side Yard Motion (AMC)", required: false
@@ -42,38 +42,38 @@ def mainPage() {
             input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion Sensor", required: false
         }
         
-        section("Presence Sensors") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PRESENCE SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "phonePresence", "capability.presenceSensor", title: "Phone Presence Sensor", required: false
             input "marjiPhone", "capability.presenceSensor", title: "Marji's Phone Presence", required: false
         }
         
-        section("Arrival Grace Period") {
+        section("<b>═══════════════════════════════════════</b>\n<b>ARRIVAL GRACE PERIOD</b>\n<b>═══════════════════════════════════════</b>") {
             input "arriveGracePeriodSwitch", "capability.switch", title: "Arrive Grace Period Switch", required: false
             input "graceDuration", "number", title: "Grace Period Duration (minutes)", defaultValue: 30, required: false
         }
         
-        section("Control Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmsEnabled", "capability.switch", title: "Alarms Enabled Switch", required: false
             input "silentMode", "capability.switch", title: "Silent Mode Switch", required: false
             input "rearCarportActive", "capability.switch", title: "Rear Carport Active Switch", required: false
         }
         
-        section("Notifications") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
         }
         
-        section("Motion Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>MOTION CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "motionTimeout", "number", title: "Motion Detection Timeout (seconds)", defaultValue: 60, required: false
             input "enableDayMotion", "bool", title: "Enable Day Mode Motion Detection", defaultValue: true
             input "enableNightMotion", "bool", title: "Enable Night Mode Motion Detection", defaultValue: false
         }
         
-        section("Presence Configuration") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PRESENCE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "arrivalNotification", "bool", title: "Send Arrival Notifications", defaultValue: true
             input "departureNotification", "bool", title: "Send Departure Notifications", defaultValue: false
         }
         
-        section("Hub Variable Overrides") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports hub variable overrides for flexible configuration:"
             paragraph "• GracePeriodDuration - Override grace period duration (minutes)"
             paragraph "• MotionTimeout - Override motion sensor timeout (seconds)"
@@ -82,7 +82,7 @@ def mainPage() {
             paragraph "• ArrivalNotifications - Enable/disable arrival notifications (true/false)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
         }

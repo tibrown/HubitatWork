@@ -32,13 +32,13 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Camera Privacy Manager", install: true, uninstall: true) {
-        section("Indoor Cameras") {
+        section("<b>═══════════════════════════════════════</b>\n<b>CAMERAS</b>\n<b>═══════════════════════════════════════</b>") {
             input "indoorCameras", "capability.switch", 
                   title: "Indoor Camera Power Outlets", 
                   description: "Select switches that control indoor camera power",
                   multiple: true, 
                   required: true
-            
+            paragraph ""
             input "outdoorCameras", "capability.switch",
                   title: "Outdoor Camera Power Outlets (Optional)",
                   description: "Select switches that control outdoor camera power",
@@ -46,12 +46,12 @@ def mainPage() {
                   required: false
         }
         
-        section("Presence Detection") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PRESENCE DETECTION</b>\n<b>═══════════════════════════════════════</b>") {
             input "phonePresenceSwitch", "capability.switch",
                   title: "Phone Presence Switch",
                   description: "Switch that turns OFF when your phone leaves (e.g., from geofence)",
                   required: true
-            
+            paragraph ""
             input "privacyDelayMinutes", "number",
                   title: "Privacy Delay (minutes)",
                   description: "Delay before turning cameras off when arriving home",
@@ -67,12 +67,12 @@ def mainPage() {
                   required: false
         }
         
-        section("Override Switches") {
+        section("<b>═══════════════════════════════════════</b>\n<b>OVERRIDE SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "travelingSwitch", "capability.switch",
                   title: "Traveling Switch",
                   description: "When ON, your phone leaving won't trigger cameras (spouse still home)",
                   required: false
-            
+            paragraph ""
             input "manualOverride", "capability.switch",
                   title: "Manual Override Switch (Optional)",
                   description: "Switch to manually force cameras off",
@@ -86,14 +86,14 @@ def mainPage() {
                   required: false
         }
         
-        section("Hub Variables Support") {
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
             paragraph "• <b>PrivacyDelay</b> - Override camera off delay (minutes)\n" +
                      "• <b>EnableDelay</b> - Override camera on delay (minutes)\n" +
                      "• <b>ManualOverrideDuration</b> - Override manual override timeout (hours)"
         }
         
-        section("Logging") {
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool",
                   title: "Enable Debug Logging",
                   defaultValue: false,
