@@ -147,7 +147,7 @@ def handleRPDBackDoor(evt) {
     
     // Mode-based actions (from RPDBackDoor rule: Night mode, silent switches off)
     if (isNightMode() && !isSilent() && !isSilentBackdoor()) {
-        sendNotification("Alert, person detected at the backdoor")
+        sendNotification("Alert, person detected at Back Door")
     }
 }
 
@@ -160,8 +160,8 @@ def handleRPDBirdHouse(evt) {
     
     // Night mode actions (from Night-RPDBirdHouse rule)
     if (isNightMode()) {
-        sendNotification("Person Detected at the Bird House")
-        setGlobalVar("EchoMessage", "Person detected at the birdhouse")
+        sendNotification("Person detected at Bird House")
+        setGlobalVar("EchoMessage", "Person detected at Bird House")
         
         // Turn on lights
         if (allLightsSwitch) {
@@ -170,7 +170,7 @@ def handleRPDBirdHouse(evt) {
         
         // Whisper to guest room
         if (guestRoomEcho) {
-            guestRoomEcho.deviceNotification("Person detected at birdhouse")
+            guestRoomEcho.deviceNotification("Person detected at Bird House")
         }
     }
 }
@@ -187,7 +187,7 @@ def handleRPDFrontDoor(evt) {
     
     // Night mode actions (from Night-PersonAtFrontDoor - if it exists)
     if (isNightMode()) {
-        sendNotification("Person detected at the front door")
+        sendNotification("Person detected at Front Door")
         if (allLightsSwitch) {
             allLightsSwitch.on()
         }
@@ -203,7 +203,7 @@ def handleRPDGarden(evt) {
     
     // Night mode actions (from Night-RPDGarden rule)
     if (isNightMode()) {
-        sendNotification("Person detected at the greenhouse")
+        sendNotification("Person detected at Garden")
         if (allLightsSwitch) {
             allLightsSwitch.on()
         }
@@ -211,7 +211,7 @@ def handleRPDGarden(evt) {
     
     // Evening mode actions (from EveningRPDGarden rule)
     if (isEveningMode()) {
-        sendNotification("Person detected at the garden")
+        sendNotification("Person detected at Garden")
     }
 }
 
@@ -229,7 +229,7 @@ def handleRPDCPen(evt) {
         if (rearGateActiveSwitch) {
             rearGateActiveSwitch.on()
         }
-        sendNotification("Someone at rear gate/pen area")
+        sendNotification("Person detected at Chicken Pen")
     }
 }
 
@@ -249,7 +249,7 @@ def handleRPDRearGate(evt) {
         if (rearGateActiveSwitch) {
             rearGateActiveSwitch.on()
         }
-        sendNotification("Person detected at rear gate")
+        sendNotification("Person detected at Rear Gate")
     }
 }
 
