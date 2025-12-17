@@ -104,7 +104,8 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>MOSQUITO CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
             input "skeeterKiller", "capability.switch",
-                  title: "Mosquito Killer Device",
+                  title: "Mosquito Killer Devices",
+                  multiple: true,
                   required: false
             
             input "skeeterOnModes", "mode",
@@ -128,6 +129,13 @@ def mainPage() {
                   title: "Illuminance Threshold (lux)",
                   description: "Turn skeeter ON when illuminance drops below this (Day mode only)",
                   defaultValue: 500,
+                  required: false
+            
+            input "skeeterCheckInterval", "number",
+                  title: "Illuminance Check Interval (minutes)",
+                  description: "How often to check illuminance during Day mode",
+                  defaultValue: 5,
+                  range: "1..60",
                   required: false
         }
         
@@ -236,6 +244,11 @@ def initialize() {
     if (location.currentMode == "Day" && settings.skeeterIlluminanceSensor) {
         checkIlluminance()
     }
+    
+    // Schedule periodic illuminance check during Day mode
+    if (location.currentMode == "Day" && settings.skeeterIlluminanceSensor) {
+        scheduleIlluminanceCheck()
+    }
 }
 
 // ============================================================================
@@ -304,6 +317,16 @@ def waterResetHandler(evt) {
 
 def modeChangeHandler(evt) {
     logInfo "Mode changed to: ${evt.value}"
+    
+    // Cancel periodic checks when leaving Day mode
+    if (evt.value != "Day") {
+        unschedule(periodicIlluminanceCheck)
+    }
+    // Start periodic checks when entering Day mode with illuminance sensor
+    else if (evt.value == "Day" && settings.skeeterIlluminanceSensor) {
+        scheduleIlluminanceCheck()
+    }
+    
     handleSkeeterMode(evt.value)
 }
 
@@ -405,24 +428,31 @@ def handleSkeeterMode(String mode) {
         return
     }
     
-    def currentState = settings.skeeterKiller.currentValue("switch")
-    
-    // For Day mode, use illuminance-based control if configured
+    // For Day mode with illuminance sensor, ALWAYS use illuminance-based control
+    // This takes priority over mode-based rules
     if (mode == "Day" && settings.skeeterIlluminanceSensor) {
-        logDebug "Day mode: using illuminance-based skeeter control"
+        logDebug "Day mode: using illuminance-based skeeter control (overrides mode rules)"
         checkIlluminance()
         return
     }
     
-    // For other modes, use mode-based control
-    if (settings.skeeterOnModes?.contains(mode) && currentState != "on") {
+    // For other modes (or Day without illuminance sensor), use mode-based control
+    if (settings.skeeterOnModes?.contains(mode)) {
         logInfo "Mode ${mode} triggers mosquito killer ON"
-        settings.skeeterKiller.on()
-    } else if (settings.skeeterOffModes?.contains(mode) && currentState != "off") {
+        settings.skeeterKiller?.each { device ->
+            if (device.currentValue("switch") != "on") {
+                device.on()
+            }
+        }
+    } else if (settings.skeeterOffModes?.contains(mode)) {
         logInfo "Mode ${mode} triggers mosquito killer OFF"
-        settings.skeeterKiller.off()
+        settings.skeeterKiller?.each { device ->
+            if (device.currentValue("switch") != "off") {
+                device.off()
+            }
+        }
     } else {
-        logDebug "Mode ${mode} has no mosquito killer action (current: ${currentState})"
+        logDebug "Mode ${mode} has no mosquito killer action"
     }
 }
 
@@ -434,6 +464,43 @@ def illuminanceHandler(evt) {
     
     logDebug "Illuminance changed to ${evt.value} lux"
     checkIlluminance()
+}
+
+def periodicIlluminanceCheck() {
+    if (location.currentMode == "Day" && settings.skeeterIlluminanceSensor) {
+        logDebug "Periodic illuminance check triggered"
+        checkIlluminance()
+    }
+}
+
+def scheduleIlluminanceCheck() {
+    def interval = settings.skeeterCheckInterval ?: 5
+    logInfo "Scheduling illuminance check every ${interval} minute(s)"
+    
+    switch(interval) {
+        case 1:
+            runEvery1Minute(periodicIlluminanceCheck)
+            break
+        case 5:
+            runEvery5Minutes(periodicIlluminanceCheck)
+            break
+        case 10:
+            runEvery10Minutes(periodicIlluminanceCheck)
+            break
+        case 15:
+            runEvery15Minutes(periodicIlluminanceCheck)
+            break
+        case 30:
+            runEvery30Minutes(periodicIlluminanceCheck)
+            break
+        case 60:
+            runEvery1Hour(periodicIlluminanceCheck)
+            break
+        default:
+            // For custom intervals, use runIn repeatedly
+            schedule("0 */${interval} * ? * *", periodicIlluminanceCheck)
+            break
+    }
 }
 
 def checkIlluminance() {
@@ -448,16 +515,23 @@ def checkIlluminance() {
     
     def illuminance = settings.skeeterIlluminanceSensor.currentValue("illuminance")
     def threshold = getConfigValue("skeeterIlluminanceThreshold", "SkeeterIlluminanceThreshold") ?: 500
-    def currentState = settings.skeeterKiller.currentValue("switch")
     
-    logDebug "Illuminance check: ${illuminance} lux vs threshold ${threshold} lux (current: ${currentState})"
+    logDebug "Illuminance check: ${illuminance} lux vs threshold ${threshold} lux"
     
-    if (illuminance < threshold && currentState != "on") {
+    if (illuminance < threshold) {
         logInfo "Illuminance ${illuminance} lux < ${threshold} lux, turning skeeter ON"
-        settings.skeeterKiller.on()
-    } else if (illuminance >= threshold && currentState != "off") {
+        settings.skeeterKiller?.each { device ->
+            if (device.currentValue("switch") != "on") {
+                device.on()
+            }
+        }
+    } else if (illuminance >= threshold) {
         logInfo "Illuminance ${illuminance} lux >= ${threshold} lux, turning skeeter OFF"
-        settings.skeeterKiller.off()
+        settings.skeeterKiller?.each { device ->
+            if (device.currentValue("switch") != "off") {
+                device.off()
+            }
+        }
     }
 }
 
