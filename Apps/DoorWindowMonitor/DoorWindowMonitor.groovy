@@ -47,7 +47,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>SPECIAL DOORS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "freezerDoor", "capability.contactSensor", title: "Freezer Door", required: false
+            input "freezerDoors", "capability.contactSensor", title: "Freezer Doors", multiple: true, required: false
             input "safeDoor", "capability.contactSensor", title: "Safe Door", required: false
             input "officeDoor", "capability.contactSensor", title: "Office Door", required: false
         }
@@ -125,7 +125,7 @@ def initialize() {
     if (birdHouseScreen) subscribe(birdHouseScreen, "contact", handleContact)
     if (concreteShedDoor) subscribe(concreteShedDoor, "contact", handleContact)
     if (woodshedDoor) subscribe(woodshedDoor, "contact", handleContact)
-    if (freezerDoor) subscribe(freezerDoor, "contact", handleContact)
+    if (freezerDoors) freezerDoors.each { subscribe(it, "contact", handleContact) }
     if (safeDoor) subscribe(safeDoor, "contact", handleContact)
     if (officeDoor) subscribe(officeDoor, "contact", handleContact)
     if (lrWindow1) subscribe(lrWindow1, "contact", handleContact)
@@ -140,9 +140,9 @@ def initialize() {
     // Subscribe to mode changes to check doors when entering Night mode
     subscribe(location, "mode", handleModeChange)
     
-    // Disabled: Schedule periodic left-open check
-    // Integer interval = getConfigValue("checkInterval", "CheckInterval") as Integer
-    // schedule("0 */${interval} * * * ?", checkLeftOpen)
+    // Schedule periodic left-open check
+    Integer interval = getConfigValue("checkInterval", "CheckInterval") as Integer
+    schedule("0 */${interval} * * * ?", checkLeftOpen)
 }
 
 // ========================================
@@ -230,8 +230,8 @@ def handleDoorOpen(device, String mode) {
         handleConcreteShedOpen(mode)
     } else if (device.id == woodshedDoor?.id) {
         handleWoodshedOpen(mode)
-    } else if (device.id == freezerDoor?.id) {
-        handleFreezerDoorOpen()
+    } else if (freezerDoors && freezerDoors.find { it.id == device.id }) {
+        handleFreezerDoorOpen(device)
     } else if (device.id == safeDoor?.id) {
         log.warn "Door Window Monitor: Safe door match detected - calling handler"
         handleSafeDoorOpen()
@@ -249,23 +249,20 @@ def handleDoorOpen(device, String mode) {
 }
 
 def handleFrontDoorOpen(String mode) {
-    if (mode == "Day") {
-        sendNotification("Front door is open, Front door is open")
-    } else if (mode == "Morning") {
+    if (mode == "Morning") {
         sendNotification("Alert, Intruder at the front door")
     }
+    // No notification during Day mode
 }
 
 def handleDiningRoomDoorOpen(String mode) {
-    if (mode == "Day") {
-        sendNotification("Dining room door is open, dining room door is open")
-    }
+    // No notification during Day mode
+    logDebug "Dining room door opened during ${mode} mode"
 }
 
 def handleFrenchDoorsOpen(String mode) {
-    if (mode == "Day") {
-        sendNotification("French doors are open, French doors are open")
-    }
+    // No notification during Day mode
+    logDebug "French doors opened during ${mode} mode"
 }
 
 def handleBackdoorOpen(String mode) {
@@ -305,9 +302,11 @@ def shouldSuppressBirdHouseAlert(String mode) {
     return birdHouseSilentModes.contains(mode)
 }
 
-def handleFreezerDoorOpen() {
-    logInfo "Freezer door opened - will alert if left open"
-    // Alert handled by checkLeftOpen periodic scan
+def handleFreezerDoorOpen(device) {
+    String deviceName = device.displayName
+    logInfo "${deviceName} OPENED - Sending immediate notification"
+    sendNotification("ALERT: ${deviceName} has been opened")
+    // Will also alert if left open via checkLeftOpen periodic scan
 }
 
 def handleSafeDoorOpen() {
@@ -333,11 +332,10 @@ def handleOfficeDoorOpen() {
 }
 
 def handleLRWindowOpen(String mode, Integer windowNum) {
-    if (mode == "Day") {
-        sendNotification("Living room window ${windowNum} is open, living room window ${windowNum} is open")
-    } else if (mode == "Evening" || mode == "Night" || mode == "Morning") {
+    if (mode == "Evening" || mode == "Night" || mode == "Morning") {
         sendNotification("Living room window ${windowNum} is open")
     }
+    // No notification during Day mode
 }
 
 // ========================================
@@ -361,9 +359,10 @@ def checkLeftOpen() {
     
     // Check if current mode suppresses left-open alerts
     String currentMode = location.mode
-    if (leftOpenSilentModes && leftOpenSilentModes.contains(currentMode)) {
-        logDebug "Left-open alerts suppressed in ${currentMode} mode"
-        return
+    Boolean suppressNonCritical = leftOpenSilentModes && leftOpenSilentModes.contains(currentMode)
+    
+    if (suppressNonCritical) {
+        logDebug "Left-open alerts suppressed in ${currentMode} mode (except freezer)"
     }
     
     Long currentTime = now()
@@ -383,20 +382,27 @@ def checkLeftOpen() {
             if (!device) return
             
             String deviceName = device.displayName
+            Boolean isFreezer = freezerDoors && freezerDoors.find { it.id == device.id }
+            
+            // Skip non-freezer alerts if in silent mode
+            if (suppressNonCritical && !isFreezer) {
+                return
+            }
             
             // Determine threshold based on device type
             Integer threshold = doorThreshold
             if (device.id == lrWindow1?.id || device.id == lrWindow2?.id || 
                 device.id == lrWindow3?.id || device.id == lrWindow4?.id) {
                 threshold = windowThreshold
-            } else if (device.id == freezerDoor?.id) {
+            } else if (isFreezer) {
                 threshold = freezerThreshold
             }
             
             // Alert if open longer than threshold
             if (duration >= threshold) {
                 logInfo "${deviceName} has been open for ${duration / 60000} minutes"
-                sendNotification("ALERT: ${deviceName} has been left open!")
+                String alertPrefix = isFreezer ? "CRITICAL" : "ALERT"
+                sendNotification("${alertPrefix}: ${deviceName} has been left open!")
                 
                 // Clear the open time so we don't spam alerts
                 // Will reset if door is opened again
@@ -410,8 +416,13 @@ def findDeviceById(String deviceId) {
     def allDevices = [
         frontDoor, diningRoomDoor, frenchDoors, backdoor,
         birdHouseDoor, birdHouseScreen, concreteShedDoor, woodshedDoor,
-        freezerDoor, safeDoor, officeDoor, lrWindow1, lrWindow2, lrWindow3, lrWindow4
+        safeDoor, officeDoor, lrWindow1, lrWindow2, lrWindow3, lrWindow4
     ]
+    
+    // Add all freezer doors if configured
+    if (freezerDoors) {
+        allDevices.addAll(freezerDoors)
+    }
     
     return allDevices.find { it && it.id == deviceId }
 }
