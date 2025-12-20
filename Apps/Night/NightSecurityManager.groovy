@@ -34,8 +34,8 @@ def mainPage() {
     dynamicPage(name: "mainPage", title: "Night Security Manager", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: true
-            input "carportBeam", "capability.contactSensor", title: "Carport Beam", required: true
-            input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion", required: true
+            input "carportBeam", "capability.contactSensor", title: "Carport Beam (closed = beam broken)", required: true
+            input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion (verification)", required: true
             input "concreteShedZooz", "capability.contactSensor", title: "Concrete Shed Door", required: true
             input "doorDiningRoom", "capability.contactSensor", title: "Dining Room Door", required: true
             input "doorLivingRoomFrench", "capability.contactSensor", title: "Living Room French Doors", required: true
@@ -194,21 +194,35 @@ def handleBHScreen(evt) {
 }
 
 def handleCarportBeam(evt) {
-    if (evt.value == "open") { // Beam Broken/Active
+    if (evt.value == "closed") { // Beam broken (infrared beam interrupted)
          logBeamActivity("Carport beam broken")
+         
+         // Check if motion or Ring person detection is active (verification to avoid false positives from animals)
+         Boolean motionVerified = carportFrontMotion.currentMotion == "active" || rpdFrontDoor.currentSwitch == "on"
+         
+         if (!motionVerified) {
+             logDebug "Beam broken but no motion/person verification - skipping alert to avoid false positives"
+             return
+         }
          
          // Check if past night alert start time
          boolean timeCondition = isAfterNightAlertStart()
          
-         if (silent.currentSwitch == "off" && carportFrontMotion.currentMotion == "active" && (timeCondition || highAlert.currentSwitch == "on")) {
-             logInfo "Intruder detected in carport - time condition or high alert active"
+         if (silent.currentSwitch == "off" && (timeCondition || highAlert.currentSwitch == "on")) {
+             // Check cooldown to avoid repeated alerts
+             if (state.lastCarportAlert && (now() - state.lastCarportAlert) < 300000) { // 5 minute cooldown
+                 logDebug "Carport alert in cooldown period - skipping"
+                 return
+             }
+             
+             state.lastCarportAlert = now()
+             logInfo "Intruder detected in carport - motion/person verified, time condition or high alert active"
              notificationDevices.each { it.deviceNotification("Alert! Intruder in the carport!") }
              Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
              runIn(delay, executeAlarmsOn)
          }
-    } else if (evt.value == "closed") {
-        logBeamActivity("Car port beam broken")
-        notificationDevices.each { it.deviceNotification("Car Port Beam Broken") }
+    } else if (evt.value == "open") { // Beam clear (normal state)
+        logBeamActivity("Carport beam cleared")
     }
 }
 

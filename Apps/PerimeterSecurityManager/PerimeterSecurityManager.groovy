@@ -766,12 +766,20 @@ def handleCarportBeamBroken(String mode) {
 }
 
 def handleBeamAway() {
-    // Check if motion is detected for verification
+    // Check if motion or Ring person is detected for verification (to avoid false positives from animals)
+    Boolean verified = false
     if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
-        logInfo "Away mode: Beam + motion detected"
+        verified = true
+    }
+    if (settings.frontDoorRingMotion && settings.frontDoorRingMotion.currentValue("switch") == "on") {
+        verified = true
+    }
+    
+    if (verified) {
+        logInfo "Away mode: Beam + motion/person detected"
         sendAlert("Alert: Someone in the carport")
     } else {
-        logDebug "Away mode: Beam broken but no motion verification"
+        logDebug "Away mode: Beam broken but no motion/person verification - avoiding false positive"
     }
 }
 
@@ -815,7 +823,33 @@ def handleBeamEvening() {
         return
     }
     
-    logInfo "Evening mode: Beam broken"
+    // Check for motion or Ring person verification (to avoid false positives from animals)
+    Boolean verified = false
+    if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
+        verified = true
+    }
+    if (settings.frontDoorRingMotion && settings.frontDoorRingMotion.currentValue("switch") == "on") {
+        verified = true
+    }
+    
+    if (!verified) {
+        logDebug "Evening mode: Beam broken but no motion/person verification - avoiding false positive"
+        return
+    }
+    
+    // Check cooldown (use pause switch for consistency)
+    if (isSwitchOn(settings.pauseCarportBeam)) {
+        logDebug "Evening mode: In cooldown period, skipping"
+        return
+    }
+    
+    logInfo "Evening mode: Beam + motion/person verified"
+    
+    // Activate pause for cooldown
+    settings.pauseCarportBeam?.on()
+    Integer delay = getConfigValue("carportBeamPauseDuration", "CarportBeamPauseDuration") as Integer
+    runIn(delay, turnOffPauseCarportBeam)
+    
     sendAlert("Someone in the carport")
 }
 
