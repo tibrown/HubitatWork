@@ -119,12 +119,6 @@ def mainPage() {
             input "dayModeDelay", "number", title: "Day Mode Delay (minutes)", description: "Wait time after mode becomes Day before adjusting lights", defaultValue: 0, range: "0..60", required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• FloodTimeout - Override motion-activated flood timeout (minutes)"
-            paragraph "• StripColorNight - Override nighttime strip color (color name)"
-        }
-        
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
@@ -237,17 +231,18 @@ def modeHandler(evt) {
 def handleNightMode() {
     logInfo "Executing Night mode lighting"
     
-    // Turn off generic switches
+    // Turn off generic switches (exclude light strips to avoid conflicts)
     if (genericSwitches) {
-        genericSwitches.off()
-        logDebug "Turned off ${genericSwitches.size()} generic switches"
+        def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+        switchesToControl*.off()
+        logDebug "Turned off ${switchesToControl.size()} generic switches (excluded strips)"
     }
     
     // Set light strips with individual settings - with safe defaults
-    def lightStripColorInfo = resolveColor("lightStripNightColor", "lightStripNightCustomColor", "LightStripNightColor", "Blue")
-    Integer lightStripLevel = (getConfigValue("lightStripNightLevel", "LightStripNightLevel") ?: 30) as Integer
-    def lanStripColorInfo = resolveColor("lanStripNightColor", "lanStripNightCustomColor", "LanStripNightColor", "Blue")
-    Integer lanStripLevel = (getConfigValue("lanStripNightLevel", "LanStripNightLevel") ?: 30) as Integer
+    def lightStripColorInfo = resolveColor("lightStripNightColor", "lightStripNightCustomColor", "Blue")
+    Integer lightStripLevel = (settings.lightStripNightLevel ?: 30) as Integer
+    def lanStripColorInfo = resolveColor("lanStripNightColor", "lanStripNightCustomColor", "Blue")
+    Integer lanStripLevel = (settings.lanStripNightLevel ?: 30) as Integer
     
     logInfo "Night mode - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
     
@@ -255,7 +250,7 @@ def handleNightMode() {
     setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
     
     // Set desk light to dimmest
-    setDeskLight(getConfigValue("deskDimLevel", "DeskDimLevel") as Integer)
+    setDeskLight(settings.deskDimLevel as Integer)
 }
 
 def handleEveningMode() {
@@ -270,19 +265,21 @@ def handleEveningMode() {
 def executeEveningModeLighting() {
     logInfo "Executing Evening mode lighting adjustments"
     
-    // Turn on generic switches
+    // Turn on generic switches (exclude light strips to avoid conflicts)
     if (genericSwitches) {
-        genericSwitches.each { device ->
+        def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+        switchesToControl.each { device ->
             logDebug "Turning on ${device.displayName}"
             device.on()
         }
+        logDebug "Turned on ${switchesToControl.size()} generic switches (excluded strips)"
     }
     
     // Set light strips with individual settings - with safe defaults
-    def lightStripColorInfo = resolveColor("lightStripEveningColor", "lightStripEveningCustomColor", "LightStripEveningColor", "Soft White")
-    Integer lightStripLevel = (getConfigValue("lightStripEveningLevel", "LightStripEveningLevel") ?: 50) as Integer
-    def lanStripColorInfo = resolveColor("lanStripEveningColor", "lanStripEveningCustomColor", "LanStripEveningColor", "Yellow")
-    Integer lanStripLevel = (getConfigValue("lanStripEveningLevel", "LanStripEveningLevel") ?: 96) as Integer
+    def lightStripColorInfo = resolveColor("lightStripEveningColor", "lightStripEveningCustomColor", "Soft White")
+    Integer lightStripLevel = (settings.lightStripEveningLevel ?: 50) as Integer
+    def lanStripColorInfo = resolveColor("lanStripEveningColor", "lanStripEveningCustomColor", "Yellow")
+    Integer lanStripLevel = (settings.lanStripEveningLevel ?: 96) as Integer
     
     logInfo "Evening mode - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
     
@@ -300,14 +297,18 @@ def handleMorningMode() {
     if (!holidayOn && !ptoOn) {
         logDebug "Morning conditions met (not holiday, not PTO) - turning on lights"
         
-        // Turn on generic switches
-        if (genericSwitches) genericSwitches.on()
+        // Turn on generic switches (exclude light strips to avoid conflicts)
+        if (genericSwitches) {
+            def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+            switchesToControl*.on()
+            logDebug "Turned on ${switchesToControl.size()} generic switches (excluded strips)"
+        }
         
         // Set light strips with individual settings - with safe defaults
-        def lightStripColorInfo = resolveColor("lightStripMorningColor", "lightStripMorningCustomColor", "LightStripMorningColor", "Soft White")
-        Integer lightStripLevel = (getConfigValue("lightStripMorningLevel", "LightStripMorningLevel") ?: 50) as Integer
-        def lanStripColorInfo = resolveColor("lanStripMorningColor", "lanStripMorningCustomColor", "LanStripMorningColor", "Yellow")
-        Integer lanStripLevel = (getConfigValue("lanStripMorningLevel", "LanStripMorningLevel") ?: 96) as Integer
+        def lightStripColorInfo = resolveColor("lightStripMorningColor", "lightStripMorningCustomColor", "Soft White")
+        Integer lightStripLevel = (settings.lightStripMorningLevel ?: 50) as Integer
+        def lanStripColorInfo = resolveColor("lanStripMorningColor", "lanStripMorningCustomColor", "Yellow")
+        Integer lanStripLevel = (settings.lanStripMorningLevel ?: 96) as Integer
         
         logInfo "Morning mode - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
         
@@ -317,8 +318,8 @@ def handleMorningMode() {
         logInfo "Morning lights skipped (Holiday: ${holidayOn}, PTO: ${ptoOn})"
         
         // Still update light strip per mode - with safe defaults
-        def lightStripColorInfo = resolveColor("lightStripMorningColor", "lightStripMorningCustomColor", "LightStripMorningColor", "Soft White")
-        Integer lightStripLevel = (getConfigValue("lightStripMorningLevel", "LightStripMorningLevel") ?: 50) as Integer
+        def lightStripColorInfo = resolveColor("lightStripMorningColor", "lightStripMorningCustomColor", "Soft White")
+        Integer lightStripLevel = (settings.lightStripMorningLevel ?: 50) as Integer
         
         logInfo "Morning mode (holiday/PTO) - Light strip only: ${lightStripColorInfo.name}@${lightStripLevel}%"
         
@@ -345,7 +346,11 @@ def executeDayModeLighting() {
     logInfo "Executing Day mode lighting adjustments"
     
     // Turn off all mode-controlled lights
-    if (genericSwitches) genericSwitches.off()
+    if (genericSwitches) {
+        def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+        switchesToControl*.off()
+        logDebug "Turned off ${switchesToControl.size()} generic switches (excluded strips)"
+    }
     if (lightStrip) lightStrip.off()
     if (lanStrip) lanStrip.off()
 }
@@ -356,7 +361,7 @@ def executeDayModeLighting() {
 
 def deskMotionHandler(evt) {
     logDebug "Desk motion detected"
-    Integer dimLevel = getConfigValue("deskDimLevel", "DeskDimLevel") as Integer
+    Integer dimLevel = settings.deskDimLevel as Integer
     setDeskLight(dimLevel)
 }
 
@@ -371,11 +376,11 @@ def deskButtonHandler(evt) {
     
     if (evt.name == "pushed") {
         // Single push = bright
-        Integer brightLevel = getConfigValue("deskBrightLevel", "DeskBrightLevel") as Integer
+        Integer brightLevel = settings.deskBrightLevel as Integer
         setDeskLight(brightLevel)
     } else if (evt.name == "doubleTapped") {
         // Double tap = dim
-        Integer dimLevel = getConfigValue("deskDimLevel", "DeskDimLevel") as Integer
+        Integer dimLevel = settings.deskDimLevel as Integer
         setDeskLight(dimLevel)
     }
 }
@@ -386,8 +391,8 @@ def setDeskLight(Integer level = null) {
         return
     }
     
-    Integer finalLevel = level ?: (getConfigValue("deskDimLevel", "DeskDimLevel") as Integer)
-    Integer colorTemp = getConfigValue("deskColorTemp", "DeskColorTemp") as Integer
+    Integer finalLevel = level ?: (settings.deskDimLevel as Integer)
+    Integer colorTemp = settings.deskColorTemp as Integer
     
     logDebug "Setting desk light to level ${finalLevel}, CT ${colorTemp}K"
     
@@ -535,7 +540,7 @@ def handleFloodMotion(floodLight, String location) {
     floodLight.on()
     
     // Schedule auto-off
-    Integer timeout = getConfigValue("floodTimeout", "FloodTimeout") as Integer
+    Integer timeout = settings.floodTimeout as Integer
     Integer timeoutSeconds = timeout * 60
     
     logDebug "${location} flood will turn off in ${timeout} minutes"
@@ -606,18 +611,20 @@ def allLightsOn() {
     logInfo "Turning on all lights"
     
     if (allLights) {
-        allLights.each { light ->
+        def lightsToControl = allLights.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+        lightsToControl.each { light ->
             logDebug "Turning on ${light.displayName}"
             light.on()
         }
+        logDebug "Turned on ${lightsToControl.size()} lights (excluded strips for separate control)"
     }
     
-    // Also turn on strips
+    // Turn on strips (they'll use their last color/level settings)
     if (lightStrip) lightStrip.on()
     if (lanStrip) lanStrip.on()
     
     // Desk light
-    Integer brightLevel = getConfigValue("deskBrightLevel", "deskBrightLevel") as Integer
+    Integer brightLevel = settings.deskBrightLevel as Integer
     setDeskLight(brightLevel)
 }
 
@@ -625,10 +632,12 @@ def allLightsOff() {
     logInfo "Turning off all lights"
     
     if (allLights) {
-        allLights.each { light ->
+        def lightsToControl = allLights.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+        lightsToControl.each { light ->
             logDebug "Turning off ${light.displayName}"
             light.off()
         }
+        logDebug "Turned off ${lightsToControl.size()} lights (excluded strips for separate control)"
     }
     
     // Turn off strips
@@ -769,9 +778,9 @@ def checkAndExecuteEveningAdvance() {
 // HELPER METHODS
 // ========================================
 
-def resolveColor(String colorSettingName, String customColorSettingName, String hubVarName, String defaultColor) {
+def resolveColor(String colorSettingName, String customColorSettingName, String defaultColor) {
     // Get the selected color option
-    String selectedColor = getConfigValue(colorSettingName, hubVarName) ?: defaultColor
+    String selectedColor = settings[colorSettingName] ?: defaultColor
     
     if (selectedColor == "Custom") {
         // Use the custom color from color picker
@@ -892,41 +901,6 @@ def setStripCustom(device, Integer hue, Integer saturation, Integer level) {
     
     // Verify and log the final state
     logDebug "Strip ${device.displayName} final state - Switch: ${device.currentValue('switch')}, Level: ${device.currentValue('level')}"
-}
-
-def getConfigValue(String settingName, String hubVarName) {
-    // Try to get value from hub variable first
-    def hubVarValue = getHubVar(hubVarName)
-    if (hubVarValue != null) {
-        logDebug "Using hub variable '${hubVarName}' = ${hubVarValue}"
-        return hubVarValue
-    }
-    
-    // Fall back to setting value
-    def settingValue = settings[settingName]
-    logDebug "Using setting '${settingName}' = ${settingValue}"
-    return settingValue
-}
-
-def getHubVar(String varName, defaultValue = null) {
-    try {
-        def value = getGlobalVar(varName)?.value
-        return value ?: defaultValue
-    } catch (e) {
-        logDebug "Hub variable '${varName}' not found, using default: ${defaultValue}"
-        return defaultValue
-    }
-}
-
-def setHubVar(String varName, String value) {
-    try {
-        setGlobalVar(varName, value)
-        logDebug "Set hub variable '${varName}' = ${value}"
-        return true
-    } catch (e) {
-        logDebug "Failed to set hub variable '${varName}': ${e.message}"
-        return false
-    }
 }
 
 def isSwitchOn(device) {

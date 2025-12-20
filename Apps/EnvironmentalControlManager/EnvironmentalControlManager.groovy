@@ -418,7 +418,7 @@ def turnOfficeFansOff() {
 def handleCurrentMode() {
     if (!settings.skeeterKiller) return
     
-    def currentMode = location.currentMode
+    def currentMode = location.currentMode.toString()
     handleSkeeterMode(currentMode)
 }
 
