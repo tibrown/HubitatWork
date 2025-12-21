@@ -34,7 +34,7 @@ def mainPage() {
     dynamicPage(name: "mainPage", title: "Motion Presence Manager", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>MOTION SENSORS BY ZONE</b>\n<b>═══════════════════════════════════════</b>") {
             input "carportMotion", "capability.motionSensor", title: "Carport Motion Sensor", required: false
-            input "frontDoorMotion", "capability.motionSensor", title: "Front Door Motion Sensor", required: false
+            input "backDoorMotion", "capability.motionSensor", title: "Back Door Motion Sensor", required: false
             input "sideYardMotion", "capability.motionSensor", title: "Side Yard Motion (AMC)", required: false
             input "rvMotion", "capability.motionSensor", title: "RV Motion Sensor", required: false
             input "officeMotion", "capability.motionSensor", title: "Office Motion Sensor", required: false
@@ -55,17 +55,21 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmsEnabled", "capability.switch", title: "Alarms Enabled Switch", required: false
             input "silentMode", "capability.switch", title: "Silent Mode Switch", required: false
+            input "silentBackdoorSwitch", "capability.switch", title: "Silent Backdoor Switch", required: false
             input "rearCarportActive", "capability.switch", title: "Rear Carport Active Switch", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
+            input "notificationDevices", "capability.notification", title: "General Notification Devices", multiple: true, required: false
+            input "backDoorNotificationDevices", "capability.notification", title: "Back Door Notification Devices", multiple: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MOTION CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "motionTimeout", "number", title: "Motion Detection Timeout (seconds)", defaultValue: 60, required: false
             input "enableDayMotion", "bool", title: "Enable Day Mode Motion Detection", defaultValue: true
             input "enableNightMotion", "bool", title: "Enable Night Mode Motion Detection", defaultValue: false
+            input "generalMotionModes", "enum", title: "General Motion Active Modes", options: ["Day", "Morning", "Evening", "Night"], multiple: true, required: false
+            input "backDoorMotionModes", "enum", title: "Back Door Motion Active Modes", options: ["Day", "Morning", "Evening", "Night"], multiple: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>PRESENCE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
@@ -106,7 +110,7 @@ def initialize() {
     
     // Subscribe to motion sensors
     if (carportMotion) subscribe(carportMotion, "motion.active", handleCarportMotion)
-    if (frontDoorMotion) subscribe(frontDoorMotion, "motion.active", handleFrontDoorMotion)
+    if (backDoorMotion) subscribe(backDoorMotion, "motion.active", handleBackDoorMotion)
     if (sideYardMotion) subscribe(sideYardMotion, "motion.active", handleSideYardMotion)
     if (rvMotion) subscribe(rvMotion, "motion.active", handleRVMotion)
     if (officeMotion) subscribe(officeMotion, "motion.active", handleOfficeMotion)
@@ -137,35 +141,38 @@ def handleCarportMotion(evt) {
     String mode = location.mode
     logInfo "Carport motion detected in ${mode} mode"
     
-    if (!shouldProcessMotion(mode)) {
+    if (!isGeneralMotionActiveInMode(mode)) {
         logDebug "Motion detection disabled for current mode"
         return
     }
     
-    if (mode == "Day" || mode == "Morning" || mode == "Evening") {
-        sendNotification("Motion detected in carport")
-    }
+    sendNotification("Motion detected in carport")
 }
 
-def handleFrontDoorMotion(evt) {
+def handleBackDoorMotion(evt) {
     String mode = location.mode
-    logInfo "Front door motion detected in ${mode} mode"
+    logInfo "Back door motion detected in ${mode} mode"
     
-    if (!shouldProcessMotion(mode)) {
-        logDebug "Motion detection disabled for current mode"
+    // Check if silent backdoor switch is on
+    if (silentBackdoorSwitch?.currentValue("switch") == "on") {
+        logDebug "Back door motion ignored - silent backdoor switch is on"
         return
     }
     
-    if (mode == "Day") {
-        sendNotification("Motion detected at front door")
+    // Check if current mode is in backdoor motion modes list
+    if (!isBackDoorMotionActiveInMode(mode)) {
+        logDebug "Back door motion ignored - mode ${mode} not in active modes list"
+        return
     }
+    
+    sendBackDoorNotification("Motion detected at back door")
 }
 
 def handleSideYardMotion(evt) {
     String mode = location.mode
     logInfo "Side yard (AMC) motion detected in ${mode} mode"
     
-    if (!shouldProcessMotion(mode)) {
+    if (!isGeneralMotionActiveInMode(mode)) {
         logDebug "Motion detection disabled for current mode"
         return
     }
@@ -177,7 +184,7 @@ def handleRVMotion(evt) {
     String mode = location.mode
     logInfo "RV motion detected in ${mode} mode"
     
-    if (!shouldProcessMotion(mode)) {
+    if (!isGeneralMotionActiveInMode(mode)) {
         logDebug "Motion detection disabled for current mode"
         return
     }
@@ -189,7 +196,7 @@ def handleOfficeMotion(evt) {
     String mode = location.mode
     logInfo "Office motion detected in ${mode} mode"
     
-    if (!shouldProcessMotion(mode)) {
+    if (!isGeneralMotionActiveInMode(mode)) {
         logDebug "Motion detection disabled for current mode"
         return
     }
@@ -202,7 +209,7 @@ def handleRearCarportMotion(evt) {
     String mode = location.mode
     logInfo "Rear carport motion detected in ${mode} mode"
     
-    if (!shouldProcessMotion(mode)) {
+    if (!isGeneralMotionActiveInMode(mode)) {
         logDebug "Motion detection disabled for current mode"
         return
     }
@@ -221,7 +228,7 @@ def handleCarportFrontMotion(evt) {
     String mode = location.mode
     logInfo "Carport front motion detected in ${mode} mode"
     
-    if (!shouldProcessMotion(mode)) {
+    if (!isGeneralMotionActiveInMode(mode)) {
         logDebug "Motion detection disabled for current mode"
         return
     }
@@ -245,6 +252,26 @@ def shouldProcessMotion(String mode) {
     }
     
     return true
+}
+
+def isGeneralMotionActiveInMode(String mode) {
+    // If generalMotionModes is configured, use it
+    if (generalMotionModes) {
+        return generalMotionModes.contains(mode)
+    }
+    
+    // Fall back to legacy shouldProcessMotion logic
+    return shouldProcessMotion(mode)
+}
+
+def isBackDoorMotionActiveInMode(String mode) {
+    // If backDoorMotionModes is configured, use it
+    if (backDoorMotionModes) {
+        return backDoorMotionModes.contains(mode)
+    }
+    
+    // Fall back to general motion modes or legacy logic
+    return isGeneralMotionActiveInMode(mode)
 }
 
 // ========================================
@@ -400,6 +427,21 @@ def sendNotification(String message) {
             device.deviceNotification(message)
         }
         logInfo "Notification: ${message}"
+    }
+}
+
+def sendBackDoorNotification(String message) {
+    if (backDoorNotificationDevices) {
+        backDoorNotificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+        logInfo "Back Door Notification: ${message}"
+    } else if (notificationDevices) {
+        // Fall back to general notification devices if backdoor devices not configured
+        notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+        logInfo "Notification (fallback): ${message}"
     }
 }
 
