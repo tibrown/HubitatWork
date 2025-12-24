@@ -123,6 +123,14 @@ def mainPage() {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
         }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>ADVANCED SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "<i>Fine-tune device control timing to optimize reliability for your mesh network. Default values work for most setups.</i>"
+            input "batchDelay", "number", title: "Batch Delay (milliseconds)", description: "Delay between each device command when controlling multiple devices (prevents mesh flooding)", defaultValue: 200, required: false
+            input "verificationWait", "number", title: "Verification Wait (milliseconds)", description: "Time to wait after sending commands before verifying device states", defaultValue: 2000, required: false
+            input "retryDelay", "number", title: "Retry Delay (milliseconds)", description: "Time to wait before retrying failed devices", defaultValue: 1000, required: false
+            input "enableDiagnostics", "bool", title: "Enable Diagnostic Logging?", description: "Detailed logging to troubleshoot device control issues", defaultValue: false, required: false
+        }
     }
 }
 
@@ -230,11 +238,13 @@ def modeHandler(evt) {
 
 def handleNightMode() {
     logInfo "Executing Night mode lighting"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     // Turn off generic switches (exclude light strips to avoid conflicts)
     if (genericSwitches) {
         def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
-        switchesToControl*.off()
+        if (diagnostics) logDeviceStates(switchesToControl, "GenericSwitches-Night")
+        turnOffDevicesWithRetry(switchesToControl, "GenericSwitches")
         logDebug "Turned off ${switchesToControl.size()} generic switches (excluded strips)"
     }
     
@@ -264,14 +274,13 @@ def handleEveningMode() {
 
 def executeEveningModeLighting() {
     logInfo "Executing Evening mode lighting adjustments"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     // Turn on generic switches (exclude light strips to avoid conflicts)
     if (genericSwitches) {
         def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
-        switchesToControl.each { device ->
-            logDebug "Turning on ${device.displayName}"
-            device.on()
-        }
+        if (diagnostics) logDeviceStates(switchesToControl, "GenericSwitches-Evening")
+        turnOnDevicesWithRetry(switchesToControl, "GenericSwitches")
         logDebug "Turned on ${switchesToControl.size()} generic switches (excluded strips)"
     }
     
@@ -296,11 +305,13 @@ def handleMorningMode() {
     
     if (!holidayOn && !ptoOn) {
         logDebug "Morning conditions met (not holiday, not PTO) - turning on lights"
+        def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
         
         // Turn on generic switches (exclude light strips to avoid conflicts)
         if (genericSwitches) {
             def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
-            switchesToControl*.on()
+            if (diagnostics) logDeviceStates(switchesToControl, "GenericSwitches-Morning")
+            turnOnDevicesWithRetry(switchesToControl, "GenericSwitches")
             logDebug "Turned on ${switchesToControl.size()} generic switches (excluded strips)"
         }
         
@@ -344,15 +355,22 @@ def handleDayMode() {
 
 def executeDayModeLighting() {
     logInfo "Executing Day mode lighting adjustments"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     // Turn off all mode-controlled lights
     if (genericSwitches) {
         def switchesToControl = genericSwitches.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
-        switchesToControl*.off()
+        if (diagnostics) logDeviceStates(switchesToControl, "GenericSwitches-Day")
+        turnOffDevicesWithRetry(switchesToControl, "GenericSwitches")
         logDebug "Turned off ${switchesToControl.size()} generic switches (excluded strips)"
     }
-    if (lightStrip) lightStrip.off()
-    if (lanStrip) lanStrip.off()
+    
+    // Turn off light strips
+    if (lightStrip || lanStrip) {
+        def strips = [lightStrip, lanStrip].findAll { it != null }
+        if (diagnostics) logDeviceStates(strips, "LightStrips-Day")
+        turnOffDevicesWithRetry(strips, "LightStrips")
+    }
 }
 
 // ========================================
@@ -536,8 +554,10 @@ def handleFloodMotion(floodLight, String location) {
         return
     }
     
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     logInfo "Turning on ${location} flood light"
-    floodLight.on()
+    if (diagnostics) logDeviceStates([floodLight], "Flood-${location}")
+    turnOnDevicesWithRetry([floodLight], "Flood-${location}")
     
     // Schedule auto-off
     Integer timeout = settings.floodTimeout as Integer
@@ -549,21 +569,22 @@ def handleFloodMotion(floodLight, String location) {
 
 def turnOffFloodRear() {
     logDebug "Auto-turning off rear flood"
-    floodRear?.off()
+    if (floodRear) turnOffDevicesWithRetry([floodRear], "Flood-Rear")
 }
 
 def turnOffFloodSide() {
     logDebug "Auto-turning off side flood"
-    floodSide?.off()
+    if (floodSide) turnOffDevicesWithRetry([floodSide], "Flood-Side")
 }
 
 def turnOffFloodOffice() {
     logDebug "Auto-turning off office flood"
-    floodOffice?.off()
+    if (floodOffice) turnOffDevicesWithRetry([floodOffice], "Flood-Office")
 }
 
 def turnFloodsOnHandler(evt) {
     logInfo "Turn Floods On switch activated - turning on all flood lights"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     def floodLights = [
         floodRear,
@@ -577,10 +598,8 @@ def turnFloodsOnHandler(evt) {
     if (floodLights.isEmpty()) {
         logDebug "No flood lights configured"
     } else {
-        floodLights.each { flood ->
-            logDebug "Turning on ${flood.displayName}"
-            flood.on()
-        }
+        if (diagnostics) logDeviceStates(floodLights, "AllFloods")
+        turnOnDevicesWithRetry(floodLights, "AllFloods")
         logInfo "Turned on ${floodLights.size()} flood light(s)"
     }
     
@@ -609,19 +628,21 @@ def allLightsSwitchHandler(evt) {
 
 def allLightsOn() {
     logInfo "Turning on all lights"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (allLights) {
         def lightsToControl = allLights.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
-        lightsToControl.each { light ->
-            logDebug "Turning on ${light.displayName}"
-            light.on()
-        }
+        if (diagnostics) logDeviceStates(lightsToControl, "AllLights")
+        turnOnDevicesWithRetry(lightsToControl, "AllLights")
         logDebug "Turned on ${lightsToControl.size()} lights (excluded strips for separate control)"
     }
     
     // Turn on strips (they'll use their last color/level settings)
-    if (lightStrip) lightStrip.on()
-    if (lanStrip) lanStrip.on()
+    def strips = [lightStrip, lanStrip].findAll { it != null }
+    if (strips) {
+        if (diagnostics) logDeviceStates(strips, "LightStrips")
+        turnOnDevicesWithRetry(strips, "LightStrips")
+    }
     
     // Desk light
     Integer brightLevel = settings.deskBrightLevel as Integer
@@ -630,22 +651,21 @@ def allLightsOn() {
 
 def allLightsOff() {
     logInfo "Turning off all lights"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (allLights) {
         def lightsToControl = allLights.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
-        lightsToControl.each { light ->
-            logDebug "Turning off ${light.displayName}"
-            light.off()
-        }
+        if (diagnostics) logDeviceStates(lightsToControl, "AllLights")
+        turnOffDevicesWithRetry(lightsToControl, "AllLights")
         logDebug "Turned off ${lightsToControl.size()} lights (excluded strips for separate control)"
     }
     
-    // Turn off strips
-    if (lightStrip) lightStrip.off()
-    if (lanStrip) lanStrip.off()
-    
-    // Turn off desk
-    if (deskLight) deskLight.off()
+    // Turn off strips and desk
+    def devicesToOff = [lightStrip, lanStrip, deskLight].findAll { it != null }
+    if (devicesToOff) {
+        if (diagnostics) logDeviceStates(devicesToOff, "StripsAndDesk")
+        turnOffDevicesWithRetry(devicesToOff, "StripsAndDesk")
+    }
 }
 
 // ========================================
@@ -777,6 +797,115 @@ def checkAndExecuteEveningAdvance() {
 // ========================================
 // HELPER METHODS
 // ========================================
+
+// Helper method to log device states for diagnostics
+def logDeviceStates(devices, deviceType) {
+    if (!devices) return
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
+    if (!diagnostics) return
+    
+    def deviceList = devices instanceof List ? devices : [devices]
+    deviceList.each { device ->
+        def state = device.currentValue("switch")
+        logDebug "${deviceType} - ${device.displayName}: ${state}"
+    }
+}
+
+// Helper method to turn off devices with verification and retry
+def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
+    if (!devices) return
+    
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
+    
+    if (diagnostics) logDebug "turnOffDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
+    
+    def deviceList = devices instanceof List ? devices : [devices]
+    def failedDevices = []
+    
+    // Send off commands in batches to prevent mesh flooding
+    deviceList.eachWithIndex { device, index ->
+        if (diagnostics) logDebug "Turning off ${deviceType}: ${device.displayName}"
+        device.off()
+        // Small delay between each device to prevent mesh congestion
+        if (index < deviceList.size() - 1 && deviceList.size() > 3) {
+            pauseExecution(batchDelayMs)
+        }
+    }
+    
+    // Wait for commands to process
+    pauseExecution(verificationWaitMs)
+    
+    // Verify all devices turned off
+    deviceList.each { device ->
+        def currentState = device.currentValue("switch")
+        if (currentState != "off") {
+            logInfo "WARNING: ${deviceType} ${device.displayName} failed to turn off (state: ${currentState})"
+            failedDevices.add(device)
+        } else {
+            if (diagnostics) logDebug "${deviceType} ${device.displayName} confirmed OFF"
+        }
+    }
+    
+    // Retry failed devices once
+    if (failedDevices.size() > 0 && retryCount < 1) {
+        logInfo "Retrying ${failedDevices.size()} failed ${deviceType} devices"
+        pauseExecution(retryDelayMs)
+        turnOffDevicesWithRetry(failedDevices, deviceType, retryCount + 1)
+    } else if (failedDevices.size() > 0) {
+        logInfo "ERROR: ${deviceType} devices still on after retry: ${failedDevices*.displayName.join(', ')}"
+    }
+}
+
+// Helper method to turn on devices with verification and retry
+def turnOnDevicesWithRetry(devices, deviceType, retryCount = 0) {
+    if (!devices) return
+    
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
+    
+    if (diagnostics) logDebug "turnOnDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
+    
+    def deviceList = devices instanceof List ? devices : [devices]
+    def failedDevices = []
+    
+    // Send on commands in batches to prevent mesh flooding
+    deviceList.eachWithIndex { device, index ->
+        if (diagnostics) logDebug "Turning on ${deviceType}: ${device.displayName}"
+        device.on()
+        // Small delay between each device to prevent mesh congestion
+        if (index < deviceList.size() - 1 && deviceList.size() > 3) {
+            pauseExecution(batchDelayMs)
+        }
+    }
+    
+    // Wait for commands to process
+    pauseExecution(verificationWaitMs)
+    
+    // Verify all devices turned on
+    deviceList.each { device ->
+        def currentState = device.currentValue("switch")
+        if (currentState != "on") {
+            logInfo "WARNING: ${deviceType} ${device.displayName} failed to turn on (state: ${currentState})"
+            failedDevices.add(device)
+        } else {
+            if (diagnostics) logDebug "${deviceType} ${device.displayName} confirmed ON"
+        }
+    }
+    
+    // Retry failed devices once
+    if (failedDevices.size() > 0 && retryCount < 1) {
+        logInfo "Retrying ${failedDevices.size()} failed ${deviceType} devices"
+        pauseExecution(retryDelayMs)
+        turnOnDevicesWithRetry(failedDevices, deviceType, retryCount + 1)
+    } else if (failedDevices.size() > 0) {
+        logInfo "ERROR: ${deviceType} devices still off after retry: ${failedDevices*.displayName.join(', ')}"
+    }
+}
 
 def resolveColor(String colorSettingName, String customColorSettingName, String defaultColor) {
     // Get the selected color option

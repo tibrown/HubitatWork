@@ -65,6 +65,13 @@ def mainPage() {
             input "rainSensor", "capability.switch", title: "Rain Sensor", required: false, multiple: false
             input "notificationDevices", "capability.notification", title: "Notification Devices", required: false, multiple: true
         }
+        section("<b>═══════════════════════════════════════</b>\n<b>ADVANCED SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "<i>Fine-tune device control timing to optimize reliability for your mesh network. Default values work for most setups.</i>"
+            input "batchDelay", "number", title: "Batch Delay (milliseconds)", description: "Delay between each device command when controlling multiple devices (prevents mesh flooding)", defaultValue: 200, required: false
+            input "verificationWait", "number", title: "Verification Wait (milliseconds)", description: "Time to wait after sending commands before verifying device states", defaultValue: 2000, required: false
+            input "retryDelay", "number", title: "Retry Delay (milliseconds)", description: "Time to wait before retrying failed devices", defaultValue: 1000, required: false
+            input "enableDiagnostics", "bool", title: "Enable Diagnostic Logging?", description: "Detailed logging to troubleshoot device control issues", defaultValue: true, required: false
+        }
     }
 }
 
@@ -281,10 +288,23 @@ def scheduledTurnOff() {
 }
 
 def activateChristmas() {
-    log.debug "activateChristmas called"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
     
-    // Turn on trees and sync the virtual switch
-    if (treeSwitches) treeSwitches.on()
+    if (diagnostics) {
+        log.debug "========== activateChristmas called at ${new Date()} =========="
+        // Log initial states
+        log.debug "Initial device states:"
+        logDeviceStates(treeSwitches, "Trees")
+        logDeviceStates(mainLights, "MainLights")
+        logDeviceStates(porchLights, "PorchLights")
+    }
+    
+    // Turn on trees with verification and retry
+    if (treeSwitches) {
+        turnOnDevicesWithRetry(treeSwitches, "Trees")
+    }
+    
+    // Sync the virtual switch
     if (christmasTreesSwitch && christmasTreesSwitch.currentValue("switch") != "on") {
         atomicState.syncingTreesSwitch = true
         christmasTreesSwitch.on()
@@ -296,7 +316,9 @@ def activateChristmas() {
         log.debug "Rain sensor is on, skipping outdoor lights"
         if (notificationDevices) notificationDevices.deviceNotification("Christmas lights not coming on because it is raining")
         // Ensure outdoor lights and virtual switch are off if it's raining
-        if (mainLights) mainLights.off()
+        if (mainLights) {
+            turnOffDevicesWithRetry(mainLights, "MainLights")
+        }
         if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "off") {
             atomicState.syncingLightsSwitch = true
             christmasLightsSwitch.off()
@@ -305,8 +327,12 @@ def activateChristmas() {
         return
     }
 
-    // Turn on Outdoor Lights (if not raining) and sync the virtual switch
-    if (mainLights) mainLights.on()
+    // Turn on Outdoor Lights (if not raining) with verification and retry
+    if (mainLights) {
+        turnOnDevicesWithRetry(mainLights, "MainLights")
+    }
+    
+    // Sync the virtual switch
     if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "on") {
         atomicState.syncingLightsSwitch = true
         christmasLightsSwitch.on()
@@ -315,31 +341,163 @@ def activateChristmas() {
     
     // Handle Porch Lights
     runIn(300, turnOffPorch)
+    
+    if (diagnostics) log.debug "========== activateChristmas completed =========="
 }
 
 def deactivateChristmas() {
-    // Turn off trees and sync the virtual switch
-    if (treeSwitches) treeSwitches.off()
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
+    
+    if (diagnostics) {
+        log.debug "========== deactivateChristmas called at ${new Date()} =========="
+        // Log initial states
+        log.debug "Initial device states:"
+        logDeviceStates(treeSwitches, "Trees")
+        logDeviceStates(mainLights, "MainLights")
+        logDeviceStates(porchLights, "PorchLights")
+    }
+    
+    // Turn off trees with verification and retry
+    if (treeSwitches) {
+        turnOffDevicesWithRetry(treeSwitches, "Trees")
+    }
+    
+    // Sync the virtual switch
     if (christmasTreesSwitch && christmasTreesSwitch.currentValue("switch") != "off") {
         atomicState.syncingTreesSwitch = true
         christmasTreesSwitch.off()
         runIn(2, clearTreesSwitchSync)
     }
     
-    // Turn off Outdoor Lights and sync the virtual switch
-    if (mainLights) mainLights.off()
+    // Turn off Outdoor Lights with verification and retry
+    if (mainLights) {
+        turnOffDevicesWithRetry(mainLights, "MainLights")
+    }
+    
+    // Sync the virtual switch
     if (christmasLightsSwitch && christmasLightsSwitch.currentValue("switch") != "off") {
         atomicState.syncingLightsSwitch = true
         christmasLightsSwitch.off()
         runIn(2, clearLightsSwitchSync)
     }
 
-    // Restore Porch Lights
-    if (porchLights) porchLights.on()
+    // Restore Porch Lights with verification
+    if (porchLights) {
+        if (diagnostics) log.debug "Restoring porch lights"
+        turnOnDevicesWithRetry(porchLights, "PorchLights")
+    }
+    
+    if (diagnostics) log.debug "========== deactivateChristmas completed =========="
 }
 
 def turnOffPorch() {
     if (porchLights) porchLights.off()
+}
+
+// Helper method to log device states for diagnostics
+def logDeviceStates(devices, deviceType) {
+    if (!devices) return
+    def deviceList = devices instanceof List ? devices : [devices]
+    deviceList.each { device ->
+        def state = device.currentValue("switch")
+        log.debug "${deviceType} - ${device.displayName}: ${state}"
+    }
+}
+
+// Helper method to turn off devices with verification and retry
+def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
+    if (!devices) return
+    
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
+    
+    if (diagnostics) log.debug "turnOffDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
+    
+    def deviceList = devices instanceof List ? devices : [devices]
+    def failedDevices = []
+    
+    // Send off commands in batches to prevent mesh flooding
+    deviceList.eachWithIndex { device, index ->
+        if (diagnostics) log.debug "Turning off ${deviceType}: ${device.displayName}"
+        device.off()
+        // Small delay between each device to prevent mesh congestion
+        if (index < deviceList.size() - 1 && deviceList.size() > 3) {
+            pauseExecution(batchDelayMs)
+        }
+    }
+    
+    // Wait for commands to process
+    pauseExecution(verificationWaitMs)
+    
+    // Verify all devices turned off
+    deviceList.each { device ->
+        def currentState = device.currentValue("switch")
+        if (currentState != "off") {
+            log.warn "${deviceType} ${device.displayName} failed to turn off (state: ${currentState})"
+            failedDevices.add(device)
+        } else {
+            if (diagnostics) log.debug "${deviceType} ${device.displayName} confirmed OFF"
+        }
+    }
+    
+    // Retry failed devices once
+    if (failedDevices.size() > 0 && retryCount < 1) {
+        log.warn "Retrying ${failedDevices.size()} failed ${deviceType} devices"
+        pauseExecution(retryDelayMs)
+        turnOffDevicesWithRetry(failedDevices, deviceType, retryCount + 1)
+    } else if (failedDevices.size() > 0) {
+        log.error "${deviceType} devices still on after retry: ${failedDevices*.displayName.join(', ')}"
+    }
+}
+
+// Helper method to turn on devices with verification and retry
+def turnOnDevicesWithRetry(devices, deviceType, retryCount = 0) {
+    if (!devices) return
+    
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
+    
+    if (diagnostics) log.debug "turnOnDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
+    
+    def deviceList = devices instanceof List ? devices : [devices]
+    def failedDevices = []
+    
+    // Send on commands in batches to prevent mesh flooding
+    deviceList.eachWithIndex { device, index ->
+        if (diagnostics) log.debug "Turning on ${deviceType}: ${device.displayName}"
+        device.on()
+        // Small delay between each device to prevent mesh congestion
+        if (index < deviceList.size() - 1 && deviceList.size() > 3) {
+            pauseExecution(batchDelayMs)
+        }
+    }
+    
+    // Wait for commands to process
+    pauseExecution(verificationWaitMs)
+    
+    // Verify all devices turned on
+    deviceList.each { device ->
+        def currentState = device.currentValue("switch")
+        if (currentState != "on") {
+            log.warn "${deviceType} ${device.displayName} failed to turn on (state: ${currentState})"
+            failedDevices.add(device)
+        } else {
+            if (diagnostics) log.debug "${deviceType} ${device.displayName} confirmed ON"
+        }
+    }
+    
+    // Retry failed devices once
+    if (failedDevices.size() > 0 && retryCount < 1) {
+        log.warn "Retrying ${failedDevices.size()} failed ${deviceType} devices"
+        pauseExecution(retryDelayMs)
+        turnOnDevicesWithRetry(failedDevices, deviceType, retryCount + 1)
+    } else if (failedDevices.size() > 0) {
+        log.error "${deviceType} devices still off after retry: ${failedDevices*.displayName.join(', ')}"
+    }
 }
 
 def checkDate() {
