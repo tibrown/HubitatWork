@@ -122,18 +122,24 @@ def mainPage() {
             
             input "skeeterIlluminanceSensor", "capability.illuminanceMeasurement",
                   title: "Illuminance Sensor (Optional)",
-                  description: "Sensor for Day mode illuminance-based control",
+                  description: "Sensor for illuminance-based control",
+                  required: false
+            
+            input "skeeterIlluminanceModes", "mode",
+                  title: "Modes Using Illuminance Control",
+                  description: "Use illuminance to control skeeter in these modes (overrides On/Off mode rules above)",
+                  multiple: true,
                   required: false
             
             input "skeeterIlluminanceThreshold", "number",
                   title: "Illuminance Threshold (lux)",
-                  description: "Turn skeeter ON when illuminance drops below this (Day mode only)",
-                  defaultValue: 500,
+                  description: "Turn skeeter ON when illuminance drops below this threshold",
+                  defaultValue: 200,
                   required: false
             
             input "skeeterCheckInterval", "number",
                   title: "Illuminance Check Interval (minutes)",
-                  description: "How often to check illuminance during Day mode",
+                  description: "How often to check illuminance in selected modes",
                   defaultValue: 5,
                   range: "1..60",
                   required: false
@@ -228,9 +234,10 @@ def initialize() {
         subscribe(settings.waterResetSwitch, "switch.on", waterResetHandler)
     }
     
-    // Subscribe to illuminance sensor for Day mode skeeter control
-    if (settings.skeeterIlluminanceSensor) {
+    // Subscribe to illuminance sensor for skeeter control in configured modes
+    if (settings.skeeterIlluminanceSensor && settings.skeeterIlluminanceModes) {
         subscribe(settings.skeeterIlluminanceSensor, "illuminance", illuminanceHandler)
+        logInfo "Subscribed to illuminance sensor for modes: ${settings.skeeterIlluminanceModes}"
     }
     
     // Subscribe to mode changes for mosquito control
@@ -240,14 +247,12 @@ def initialize() {
     checkAllTemperatures()
     handleCurrentMode()
     
-    // Initial illuminance check if in Day mode
-    if (location.currentMode == "Day" && settings.skeeterIlluminanceSensor) {
+    // Initial illuminance check if in a configured illuminance mode
+    def currentMode = location.currentMode.toString()
+    if (currentMode in (settings.skeeterIlluminanceModes ?: []) && settings.skeeterIlluminanceSensor) {
         checkIlluminance()
-    }
-    
-    // Schedule periodic illuminance check during Day mode
-    if (location.currentMode == "Day" && settings.skeeterIlluminanceSensor) {
         scheduleIlluminanceCheck()
+        logInfo "Starting illuminance control in ${currentMode} mode"
     }
 }
 
@@ -318,16 +323,22 @@ def waterResetHandler(evt) {
 def modeChangeHandler(evt) {
     logInfo "Mode changed to: ${evt.value}"
     
-    // Cancel periodic checks when leaving Day mode
-    if (evt.value != "Day") {
+    // Cancel periodic checks when leaving an illuminance-controlled mode
+    def oldMode = evt.oldValue ?: ""
+    def newMode = evt.value
+    
+    if (oldMode in (settings.skeeterIlluminanceModes ?: []) && !(newMode in (settings.skeeterIlluminanceModes ?: []))) {
         unschedule(periodicIlluminanceCheck)
-    }
-    // Start periodic checks when entering Day mode with illuminance sensor
-    else if (evt.value == "Day" && settings.skeeterIlluminanceSensor) {
-        scheduleIlluminanceCheck()
+        logDebug "Stopped illuminance checks (left ${oldMode} mode)"
     }
     
-    handleSkeeterMode(evt.value)
+    // Start periodic checks when entering an illuminance-controlled mode
+    if (newMode in (settings.skeeterIlluminanceModes ?: []) && settings.skeeterIlluminanceSensor) {
+        scheduleIlluminanceCheck()
+        logDebug "Started illuminance checks (entered ${newMode} mode)"
+    }
+    
+    handleSkeeterMode(newMode)
 }
 
 // ============================================================================
@@ -428,26 +439,28 @@ def handleSkeeterMode(String mode) {
         return
     }
     
-    // For Day mode with illuminance sensor, ALWAYS use illuminance-based control
-    // This takes priority over mode-based rules
-    if (mode == "Day" && settings.skeeterIlluminanceSensor) {
-        logDebug "Day mode: using illuminance-based skeeter control (overrides mode rules)"
+    // Check if this mode uses illuminance-based control
+    // If so, illuminance control takes priority over mode-based rules
+    if (mode in (settings.skeeterIlluminanceModes ?: []) && settings.skeeterIlluminanceSensor) {
+        logDebug "${mode} mode: using illuminance-based skeeter control (overrides mode On/Off rules)"
         checkIlluminance()
         return
     }
     
-    // For other modes (or Day without illuminance sensor), use mode-based control
+    // For modes NOT using illuminance control, use mode-based On/Off rules
     if (settings.skeeterOnModes?.contains(mode)) {
-        logInfo "Mode ${mode} triggers mosquito killer ON"
+        logInfo "Mode ${mode} triggers mosquito killer ON (mode-based rule)"
         settings.skeeterKiller?.each { device ->
             if (device.currentValue("switch") != "on") {
+                logDebug "Turning ON ${device.displayName}"
                 device.on()
             }
         }
     } else if (settings.skeeterOffModes?.contains(mode)) {
-        logInfo "Mode ${mode} triggers mosquito killer OFF"
+        logInfo "Mode ${mode} triggers mosquito killer OFF (mode-based rule)"
         settings.skeeterKiller?.each { device ->
             if (device.currentValue("switch") != "off") {
+                logDebug "Turning OFF ${device.displayName}"
                 device.off()
             }
         }
@@ -457,18 +470,22 @@ def handleSkeeterMode(String mode) {
 }
 
 def illuminanceHandler(evt) {
-    if (location.currentMode != "Day") {
-        logDebug "Illuminance change ignored - not in Day mode"
+    def currentMode = location.currentMode.toString()
+    
+    // Only process illuminance changes if in a configured illuminance mode
+    if (!(currentMode in (settings.skeeterIlluminanceModes ?: []))) {
+        logDebug "Illuminance change ignored - ${currentMode} not in illuminance-controlled modes"
         return
     }
     
-    logDebug "Illuminance changed to ${evt.value} lux"
+    logDebug "Illuminance changed to ${evt.value} lux (in ${currentMode} mode)"
     checkIlluminance()
 }
 
 def periodicIlluminanceCheck() {
-    if (location.currentMode == "Day" && settings.skeeterIlluminanceSensor) {
-        logDebug "Periodic illuminance check triggered"
+    def currentMode = location.currentMode.toString()
+    if (currentMode in (settings.skeeterIlluminanceModes ?: []) && settings.skeeterIlluminanceSensor) {
+        logDebug "Periodic illuminance check triggered in ${currentMode} mode"
         checkIlluminance()
     }
 }
@@ -508,27 +525,30 @@ def checkIlluminance() {
         return
     }
     
-    if (location.currentMode != "Day") {
-        logDebug "Not in Day mode, skipping illuminance check"
+    def currentMode = location.currentMode.toString()
+    if (!(currentMode in (settings.skeeterIlluminanceModes ?: []))) {
+        logDebug "Not in an illuminance-controlled mode, skipping illuminance check"
         return
     }
     
     def illuminance = settings.skeeterIlluminanceSensor.currentValue("illuminance")
-    def threshold = getConfigValue("skeeterIlluminanceThreshold", "SkeeterIlluminanceThreshold") ?: 500
+    def threshold = getConfigValue("skeeterIlluminanceThreshold", "SkeeterIlluminanceThreshold") ?: 200
     
-    logDebug "Illuminance check: ${illuminance} lux vs threshold ${threshold} lux"
+    logInfo "Illuminance check in ${currentMode} mode: ${illuminance} lux vs threshold ${threshold} lux"
     
     if (illuminance < threshold) {
         logInfo "Illuminance ${illuminance} lux < ${threshold} lux, turning skeeter ON"
         settings.skeeterKiller?.each { device ->
             if (device.currentValue("switch") != "on") {
+                logDebug "Turning ON ${device.displayName}"
                 device.on()
             }
         }
-    } else if (illuminance >= threshold) {
+    } else {
         logInfo "Illuminance ${illuminance} lux >= ${threshold} lux, turning skeeter OFF"
         settings.skeeterKiller?.each { device ->
             if (device.currentValue("switch") != "off") {
+                logDebug "Turning OFF ${device.displayName}"
                 device.off()
             }
         }
