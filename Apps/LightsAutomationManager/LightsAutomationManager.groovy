@@ -50,31 +50,31 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - MORNING SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             input "lightStripMorningColor", "enum", title: "Light Strip Morning Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Soft White", required: false
             input "lightStripMorningCustomColor", "color", title: "Light Strip Morning Custom Color (if Custom selected)", required: false
-            input "lightStripMorningLevel", "number", title: "Light Strip Morning Level (0-100)", defaultValue: 50, range: "0..100", required: false
+            input "lightStripMorningLevel", "number", title: "Light Strip Morning Brightness (0-100) - applies to all colors", defaultValue: 50, range: "0..100", required: false
             paragraph ""
             input "lanStripMorningColor", "enum", title: "LAN Strip Morning Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Yellow", required: false
             input "lanStripMorningCustomColor", "color", title: "LAN Strip Morning Custom Color (if Custom selected)", required: false
-            input "lanStripMorningLevel", "number", title: "LAN Strip Morning Level (0-100)", defaultValue: 96, range: "0..100", required: false
+            input "lanStripMorningLevel", "number", title: "LAN Strip Morning Brightness (0-100) - applies to all colors", defaultValue: 96, range: "0..100", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - EVENING SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             input "lightStripEveningColor", "enum", title: "Light Strip Evening Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Soft White", required: false
             input "lightStripEveningCustomColor", "color", title: "Light Strip Evening Custom Color (if Custom selected)", required: false
-            input "lightStripEveningLevel", "number", title: "Light Strip Evening Level (0-100)", defaultValue: 50, range: "0..100", required: false
+            input "lightStripEveningLevel", "number", title: "Light Strip Evening Brightness (0-100) - applies to all colors", defaultValue: 50, range: "0..100", required: false
             paragraph ""
             input "lanStripEveningColor", "enum", title: "LAN Strip Evening Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Yellow", required: false
             input "lanStripEveningCustomColor", "color", title: "LAN Strip Evening Custom Color (if Custom selected)", required: false
-            input "lanStripEveningLevel", "number", title: "LAN Strip Evening Level (0-100)", defaultValue: 96, range: "0..100", required: false
+            input "lanStripEveningLevel", "number", title: "LAN Strip Evening Brightness (0-100) - applies to all colors", defaultValue: 96, range: "0..100", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - NIGHT SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             input "lightStripNightColor", "enum", title: "Light Strip Night Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Blue", required: false
             input "lightStripNightCustomColor", "color", title: "Light Strip Night Custom Color (if Custom selected)", required: false
-            input "lightStripNightLevel", "number", title: "Light Strip Night Level (0-100)", defaultValue: 30, range: "0..100", required: false
+            input "lightStripNightLevel", "number", title: "Light Strip Night Brightness (0-100) - applies to all colors", defaultValue: 30, range: "0..100", required: false
             paragraph ""
             input "lanStripNightColor", "enum", title: "LAN Strip Night Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Blue", required: false
             input "lanStripNightCustomColor", "color", title: "LAN Strip Night Custom Color (if Custom selected)", required: false
-            input "lanStripNightLevel", "number", title: "LAN Strip Night Level (0-100)", defaultValue: 30, range: "0..100", required: false
+            input "lanStripNightLevel", "number", title: "LAN Strip Night Brightness (0-100) - applies to all colors", defaultValue: 30, range: "0..100", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>GENERIC SWITCHES & OUTLETS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -447,12 +447,12 @@ def setStrip(device, String colorName, Integer level) {
         return
     }
     
-    // Ensure device is on first
-    if (device.currentValue("switch") != "on") {
-        logDebug "Turning on ${device.displayName}"
-        device.on()
-        pauseExecution(1000) // Increased wait time for device to be ready
-    }
+    // Always ensure device is on and ready before setting color
+    // Some devices need a fresh on() command to properly accept color changes
+    // even when already on (especially during mode transitions)
+    logDebug "Ensuring ${device.displayName} is on and ready"
+    device.on()
+    pauseExecution(1000) // Wait for device to be ready
     
     // Set color first (which includes level), then confirm level
     // This prevents the setLevel call from being overwritten by setColor
@@ -886,12 +886,12 @@ def setStripCustom(device, Integer hue, Integer saturation, Integer level) {
         return
     }
     
-    // Ensure device is on first
-    if (device.currentValue("switch") != "on") {
-        logDebug "Turning on ${device.displayName}"
-        device.on()
-        pauseExecution(1000)
-    }
+    // Always ensure device is on and ready before setting color
+    // Some devices need a fresh on() command to properly accept color changes
+    // even when already on (especially during mode transitions)
+    logDebug "Ensuring ${device.displayName} is on and ready"
+    device.on()
+    pauseExecution(1000) // Wait for device to be ready
     
     // Set custom color
     device.setColor([hue: hue, saturation: saturation, level: level])
