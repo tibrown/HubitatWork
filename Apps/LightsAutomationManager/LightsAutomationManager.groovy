@@ -126,9 +126,9 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>ADVANCED SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "<i>Fine-tune device control timing to optimize reliability for your mesh network. Default values work for most setups.</i>"
-            input "batchDelay", "number", title: "Batch Delay (milliseconds)", description: "Delay between each device command when controlling multiple devices (prevents mesh flooding)", defaultValue: 200, required: false
-            input "verificationWait", "number", title: "Verification Wait (milliseconds)", description: "Time to wait after sending commands before verifying device states", defaultValue: 2000, required: false
-            input "retryDelay", "number", title: "Retry Delay (milliseconds)", description: "Time to wait before retrying failed devices", defaultValue: 1000, required: false
+            input "batchDelay", "number", title: "Batch Delay (milliseconds)", description: "Delay between each device command when controlling multiple devices (prevents mesh flooding)", defaultValue: 300, required: false
+            input "verificationWait", "number", title: "Verification Wait (milliseconds)", description: "Time to wait after sending commands before verifying device states", defaultValue: 3000, required: false
+            input "retryDelay", "number", title: "Retry Delay (milliseconds)", description: "Time to wait before retrying failed devices", defaultValue: 2000, required: false
             input "enableDiagnostics", "bool", title: "Enable Diagnostic Logging?", description: "Detailed logging to troubleshoot device control issues", defaultValue: false, required: false
         }
     }
@@ -237,6 +237,13 @@ def modeHandler(evt) {
 }
 
 def handleNightMode() {
+    // Prevent cascading calls within 10 seconds
+    if (atomicState.lastNightMode && (now() - atomicState.lastNightMode) < 10000) {
+        logDebug "Ignoring handleNightMode - already executed recently"
+        return
+    }
+    atomicState.lastNightMode = now()
+    
     logInfo "Executing Night mode lighting"
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
@@ -264,6 +271,13 @@ def handleNightMode() {
 }
 
 def handleEveningMode() {
+    // Prevent cascading calls within 10 seconds
+    if (atomicState.lastEveningMode && (now() - atomicState.lastEveningMode) < 10000) {
+        logDebug "Ignoring handleEveningMode - already executed recently"
+        return
+    }
+    atomicState.lastEveningMode = now()
+    
     logInfo "Executing Evening mode lighting"
     
     // Cancel any pending advance execution (in case mode changed manually before scheduled time)
@@ -297,6 +311,13 @@ def executeEveningModeLighting() {
 }
 
 def handleMorningMode() {
+    // Prevent cascading calls within 10 seconds
+    if (atomicState.lastMorningMode && (now() - atomicState.lastMorningMode) < 10000) {
+        logDebug "Ignoring handleMorningMode - already executed recently"
+        return
+    }
+    atomicState.lastMorningMode = now()
+    
     logInfo "Executing Morning mode lighting"
     
     // Check conditions
@@ -339,6 +360,13 @@ def handleMorningMode() {
 }
 
 def handleDayMode() {
+    // Prevent cascading calls within 10 seconds
+    if (atomicState.lastDayMode && (now() - atomicState.lastDayMode) < 10000) {
+        logDebug "Ignoring handleDayMode - already executed recently"
+        return
+    }
+    atomicState.lastDayMode = now()
+    
     logInfo "Executing Day mode lighting"
     
     // Check if delay is configured
@@ -815,9 +843,9 @@ def logDeviceStates(devices, deviceType) {
 def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
     if (!devices) return
     
-    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
-    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
-    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 300
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 3000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 2000
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (diagnostics) logDebug "turnOffDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
@@ -863,9 +891,9 @@ def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
 def turnOnDevicesWithRetry(devices, deviceType, retryCount = 0) {
     if (!devices) return
     
-    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
-    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
-    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 300
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 3000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 2000
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (diagnostics) logDebug "turnOnDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"

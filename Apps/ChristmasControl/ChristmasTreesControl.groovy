@@ -67,9 +67,9 @@ def mainPage() {
         }
         section("<b>═══════════════════════════════════════</b>\n<b>ADVANCED SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "<i>Fine-tune device control timing to optimize reliability for your mesh network. Default values work for most setups.</i>"
-            input "batchDelay", "number", title: "Batch Delay (milliseconds)", description: "Delay between each device command when controlling multiple devices (prevents mesh flooding)", defaultValue: 200, required: false
-            input "verificationWait", "number", title: "Verification Wait (milliseconds)", description: "Time to wait after sending commands before verifying device states", defaultValue: 2000, required: false
-            input "retryDelay", "number", title: "Retry Delay (milliseconds)", description: "Time to wait before retrying failed devices", defaultValue: 1000, required: false
+            input "batchDelay", "number", title: "Batch Delay (milliseconds)", description: "Delay between each device command when controlling multiple devices (prevents mesh flooding)", defaultValue: 300, required: false
+            input "verificationWait", "number", title: "Verification Wait (milliseconds)", description: "Time to wait after sending commands before verifying device states", defaultValue: 3000, required: false
+            input "retryDelay", "number", title: "Retry Delay (milliseconds)", description: "Time to wait before retrying failed devices", defaultValue: 2000, required: false
             input "enableDiagnostics", "bool", title: "Enable Diagnostic Logging?", description: "Detailed logging to troubleshoot device control issues", defaultValue: true, required: false
         }
     }
@@ -224,6 +224,14 @@ def treeSwitchHandler(evt) {
         log.debug "Ignoring trees switch event caused by app sync"
         return
     }
+    
+    // Prevent cascading calls
+    if (atomicState.lastTreesCommand && (now() - atomicState.lastTreesCommand) < 5000) {
+        log.debug "Ignoring trees switch event - too soon after last command (debounce)"
+        return
+    }
+    atomicState.lastTreesCommand = now()
+    
     log.debug "ChristmasTrees switch manually turned ${evt.value}"
     if (evt.value == "on") {
         if (treeSwitches) treeSwitches.on()
@@ -238,6 +246,14 @@ def lightsSwitchHandler(evt) {
         log.debug "Ignoring lights switch event caused by app sync"
         return
     }
+    
+    // Prevent cascading calls
+    if (atomicState.lastLightsCommand && (now() - atomicState.lastLightsCommand) < 5000) {
+        log.debug "Ignoring lights switch event - too soon after last command (debounce)"
+        return
+    }
+    atomicState.lastLightsCommand = now()
+    
     log.debug "ChristmasLights switch manually turned ${evt.value}"
     if (evt.value == "on") {
         // Check rain sensor before turning on outdoor lights
@@ -275,7 +291,21 @@ def sunsetHandler(evt) {
 
 def scheduledTurnOn() {
     log.debug "scheduledTurnOn called"
+    
+    // Prevent cascading calls within 10 seconds
+    if (atomicState.lastActivate && (now() - atomicState.lastActivate) < 10000) {
+        log.debug "Ignoring scheduledTurnOn - activation already in progress"
+        return
+    }
+    
     if (checkDate()) {
+        log.debug "Date is within range, turning on"
+        atomicState.lastActivate = now()
+    if (atomicState.lastDeactivate && (now() - atomicState.lastDeactivate) < 10000) {
+        log.debug "Ignoring scheduledTurnOff - deactivation already in progress"
+        return
+    }
+    atomicState.lastDeactivate = now()
         log.debug "Date is within range, turning on"
         activateChristmas()
     } else {
@@ -408,9 +438,9 @@ def logDeviceStates(devices, deviceType) {
 def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
     if (!devices) return
     
-    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
-    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
-    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 300
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 3000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 2000
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
     
     if (diagnostics) log.debug "turnOffDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
@@ -456,9 +486,9 @@ def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
 def turnOnDevicesWithRetry(devices, deviceType, retryCount = 0) {
     if (!devices) return
     
-    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 200
-    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 2000
-    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 1000
+    def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 300
+    def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 3000
+    def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 2000
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
     
     if (diagnostics) log.debug "turnOnDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
