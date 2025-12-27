@@ -57,6 +57,10 @@ def mainPage() {
             input "lanStripMorningLevel", "number", title: "LAN Strip Morning Brightness (0-100) - applies to all colors", defaultValue: 96, range: "0..100", required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>MORNING COLOR SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
+            input "morningColorSwitches", "capability.switch", title: "Morning Color Switches (when turned on, set strips to morning colors)", multiple: true, required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - EVENING SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             input "lightStripEveningColor", "enum", title: "Light Strip Evening Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Soft White", required: false
             input "lightStripEveningCustomColor", "color", title: "Light Strip Evening Custom Color (if Custom selected)", required: false
@@ -67,6 +71,10 @@ def mainPage() {
             input "lanStripEveningLevel", "number", title: "LAN Strip Evening Brightness (0-100) - applies to all colors", defaultValue: 96, range: "0..100", required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>EVENING COLOR SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
+            input "eveningColorSwitches", "capability.switch", title: "Evening Color Switches (when turned on, set strips to evening colors)", multiple: true, required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>LIGHT STRIPS - NIGHT SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
             input "lightStripNightColor", "enum", title: "Light Strip Night Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Blue", required: false
             input "lightStripNightCustomColor", "color", title: "Light Strip Night Custom Color (if Custom selected)", required: false
@@ -75,6 +83,10 @@ def mainPage() {
             input "lanStripNightColor", "enum", title: "LAN Strip Night Color", options: ["Blue", "Soft White", "Yellow", "Green", "Red", "White", "Custom"], defaultValue: "Blue", required: false
             input "lanStripNightCustomColor", "color", title: "LAN Strip Night Custom Color (if Custom selected)", required: false
             input "lanStripNightLevel", "number", title: "LAN Strip Night Brightness (0-100) - applies to all colors", defaultValue: 30, range: "0..100", required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT COLOR SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
+            input "nightColorSwitches", "capability.switch", title: "Night Color Switches (when turned on, set strips to night colors)", multiple: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>GENERIC SWITCHES & OUTLETS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -201,6 +213,11 @@ def initialize() {
     
     // Turn floods on switch
     if (turnFloodsOn) subscribe(turnFloodsOn, "switch.on", turnFloodsOnHandler)
+    
+    // Color mode switches
+    if (morningColorSwitches) subscribe(morningColorSwitches, "switch.on", morningColorSwitchHandler)
+    if (eveningColorSwitches) subscribe(eveningColorSwitches, "switch.on", eveningColorSwitchHandler)
+    if (nightColorSwitches) subscribe(nightColorSwitches, "switch.on", nightColorSwitchHandler)
     
     // Schedule PTO weekend automation (on at sunset Friday, off at sunrise Sunday)
     if (onPTO) {
@@ -934,6 +951,83 @@ def turnOnDevicesWithRetry(devices, deviceType, retryCount = 0) {
         logInfo "ERROR: ${deviceType} devices still off after retry: ${failedDevices*.displayName.join(', ')}"
     }
 }
+
+// ========================================
+// COLOR SWITCH HANDLERS
+// ========================================
+
+def morningColorSwitchHandler(evt) {
+    logInfo "Morning color switch activated: ${evt.device.displayName} - setting strips to morning colors"
+    
+    // Set light strips with morning settings
+    def lightStripColorInfo = resolveColor("lightStripMorningColor", "lightStripMorningCustomColor", "Soft White")
+    Integer lightStripLevel = (settings.lightStripMorningLevel ?: 50) as Integer
+    def lanStripColorInfo = resolveColor("lanStripMorningColor", "lanStripMorningCustomColor", "Yellow")
+    Integer lanStripLevel = (settings.lanStripMorningLevel ?: 96) as Integer
+    
+    logInfo "Setting strips to morning colors - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
+    
+    setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
+    setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
+    
+    // Reset the switches after a short delay
+    runIn(2, resetMorningColorSwitches)
+}
+
+def eveningColorSwitchHandler(evt) {
+    logInfo "Evening color switch activated: ${evt.device.displayName} - setting strips to evening colors"
+    
+    // Set light strips with evening settings
+    def lightStripColorInfo = resolveColor("lightStripEveningColor", "lightStripEveningCustomColor", "Soft White")
+    Integer lightStripLevel = (settings.lightStripEveningLevel ?: 50) as Integer
+    def lanStripColorInfo = resolveColor("lanStripEveningColor", "lanStripEveningCustomColor", "Yellow")
+    Integer lanStripLevel = (settings.lanStripEveningLevel ?: 96) as Integer
+    
+    logInfo "Setting strips to evening colors - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
+    
+    setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
+    setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
+    
+    // Reset the switches after a short delay
+    runIn(2, resetEveningColorSwitches)
+}
+
+def nightColorSwitchHandler(evt) {
+    logInfo "Night color switch activated: ${evt.device.displayName} - setting strips to night colors"
+    
+    // Set light strips with night settings
+    def lightStripColorInfo = resolveColor("lightStripNightColor", "lightStripNightCustomColor", "Blue")
+    Integer lightStripLevel = (settings.lightStripNightLevel ?: 30) as Integer
+    def lanStripColorInfo = resolveColor("lanStripNightColor", "lanStripNightCustomColor", "Blue")
+    Integer lanStripLevel = (settings.lanStripNightLevel ?: 30) as Integer
+    
+    logInfo "Setting strips to night colors - Light strip: ${lightStripColorInfo.name}@${lightStripLevel}%, LAN strip: ${lanStripColorInfo.name}@${lanStripLevel}%"
+    
+    setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
+    setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
+    
+    // Reset the switches after a short delay
+    runIn(2, resetNightColorSwitches)
+}
+
+def resetMorningColorSwitches() {
+    morningColorSwitches?.each { it.off() }
+    logDebug "Reset morning color switches"
+}
+
+def resetEveningColorSwitches() {
+    eveningColorSwitches?.each { it.off() }
+    logDebug "Reset evening color switches"
+}
+
+def resetNightColorSwitches() {
+    nightColorSwitches?.each { it.off() }
+    logDebug "Reset night color switches"
+}
+
+// ========================================
+// COLOR RESOLUTION
+// ========================================
 
 def resolveColor(String colorSettingName, String customColorSettingName, String defaultColor) {
     // Get the selected color option
