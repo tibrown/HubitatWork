@@ -45,7 +45,7 @@ def mainPage() {
             input "rpdBirdHouse", "capability.switch", title: "RPD Bird House (Switch)", required: true
             input "rpdGarden", "capability.switch", title: "RPD Garden (Switch)", required: true
             input "rpdCPen", "capability.switch", title: "RPD Rear Gate (Switch)", required: true
-            input "chickenPenOutside", "capability.motionSensor", title: "Chicken Pen Outside Motion", required: true
+            input "chickenPenOutside", "capability.motionSensor", title: "Chicken Pen Outside Motion (temperature only)", required: false
             input "doorBirdHouse", "capability.contactSensor", title: "She Shed Door (BirdHouse)", required: true
             input "outsideBackdoor", "capability.motionSensor", title: "Outside Backdoor Motion", required: true
             input "floodSide", "capability.motionSensor", title: "Flood Side Motion", required: true
@@ -330,9 +330,10 @@ def handleRPDGarden(evt) {
 }
 
 def handleRPDRearGate(evt) {
-    if (evt.value == "on" && chickenPenOutside.currentMotion == "active" && isAfterNightAlertStart()) {
-        rearGateActive.on()
-        notificationDevices.each { it.deviceNotification("Intruder at the Rear Gate") }
+    // NOTE: Shock correlation is handled by PerimeterSecurityManager
+    // This handler is just for logging during night mode
+    if (evt.value == "on" && isAfterNightAlertStart()) {
+        logDebug "Person detected at CPen/Rear Gate - PerimeterSecurityManager handles shock correlation"
     }
 }
 

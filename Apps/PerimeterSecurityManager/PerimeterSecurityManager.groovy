@@ -64,7 +64,7 @@ def mainPage() {
             input "shockPersonCorrelationSeconds", "number",
                   title: "Shock + Person Detection Window (seconds)",
                   description: "Time window to correlate shock with Ring CPen person detection",
-                  defaultValue: 30,
+                  defaultValue: 20,
                   range: "5..120",
                   required: false
         }
@@ -407,8 +407,8 @@ def shockHandler(evt) {
         return
     }
     
-    // Get the correlation window from app settings (no hub variable for this)
-    def correlationWindow = (settings.shockPersonCorrelationSeconds ?: 30) as Integer
+    // Get the correlation window from app settings
+    def correlationWindow = (settings.shockPersonCorrelationSeconds ?: 20) as Integer
     
     if (wasRingCPenRecentlyTriggered(correlationWindow)) {
         // Person was detected at chicken pen within the correlation window

@@ -74,6 +74,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>ALERT THRESHOLDS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "ignoreLeftOpenSwitch", "capability.switch", title: "Switch to disable left-open alerts (when ON, all left-open monitoring is disabled)", required: false
             input "doorOpenThreshold", "number", title: "Door Left Open Alert (minutes)", defaultValue: 5, required: false
             input "windowOpenThreshold", "number", title: "Window Left Open Alert (minutes)", defaultValue: 10, required: false
             input "freezerDoorThreshold", "number", title: "Freezer Door Left Open Alert (minutes)", defaultValue: 2, required: false
@@ -356,6 +357,12 @@ def handleDoorClosed(device) {
 
 def checkLeftOpen() {
     logDebug "Checking for doors/windows left open"
+    
+    // Check if left-open monitoring is disabled via switch
+    if (ignoreLeftOpenSwitch && ignoreLeftOpenSwitch.currentValue("switch") == "on") {
+        logDebug "Left-open monitoring disabled - ${ignoreLeftOpenSwitch.displayName} is ON"
+        return
+    }
     
     // Check if current mode suppresses left-open alerts
     String currentMode = location.mode
