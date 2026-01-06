@@ -1,2 +1,9 @@
 # PII and sensitive information
 Docs/PII.md
+Docs/devices-table.md
+
+# Rule exports with PII (names, IP addresses)
+Apps/Night/Night-IntruderConcreteShed.txt
+Apps/Night/Night-IntruderWoodshed.txt
+Apps/Night/Night-RPDBirdHouse.txt
+Apps/Night/execute-actions.json
