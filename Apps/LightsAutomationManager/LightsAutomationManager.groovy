@@ -285,6 +285,29 @@ def handleNightMode() {
     
     // Set desk light to dimmest
     setDeskLight(settings.deskDimLevel as Integer)
+    
+    // Turn on all flood lights for night security
+    def floodLights = [
+        floodRear,
+        floodSide,
+        floodShower,
+        floodWoodshed,
+        floodOffice,
+        floodCarport
+    ].findAll { it != null }
+    
+    if (floodLights) {
+        if (diagnostics) logDeviceStates(floodLights, "Floods-Night")
+        // Turn on floods - if they support level, set to 100%
+        floodLights.each { flood ->
+            if (flood.hasCapability("SwitchLevel")) {
+                flood.setLevel(100)
+            } else {
+                flood.on()
+            }
+        }
+        logInfo "Turned on ${floodLights.size()} flood light(s) for night mode"
+    }
 }
 
 def handleEveningMode() {
@@ -325,6 +348,29 @@ def executeEveningModeLighting() {
     
     setStripWithColor(lightStrip, lightStripColorInfo, lightStripLevel)
     setStripWithColor(lanStrip, lanStripColorInfo, lanStripLevel)
+    
+    // Turn on all flood lights for evening security
+    def floodLights = [
+        floodRear,
+        floodSide,
+        floodShower,
+        floodWoodshed,
+        floodOffice,
+        floodCarport
+    ].findAll { it != null }
+    
+    if (floodLights) {
+        if (diagnostics) logDeviceStates(floodLights, "Floods-Evening")
+        // Turn on floods - if they support level, set to 100%
+        floodLights.each { flood ->
+            if (flood.hasCapability("SwitchLevel")) {
+                flood.setLevel(100)
+            } else {
+                flood.on()
+            }
+        }
+        logInfo "Turned on ${floodLights.size()} flood light(s) for evening mode"
+    }
 }
 
 def handleMorningMode() {
@@ -415,6 +461,22 @@ def executeDayModeLighting() {
         def strips = [lightStrip, lanStrip].findAll { it != null }
         if (diagnostics) logDeviceStates(strips, "LightStrips-Day")
         turnOffDevicesWithRetry(strips, "LightStrips")
+    }
+    
+    // Turn off all flood lights during day
+    def floodLights = [
+        floodRear,
+        floodSide,
+        floodShower,
+        floodWoodshed,
+        floodOffice,
+        floodCarport
+    ].findAll { it != null }
+    
+    if (floodLights) {
+        if (diagnostics) logDeviceStates(floodLights, "Floods-Day")
+        turnOffDevicesWithRetry(floodLights, "Floods")
+        logInfo "Turned off ${floodLights.size()} flood light(s) for day mode"
     }
 }
 
@@ -676,10 +738,19 @@ def allLightsOn() {
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (allLights) {
-        def lightsToControl = allLights.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+        def lightsToControl = allLights.findAll { 
+            it.id != lightStrip?.id && 
+            it.id != lanStrip?.id && 
+            it.id != floodRear?.id && 
+            it.id != floodSide?.id && 
+            it.id != floodShower?.id && 
+            it.id != floodWoodshed?.id && 
+            it.id != floodOffice?.id && 
+            it.id != floodCarport?.id 
+        }
         if (diagnostics) logDeviceStates(lightsToControl, "AllLights")
         turnOnDevicesWithRetry(lightsToControl, "AllLights")
-        logDebug "Turned on ${lightsToControl.size()} lights (excluded strips for separate control)"
+        logDebug "Turned on ${lightsToControl.size()} lights (excluded strips and floods for separate control)"
     }
     
     // Turn on strips (they'll use their last color/level settings)
@@ -699,10 +770,19 @@ def allLightsOff() {
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (allLights) {
-        def lightsToControl = allLights.findAll { it.id != lightStrip?.id && it.id != lanStrip?.id }
+        def lightsToControl = allLights.findAll { 
+            it.id != lightStrip?.id && 
+            it.id != lanStrip?.id && 
+            it.id != floodRear?.id && 
+            it.id != floodSide?.id && 
+            it.id != floodShower?.id && 
+            it.id != floodWoodshed?.id && 
+            it.id != floodOffice?.id && 
+            it.id != floodCarport?.id 
+        }
         if (diagnostics) logDeviceStates(lightsToControl, "AllLights")
         turnOffDevicesWithRetry(lightsToControl, "AllLights")
-        logDebug "Turned off ${lightsToControl.size()} lights (excluded strips for separate control)"
+        logDebug "Turned off ${lightsToControl.size()} lights (excluded strips and floods for separate control)"
     }
     
     // Turn off strips and desk
