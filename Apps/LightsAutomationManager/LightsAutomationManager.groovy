@@ -286,7 +286,7 @@ def handleNightMode() {
     // Set desk light to dimmest
     setDeskLight(settings.deskDimLevel as Integer)
     
-    // Turn on all flood lights for night security
+    // Turn off all flood lights for night mode (they will activate on motion detection)
     def floodLights = [
         floodRear,
         floodSide,
@@ -298,15 +298,8 @@ def handleNightMode() {
     
     if (floodLights) {
         if (diagnostics) logDeviceStates(floodLights, "Floods-Night")
-        // Turn on floods - if they support level, set to 100%
-        floodLights.each { flood ->
-            if (flood.hasCapability("SwitchLevel")) {
-                flood.setLevel(100)
-            } else {
-                flood.on()
-            }
-        }
-        logInfo "Turned on ${floodLights.size()} flood light(s) for night mode"
+        turnOffDevicesWithRetry(floodLights, "Floods")
+        logInfo "Turned off ${floodLights.size()} flood light(s) for night mode (will activate on motion)"
     }
 }
 
