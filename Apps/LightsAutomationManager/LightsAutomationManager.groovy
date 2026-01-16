@@ -375,6 +375,30 @@ def handleMorningMode() {
     atomicState.lastMorningMode = now()
     
     logInfo "Executing Morning mode lighting"
+    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
+    
+    // Turn on all flood lights for morning mode
+    def floodLights = [
+        floodRear,
+        floodSide,
+        floodShower,
+        floodWoodshed,
+        floodOffice,
+        floodCarport
+    ].findAll { it != null }
+    
+    if (floodLights) {
+        if (diagnostics) logDeviceStates(floodLights, "Floods-Morning")
+        // Turn on floods - if they support level, set to 100%
+        floodLights.each { flood ->
+            if (flood.hasCapability("SwitchLevel")) {
+                flood.setLevel(100)
+            } else {
+                flood.on()
+            }
+        }
+        logInfo "Turned on ${floodLights.size()} flood light(s) for morning mode"
+    }
     
     // Check conditions
     Boolean holidayOn = holiday && holiday.currentValue("switch") == "on"
@@ -382,7 +406,6 @@ def handleMorningMode() {
     
     if (!holidayOn && !ptoOn) {
         logDebug "Morning conditions met (not holiday, not PTO) - turning on lights"
-        def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
         
         // Turn on generic switches (exclude light strips to avoid conflicts)
         if (genericSwitches) {
