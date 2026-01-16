@@ -683,7 +683,7 @@ def turnOffFloodOffice() {
 }
 
 def turnFloodsOnHandler(evt) {
-    logInfo "Turn Floods On switch activated - turning on all flood lights"
+    logInfo "Turn Floods On switch activated - turning on all flood lights at 100% brightness"
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     def floodLights = [
@@ -699,8 +699,19 @@ def turnFloodsOnHandler(evt) {
         logDebug "No flood lights configured"
     } else {
         if (diagnostics) logDeviceStates(floodLights, "AllFloods")
-        turnOnDevicesWithRetry(floodLights, "AllFloods")
-        logInfo "Turned on ${floodLights.size()} flood light(s)"
+        
+        // Turn on floods at 100% brightness
+        floodLights.each { flood ->
+            if (flood.hasCommand("setLevel")) {
+                flood.setLevel(100)
+                logDebug "Set ${flood.displayName} to 100% brightness"
+            } else {
+                flood.on()
+                logDebug "Turned on ${flood.displayName} (no level control)"
+            }
+        }
+        
+        logInfo "Turned on ${floodLights.size()} flood light(s) at 100% brightness"
     }
     
     // Reset the switch after a short delay
