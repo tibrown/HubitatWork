@@ -56,9 +56,9 @@ def mainPage() {
                   required: false
             
             input "echoVolume", "number",
-                  title: "Echo Volume Level (0-100)",
-                  defaultValue: 25,
-                  range: "0..100",
+                  title: "Echo Volume Level (1-10)",
+                  defaultValue: 3,
+                  range: "1..10",
                   required: false
         }
         
@@ -142,7 +142,7 @@ def sendFreezeAlert(BigDecimal temp) {
     
     // Send to Echo devices
     def message = settings.alertMessage ?: "Freeze Warning"
-    def volume = settings.echoVolume ?: 25
+    def volume = settings.echoVolume ?: 3
     
     if (settings.echoDevices) {
         settings.echoDevices.each { device ->
