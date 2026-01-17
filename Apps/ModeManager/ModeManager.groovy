@@ -44,7 +44,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>AUTO-CONTROL SWITCH</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "Select a switch to enable/disable automatic mode changes. When OFF, automatic mode changes are ENABLED. When ON, automatic mode changes are DISABLED."
+            paragraph "Select a switch to control automatic Night mode changes. When OFF, Night mode changes automatically. When ON, Night mode must be set manually. (Morning, Day, and Evening modes always change automatically.)"
             input "autoControlSwitch", "capability.switch", 
                   title: "Auto-Control Switch", 
                   required: true
@@ -304,18 +304,19 @@ def initialize() {
         logInfo "Subscribed to auto-control switch: ${autoControlSwitch.displayName}"
     }
     
-    // Only set up schedules if auto-control is enabled
-    def autoControlState = autoControlSwitch?.currentValue("switch")
-    if (autoControlState == "on") {
-        logInfo "Auto-control is ON (disabled) - schedules not activated"
-        return
-    }
-    
     // Set up schedules for each enabled transition
+    // Morning, Day, and Evening always run automatically
     setupMorningSchedule()
     setupDaySchedule()
     setupEveningSchedule()
-    setupNightSchedule()
+    
+    // Night schedule only runs if auto-control is disabled (switch is OFF)
+    def autoControlState = autoControlSwitch?.currentValue("switch")
+    if (autoControlState == "on") {
+        logInfo "Auto-control is ON - Night mode must be set manually (other modes still automatic)"
+    } else {
+        setupNightSchedule()
+    }
     
     logInfo "Mode Manager initialization complete"
 }
@@ -512,13 +513,6 @@ def morningTransitionHandler(evt = null) {
         return
     }
     
-    // Check if auto-control is enabled
-    def autoControlState = autoControlSwitch?.currentValue("switch")
-    if (autoControlState == "on") {
-        logDebug "Skipping Morning transition - auto-control is ON (disabled)"
-        return
-    }
-    
     // Change mode
     def targetMode = settings.morningMode
     if (targetMode) {
@@ -532,13 +526,6 @@ def dayTransitionHandler(evt = null) {
     def today = new Date().format("EEEE")
     if (settings.dayDays && !settings.dayDays.contains(today)) {
         logDebug "Skipping Day transition - not configured for ${today}"
-        return
-    }
-    
-    // Check if auto-control is enabled
-    def autoControlState = autoControlSwitch?.currentValue("switch")
-    if (autoControlState == "on") {
-        logDebug "Skipping Day transition - auto-control is ON (disabled)"
         return
     }
     
@@ -558,13 +545,6 @@ def eveningTransitionHandler(evt = null) {
         return
     }
     
-    // Check if auto-control is enabled
-    def autoControlState = autoControlSwitch?.currentValue("switch")
-    if (autoControlState == "on") {
-        logDebug "Skipping Evening transition - auto-control is ON (disabled)"
-        return
-    }
-    
     // Change mode
     def targetMode = settings.eveningMode
     if (targetMode) {
@@ -581,10 +561,10 @@ def nightTransitionHandler(evt = null) {
         return
     }
     
-    // Check if auto-control is enabled
+    // Check if auto-control is enabled (only affects Night mode)
     def autoControlState = autoControlSwitch?.currentValue("switch")
     if (autoControlState == "on") {
-        logDebug "Skipping Night transition - auto-control is ON (disabled)"
+        logInfo "Skipping Night transition - auto-control is ON (must set Night mode manually)"
         return
     }
     
@@ -605,11 +585,12 @@ def autoControlSwitchHandler(evt) {
     logInfo "Auto-control switch changed to ${switchState?.toUpperCase()}"
     
     if (switchState == "off") {
-        logInfo "Auto-control enabled (switch OFF) - reinitializing schedules"
-        initialize()
+        logInfo "Auto-control OFF - Night mode will change automatically"
+        setupNightSchedule()
     } else {
-        logInfo "Auto-control disabled (switch ON) - clearing all schedules"
-        unschedule()
+        logInfo "Auto-control ON - Night mode must be set manually (other modes still automatic)"
+        // Clear only Night-related schedules
+        unschedule("nightTransitionHandler")
     }
 }
 
