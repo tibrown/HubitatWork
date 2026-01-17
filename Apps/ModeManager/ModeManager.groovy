@@ -761,6 +761,14 @@ def getNextTransitionTime(transitionName) {
 def modeChangeHandler(evt) {
     logInfo "Mode changed to: ${evt.value}"
     updateLabel()
+    
+    // Auto-enable auto-control when switching to Away mode
+    if (evt.value == "Away" && autoControlSwitch) {
+        if (autoControlSwitch.currentValue("switch") == "off") {
+            logInfo "Away mode detected - turning ON auto-control switch to disable automatic mode changes"
+            autoControlSwitch.on()
+        }
+    }
 }
 
 // ========================================
