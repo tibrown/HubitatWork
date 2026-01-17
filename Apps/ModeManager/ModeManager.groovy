@@ -44,7 +44,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>AUTO-CONTROL SWITCH</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "Select a switch to control automatic Night mode changes. When OFF, Night mode changes automatically. When ON, Night mode must be set manually. (Morning, Day, and Evening modes always change automatically.)"
+            paragraph "Select a switch to control automatic Night mode changes. When OFF, Night mode changes automatically. When ON, Night mode must be set manually. (Morning, Day, and Evening modes always change automatically unless in Away mode. Away mode prevents ALL automatic mode changes.)"
             input "autoControlSwitch", "capability.switch", 
                   title: "Auto-Control Switch", 
                   required: true
@@ -506,6 +506,12 @@ def rescheduleNightSolar(evt) {
 // ========================================
 
 def morningTransitionHandler(evt = null) {
+    // Don't change from Away mode automatically
+    if (location.currentMode == "Away") {
+        logInfo "Skipping Morning transition - currently in Away mode"
+        return
+    }
+    
     // Check day of week
     def today = new Date().format("EEEE")
     if (settings.morningDays && !settings.morningDays.contains(today)) {
@@ -522,6 +528,12 @@ def morningTransitionHandler(evt = null) {
 }
 
 def dayTransitionHandler(evt = null) {
+    // Don't change from Away mode automatically
+    if (location.currentMode == "Away") {
+        logInfo "Skipping Day transition - currently in Away mode"
+        return
+    }
+    
     // Check day of week
     def today = new Date().format("EEEE")
     if (settings.dayDays && !settings.dayDays.contains(today)) {
@@ -538,6 +550,12 @@ def dayTransitionHandler(evt = null) {
 }
 
 def eveningTransitionHandler(evt = null) {
+    // Don't change from Away mode automatically
+    if (location.currentMode == "Away") {
+        logInfo "Skipping Evening transition - currently in Away mode"
+        return
+    }
+    
     // Check day of week
     def today = new Date().format("EEEE")
     if (settings.eveningDays && !settings.eveningDays.contains(today)) {
@@ -554,6 +572,12 @@ def eveningTransitionHandler(evt = null) {
 }
 
 def nightTransitionHandler(evt = null) {
+    // Don't change from Away mode automatically
+    if (location.currentMode == "Away") {
+        logInfo "Skipping Night transition - currently in Away mode"
+        return
+    }
+    
     // Check day of week
     def today = new Date().format("EEEE")
     if (settings.nightDays && !settings.nightDays.contains(today)) {
@@ -742,14 +766,6 @@ def getNextTransitionTime(transitionName) {
 def modeChangeHandler(evt) {
     logInfo "Mode changed to: ${evt.value}"
     updateLabel()
-    
-    // Auto-enable auto-control when switching to Away mode
-    if (evt.value == "Away" && autoControlSwitch) {
-        if (autoControlSwitch.currentValue("switch") == "off") {
-            logInfo "Away mode detected - turning ON auto-control switch to disable automatic mode changes"
-            autoControlSwitch.on()
-        }
-    }
 }
 
 // ========================================
