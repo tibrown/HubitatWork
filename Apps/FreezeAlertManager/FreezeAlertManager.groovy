@@ -63,9 +63,9 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
-            input "enableNotifications", "bool",
-                  title: "Enable Freeze Notifications",
-                  defaultValue: true,
+            input "notificationSwitch", "capability.switch",
+                  title: "Notification Control Switch",
+                  description: "Select a switch to control notifications (ON = enabled, OFF = disabled)",
                   required: false
             
             input "cooldownMinutes", "number",
@@ -123,10 +123,14 @@ def tempHandler(evt) {
 }
 
 def sendFreezeAlert(BigDecimal temp) {
-    // Check if notifications are enabled
-    if (!settings.enableNotifications) {
-        logDebug "Notifications disabled - skipping alert"
+    // Check if notifications are enabled via switch
+    if (settings.notificationSwitch && settings.notificationSwitch.currentValue("switch") != "on") {
+        logDebug "Notification switch is off - skipping alert"
         return
+    }
+    
+    if (!settings.notificationSwitch) {
+        logDebug "No notification switch configured - notifications enabled by default"
     }
     
     // Check cooldown period
