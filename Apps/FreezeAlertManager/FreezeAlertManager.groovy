@@ -63,6 +63,11 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
+            input "notificationDevices", "capability.notification",
+                  title: "Push Notification Devices",
+                  multiple: true,
+                  required: false
+            
             input "notificationSwitch", "capability.switch",
                   title: "Notification Control Switch",
                   description: "Select a switch to control notifications (ON = enabled, OFF = disabled)",
@@ -156,6 +161,16 @@ def sendFreezeAlert(BigDecimal temp) {
         logInfo "Freeze alert sent to ${settings.echoDevices.size()} device(s): ${message} (Temperature: ${temp}°F)"
     } else {
         logWarn "No Echo devices configured - cannot send alert"
+    }
+    
+    // Send push notifications
+    if (settings.notificationDevices) {
+        def notificationMessage = "${message} - Temperature: ${temp}°F"
+        settings.notificationDevices.each { device ->
+            logDebug "Sending push notification to ${device.displayName}: ${notificationMessage}"
+            device.deviceNotification(notificationMessage)
+        }
+        logInfo "Push notifications sent to ${settings.notificationDevices.size()} device(s)"
     }
 }
 
