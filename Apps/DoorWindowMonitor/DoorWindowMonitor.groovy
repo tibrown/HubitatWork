@@ -59,9 +59,19 @@ def mainPage() {
             input "lrWindow4", "capability.contactSensor", title: "Living Room Window 4", required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>PAUSE SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>PAUSE DR DOOR MOTION</b>\n<b>═══════════════════════════════════════</b>") {
             input "pauseDRDoorAlarm", "capability.switch", title: "Pause DR Door Alarm Switch", required: false
+            input "drMotionSensor", "capability.motionSensor", title: "DR Motion Sensor (auto-activates pause)", required: false
+            paragraph "When dining room motion is detected in active modes, the pause switch will be turned ON. After the configured pause duration, the switch will automatically turn OFF."
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>PAUSE BACKDOOR MOTION</b>\n<b>═══════════════════════════════════════</b>") {
             input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm Switch", required: false
+            input "motionSensor", "capability.motionSensor", title: "Backdoor Motion Sensor (auto-activates pause)", required: false
+            input "motionLights", "capability.switch", title: "Lights to Control (turn ON when motion detected)", multiple: true, required: false
+            input "motionPauseSwitch", "capability.switch", title: "Additional Pause Switch to Activate (optional)", required: false
+            input "motionTimeout", "number", title: "Auto-Off Delay (minutes after motion detected)", defaultValue: 30, required: false
+            paragraph "When backdoor motion is detected in active modes, the configured lights will turn ON. The pause switch and optional additional pause switch will also be turned ON. After the delay period, lights and switches will automatically turn OFF."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
@@ -71,6 +81,11 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>PAUSE NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "pauseNotificationDevices", "capability.notification", title: "Pause Alarm Notification Devices", multiple: true, required: false
+            paragraph "These devices will receive notifications when pause alarms are manually activated or when the auto-unpause occurs. Leave empty to disable pause notifications."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>ALERT THRESHOLDS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -83,6 +98,8 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>PAUSE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "pauseDuration", "number", title: "Auto Pause Duration (minutes)", defaultValue: 5, required: false
+            input "pauseMotionActiveModes", "mode", title: "Pause Motion Active Modes (motion triggers pause only in these modes)", multiple: true, required: false
+            paragraph "Configure when motion sensors should trigger pause alarms. The pause duration applies to both manual and motion-triggered pauses."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
@@ -137,6 +154,10 @@ def initialize() {
     // Subscribe to pause switches
     if (pauseDRDoorAlarm) subscribe(pauseDRDoorAlarm, "switch.on", handlePauseDRDoor)
     if (pauseBDAlarm) subscribe(pauseBDAlarm, "switch.on", handlePauseBD)
+    
+    // Subscribe to pause motion sensors
+    if (drMotionSensor) subscribe(drMotionSensor, "motion.active", handleDRMotion)
+    if (motionSensor) subscribe(motionSensor, "motion", handleMotion)
     
     // Subscribe to mode changes to check doors when entering Night mode
     subscribe(location, "mode", handleModeChange)
@@ -446,7 +467,7 @@ def handlePauseDRDoor(evt) {
     // Schedule auto-unpause
     runIn(duration, unpauseDRDoor)
     
-    sendNotification("Dining room door alarm paused for ${duration / 60} minutes")
+    sendPauseNotification("Dining room door alarm paused for ${duration / 60} minutes")
 }
 
 def handlePauseBD(evt) {
@@ -457,7 +478,7 @@ def handlePauseBD(evt) {
     // Schedule auto-unpause
     runIn(duration, unpauseBD)
     
-    sendNotification("Backdoor alarm paused for ${duration / 60} minutes")
+    sendPauseNotification("Backdoor alarm paused for ${duration / 60} minutes")
 }
 
 def unpauseDRDoor() {
@@ -468,6 +489,117 @@ def unpauseDRDoor() {
 def unpauseBD() {
     logInfo "Auto-unpausing backdoor alarm"
     pauseBDAlarm?.off()
+}
+
+// ========================================
+// MOTION-ACTIVATED LIGHTING
+// ========================================
+
+def handleMotion(evt) {
+    String motionValue = evt.value
+    String currentMode = location.mode
+    
+    logDebug "Motion event: ${evt.displayName} ${motionValue}, Mode: ${currentMode}"
+    
+    // Check if motion control is configured
+    if (!motionLights) {
+        logDebug "No motion lights configured - skipping"
+        return
+    }
+    
+    // Check if current mode is in active modes
+    if (pauseMotionActiveModes && !pauseMotionActiveModes.contains(currentMode)) {
+        logDebug "Motion detected but mode ${currentMode} not in active modes - skipping"
+        return
+    }
+    
+    if (motionValue == "active") {
+        handleMotionActive()
+    }
+    // Note: We don't handle inactive - the delay starts immediately on motion detection
+}
+
+def handleMotionActive() {
+    logInfo "Motion detected - turning ON motion lights"
+    
+    // Cancel any pending auto-off
+    unschedule("autoOffMotionLights")
+    
+    // Turn on all motion lights
+    motionLights.each { light ->
+        if (light.currentValue("switch") != "on") {
+            light.on()
+            logInfo "Turned ON: ${light.displayName}"
+        } else {
+            logDebug "${light.displayName} already ON"
+        }
+    }
+    
+    // Turn on pause switch if configured
+    if (motionPauseSwitch && motionPauseSwitch.currentValue("switch") != "on") {
+        motionPauseSwitch.on()
+        logInfo "Activated pause switch: ${motionPauseSwitch.displayName}"
+    }
+    
+    // Schedule auto-off after configured delay
+    Integer delayMinutes = settings.motionTimeout ?: 30
+    logInfo "Scheduling auto-off in ${delayMinutes} minutes"
+    runIn(delayMinutes * 60, autoOffMotionLights)
+}
+
+def autoOffMotionLights() {
+    logInfo "Motion delay timeout reached - turning OFF motion lights"
+    
+    // Turn off lights
+    motionLights.each { light ->
+        if (light.currentValue("switch") == "on") {
+            light.off()
+            logInfo "Turned OFF: ${light.displayName}"
+        }
+    }
+    
+    // Turn off pause switch if configured
+    if (motionPauseSwitch && motionPauseSwitch.currentValue("switch") == "on") {
+        motionPauseSwitch.off()
+        logInfo "Deactivated pause switch: ${motionPauseSwitch.displayName}"
+    }
+}
+
+def handleDRMotion(evt) {
+    String currentMode = location.mode
+    logInfo "DR motion detected in ${currentMode} mode"
+    
+    // Check if current mode is in active modes
+    if (pauseMotionActiveModes && !pauseMotionActiveModes.contains(currentMode)) {
+        logDebug "DR motion detected but mode ${currentMode} not in active modes - skipping"
+        return
+    }
+    
+    logInfo "DR motion detected - activating pause alarm"
+    
+    // Cancel any pending auto-cancel
+    unschedule("autoCancelDRPause")
+    
+    // Activate pause switch if not already on
+    if (pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") != "on") {
+        pauseDRDoorAlarm.on()
+        logInfo "Activated DR door alarm pause switch"
+    }
+    
+    // Schedule auto-cancel after configured delay (using same pauseDuration setting)
+    Integer delayMinutes = getConfigValue("pauseDuration", "PauseDuration") as Integer
+    logInfo "Scheduling auto-cancel in ${delayMinutes} minutes"
+    runIn(delayMinutes * 60, autoCancelDRPause)
+}
+
+def autoCancelDRPause() {
+    logInfo "DR pause timeout reached - deactivating pause alarm"
+    
+    // Turn off pause switch
+    if (pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") == "on") {
+        pauseDRDoorAlarm.off()
+        logInfo "Deactivated DR door alarm pause switch"
+    }
 }
 
 // ========================================
@@ -531,6 +663,15 @@ def sendNotification(String message) {
             device.deviceNotification(message)
         }
         logInfo "Notification: ${message}"
+    }
+}
+
+def sendPauseNotification(String message) {
+    if (pauseNotificationDevices) {
+        pauseNotificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+        logInfo "Pause Notification: ${message}"
     }
 }
 
