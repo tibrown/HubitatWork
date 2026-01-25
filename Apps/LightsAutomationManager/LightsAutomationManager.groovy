@@ -18,7 +18,7 @@ definition(
     name: "Lights Automation Manager",
     namespace: "hubitat",
     author: "Tim Brown",
-    description: "Comprehensive lighting automation managing mode-based schedules, motion-activated floods, desk lighting, color strips, and master controls.",
+    description: "Comprehensive lighting automation managing mode-based schedules, night mode lights, motion-activated floods, desk lighting, color strips, and master controls. v1.2.0",
     category: "Lighting",
     iconUrl: "",
     iconX2Url: "",
@@ -87,6 +87,15 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>NIGHT COLOR SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "nightColorSwitches", "capability.switch", title: "Night Color Switches (when turned on, set strips to night colors)", multiple: true, required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE LIGHTS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "nightModeLights", "capability.switch", title: "Night Mode Lights (turn ON during Night mode)", 
+                description: "These lights turn ON during Night mode. Configure which modes turn them OFF below. Do not include these in Generic Switches.",
+                multiple: true, required: false
+            input "nightModeLightsOffModes", "enum", title: "Turn OFF Night Mode Lights when entering:",
+                description: "Select which modes should turn OFF the Night Mode Lights. If none selected, lights remain ON across mode changes.",
+                options: ["Morning", "Day", "Evening"], multiple: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>GENERIC SWITCHES & OUTLETS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -246,10 +255,11 @@ def modeHandler(evt) {
             handleMorningMode()
             break
         case "Day":
+            logInfo "DAY MODE DETECTED - Calling handleDayMode()"
             handleDayMode()
             break
         default:
-            logDebug "No specific lighting automation for mode: ${mode}"
+            logInfo "No specific lighting automation for mode: ${mode} (check mode name spelling/case)"
     }
 }
 
@@ -270,6 +280,13 @@ def handleNightMode() {
         if (diagnostics) logDeviceStates(switchesToControl, "GenericSwitches-Night")
         turnOffDevicesWithRetry(switchesToControl, "GenericSwitches")
         logDebug "Turned off ${switchesToControl.size()} generic switches (excluded strips)"
+    }
+    
+    // Turn on night mode lights
+    if (nightModeLights) {
+        if (diagnostics) logDeviceStates(nightModeLights, "NightModeLights-Night")
+        turnOnDevicesWithRetry(nightModeLights, "NightModeLights")
+        logInfo "Turned on ${nightModeLights.size()} night mode light(s)"
     }
     
     // Set light strips with individual settings - with safe defaults
@@ -322,6 +339,13 @@ def handleEveningMode() {
 def executeEveningModeLighting() {
     logInfo "Executing Evening mode lighting adjustments"
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
+    
+    // Turn off night mode lights if Evening is selected
+    if (nightModeLights && nightModeLightsOffModes?.contains("Evening")) {
+        if (diagnostics) logDeviceStates(nightModeLights, "NightModeLights-Evening")
+        turnOffDevicesWithRetry(nightModeLights, "NightModeLights")
+        logInfo "Turned off ${nightModeLights.size()} night mode light(s) for Evening mode"
+    }
     
     // Turn on generic switches (exclude light strips to avoid conflicts)
     if (genericSwitches) {
@@ -387,6 +411,13 @@ def handleMorningMode() {
         floodCarport
     ].findAll { it != null }
     
+    // Turn off night mode lights if Morning is selected
+    if (nightModeLights && nightModeLightsOffModes?.contains("Morning")) {
+        if (diagnostics) logDeviceStates(nightModeLights, "NightModeLights-Morning")
+        turnOffDevicesWithRetry(nightModeLights, "NightModeLights")
+        logInfo "Turned off ${nightModeLights.size()} night mode light(s) for Morning mode"
+    }
+    
     if (floodLights) {
         if (diagnostics) logDeviceStates(floodLights, "Floods-Morning")
         // Turn on floods - if they support level, set to 100%
@@ -441,28 +472,35 @@ def handleMorningMode() {
 def handleDayMode() {
     // Prevent cascading calls within 10 seconds
     if (atomicState.lastDayMode && (now() - atomicState.lastDayMode) < 10000) {
-        logDebug "Ignoring handleDayMode - already executed recently"
+        logInfo "*** IGNORING handleDayMode - already executed recently (within 10 seconds) ***"
         return
     }
     atomicState.lastDayMode = now()
     
-    logInfo "Executing Day mode lighting"
+    logInfo "Executing Day mode lighting handler"
     
     // Check if delay is configured
     Integer delayMinutes = settings.dayModeDelay ?: 0
     
     if (delayMinutes > 0) {
-        logInfo "Day mode: Scheduling light adjustments in ${delayMinutes} minute(s)"
+        logInfo "*** Day mode: DELAYING light adjustments by ${delayMinutes} minute(s) - floods will turn off LATER ***"
         runIn(delayMinutes * 60, executeDayModeLighting)
     } else {
-        // No delay, execute immediately
+        logInfo "*** Day mode: NO DELAY - turning off floods IMMEDIATELY ***"
         executeDayModeLighting()
     }
 }
 
 def executeDayModeLighting() {
-    logInfo "Executing Day mode lighting adjustments"
+    logInfo "*** EXECUTING DAY MODE LIGHTING ADJUSTMENTS ***"
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
+    
+    // Turn off night mode lights if Day is selected
+    if (nightModeLights && nightModeLightsOffModes?.contains("Day")) {
+        if (diagnostics) logDeviceStates(nightModeLights, "NightModeLights-Day")
+        turnOffDevicesWithRetry(nightModeLights, "NightModeLights")
+        logInfo "Turned off ${nightModeLights.size()} night mode light(s) for Day mode"
+    }
     
     // Turn off all mode-controlled lights
     if (genericSwitches) {
@@ -489,10 +527,15 @@ def executeDayModeLighting() {
         floodCarport
     ].findAll { it != null }
     
+    logInfo "Day mode flood check: Found ${floodLights.size()} flood lights to turn off"
+    
     if (floodLights) {
         if (diagnostics) logDeviceStates(floodLights, "Floods-Day")
+        logInfo "Turning off floods: ${floodLights.collect { it.displayName }.join(', ')}"
         turnOffDevicesWithRetry(floodLights, "Floods")
-        logInfo "Turned off ${floodLights.size()} flood light(s) for day mode"
+        logInfo "*** Turned off ${floodLights.size()} flood light(s) for day mode ***"
+    } else {
+        logInfo "No flood lights configured to turn off"
     }
 }
 

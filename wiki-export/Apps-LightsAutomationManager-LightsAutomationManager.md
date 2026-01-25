@@ -51,6 +51,15 @@ Lights Automation Manager is a comprehensive Hubitat app that manages all automa
 - **Main Light Strip**: Primary color-changing strip
 - **LAN Strip**: Secondary color-changing strip
 
+### Night Mode Lights
+- **Night Mode Lights**: Switches/lights that turn ON during Night mode
+- **Turn OFF Night Mode Lights when entering**: Select which modes (Morning, Day, Evening) should turn these lights OFF
+  - These lights are specifically for night-time illumination (e.g., night lights, hallway lights)
+  - Turn ON automatically when entering Night mode
+  - Turn OFF automatically when entering selected modes
+  - If no modes are selected, lights remain ON across mode changes
+  - **Important**: Do not include these devices in Generic Switches to avoid conflicts
+
 ### Generic Switches & Outlets
 - **Generic Switches/Outlets**: Regular switches controlled by mode changes
 
@@ -121,16 +130,20 @@ The app automatically adjusts lighting when hub mode changes:
 
 #### Night Mode
 - Generic switches: OFF
+- Night mode lights: ON (configurable lights for night-time illumination)
 - Light strips: Blue at 30% (or hub variable override)
 - Desk light: Dim to level 5
+- Flood lights: OFF (will reactivate on motion)
 
 #### Evening Mode
+- Night mode lights: OFF (if "Evening" is selected in turn-off modes)
 - Generic switches: ON
 - Main strip: Soft White at 50%
 - LAN strip: Yellow at 96%
 - All configured lights activated
 
 #### Morning Mode
+- Night mode lights: OFF (if "Morning" is selected in turn-off modes)
 - **IF** Holiday is OFF **AND** PTO is OFF:
   - Generic switches: ON
   - Main strip: Soft White at 50%
@@ -138,6 +151,7 @@ The app automatically adjusts lighting when hub mode changes:
 - **ELSE**: Only updates main strip (skips switch activation)
 
 #### Day Mode
+- Night mode lights: OFF (if "Day" is selected in turn-off modes)
 - Generic switches: OFF
 - Light strips: OFF
 - Desk light: Manual control only
