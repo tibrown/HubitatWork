@@ -60,6 +60,13 @@ def mainPage() {
                   defaultValue: 30,
                   range: "1..100",
                   required: false
+            
+            input "resetVolume", "number",
+                  title: "Reset Volume After Alert (1-100)",
+                  description: "Volume to restore after alert completes",
+                  defaultValue: 35,
+                  range: "1..100",
+                  required: true
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
@@ -159,6 +166,9 @@ def sendFreezeAlert(BigDecimal temp) {
             device.speak(message, volume)
         }
         logInfo "Freeze alert sent to ${settings.echoDevices.size()} device(s): ${message} (Temperature: ${temp}°F)"
+        
+        // Schedule volume reset after alert completes
+        runIn(10, 'resetEchoVolumes')
     } else {
         logWarn "No Echo devices configured - cannot send alert"
     }
@@ -172,6 +182,23 @@ def sendFreezeAlert(BigDecimal temp) {
         }
         logInfo "Push notifications sent to ${settings.notificationDevices.size()} device(s)"
     }
+}
+
+def resetEchoVolumes() {
+    def resetVol = settings.resetVolume ?: 35
+    
+    if (settings.echoDevices) {
+        settings.echoDevices.each { device ->
+            logDebug "Resetting volume for ${device.displayName} to ${resetVol}"
+            device.setVolume(resetVol)
+        }
+        logInfo "Reset volume to ${resetVol} for ${settings.echoDevices.size()} device(s)"
+    }
+}
+
+def uninstalled() {
+    logInfo "Freeze Alert Manager uninstalled"
+    unschedule('resetEchoVolumes')
 }
 
 def logInfo(String msg) {
