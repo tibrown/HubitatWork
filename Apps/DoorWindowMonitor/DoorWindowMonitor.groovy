@@ -49,6 +49,7 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>SPECIAL DOORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "freezerDoors", "capability.contactSensor", title: "Freezer Doors", multiple: true, required: false
             input "safeDoor", "capability.contactSensor", title: "Safe Door", required: false
+            input "suppressSafeDoorAlert", "capability.switch", title: "Suppress Safe Door Alert Switch (when ON, safe door alerts are disabled)", required: false
             input "officeDoor", "capability.contactSensor", title: "Office Door", required: false
         }
         
@@ -75,6 +76,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
+            input "silentSwitch", "capability.switch", title: "Silent Switch (when ON, ALL alerts are suppressed - takes precedence)", required: false
             input "birdHouseSilentModes", "mode", title: "Modes to suppress Bird House alerts", multiple: true, required: false
             input "leftOpenSilentModes", "mode", title: "Modes to suppress left-open alerts", multiple: true, required: false
         }
@@ -332,7 +334,19 @@ def handleFreezerDoorOpen(device) {
 }
 
 def handleSafeDoorOpen() {
-    logInfo "SAFE DOOR OPENED - Sending immediate notification"
+    logInfo "SAFE DOOR OPENED - Checking alert status"
+    
+    // Check Silent switch first - takes precedence
+    if (isSilentMode()) {
+        logDebug "Safe door alert suppressed by Silent switch"
+        return
+    }
+    
+    // Check if safe door alerts are suppressed
+    if (suppressSafeDoorAlert && suppressSafeDoorAlert.currentValue("switch") == "on") {
+        logInfo "Safe door alert suppressed - suppress switch is ON"
+        return
+    }
     
     // Send notification immediately - no delays
     if (notificationDevices) {
@@ -657,7 +671,20 @@ def setHubVar(String varName, String value) {
     }
 }
 
+def isSilentMode() {
+    if (silentSwitch && silentSwitch.currentValue("switch") == "on") {
+        return true
+    }
+    return false
+}
+
 def sendNotification(String message) {
+    // Check Silent switch first - takes precedence over all other settings
+    if (isSilentMode()) {
+        logDebug "Notification suppressed by Silent switch: ${message}"
+        return
+    }
+    
     if (notificationDevices) {
         notificationDevices.each { device ->
             device.deviceNotification(message)
@@ -667,6 +694,12 @@ def sendNotification(String message) {
 }
 
 def sendPauseNotification(String message) {
+    // Check Silent switch first - takes precedence over all other settings
+    if (isSilentMode()) {
+        logDebug "Pause notification suppressed by Silent switch: ${message}"
+        return
+    }
+    
     if (pauseNotificationDevices) {
         pauseNotificationDevices.each { device ->
             device.deviceNotification(message)
