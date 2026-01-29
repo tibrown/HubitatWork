@@ -98,6 +98,18 @@ def mainPage() {
                 options: ["Morning", "Day", "Evening"], multiple: true, required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>OFFICE LIGHTS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "officeLights", "capability.switch", title: "Office Lights",
+                description: "Office lights controlled by mode. Configure which modes turn them ON and OFF below.",
+                multiple: true, required: false
+            input "officeLightsOnModes", "enum", title: "Turn ON Office Lights when entering:",
+                description: "Select which modes should turn ON the Office Lights.",
+                options: ["Morning", "Day", "Evening", "Night"], multiple: true, required: false
+            input "officeLightsOffModes", "enum", title: "Turn OFF Office Lights when entering:",
+                description: "Select which modes should turn OFF the Office Lights.",
+                options: ["Morning", "Day", "Evening", "Night"], multiple: true, required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>GENERIC SWITCHES & OUTLETS</b>\n<b>═══════════════════════════════════════</b>") {
             input "genericSwitches", "capability.switch", title: "Generic Switches/Outlets (mode-controlled)", multiple: true, required: false
         }
@@ -198,6 +210,7 @@ def initialize() {
     
     // Mode changes
     subscribe(location, "mode", modeHandler)
+    subscribe(location, "mode", officeLightsModeHandler)
     
     // Schedule Evening mode advance if configured
     scheduleEveningAdvance()
@@ -234,6 +247,9 @@ def initialize() {
         subscribe(location, "sunsetTime", sunsetTimeHandler)
         subscribe(location, "sunriseTime", sunriseTimeHandler)
     }
+    
+    // Set office lights based on current mode
+    officeLightsModeHandler(null)
 }
 
 // ========================================
@@ -536,6 +552,34 @@ def executeDayModeLighting() {
         logInfo "*** Turned off ${floodLights.size()} flood light(s) for day mode ***"
     } else {
         logInfo "No flood lights configured to turn off"
+    }
+}
+
+// ========================================
+// OFFICE LIGHTS HANDLER
+// ========================================
+
+def officeLightsModeHandler(evt) {
+    if (!officeLights) {
+        logDebug "No office lights configured"
+        return
+    }
+    
+    String currentMode = evt ? evt.value : location.mode
+    logDebug "Office lights mode handler: current mode = ${currentMode}"
+    
+    // Check if current mode should turn lights ON
+    if (officeLightsOnModes && officeLightsOnModes.contains(currentMode)) {
+        logInfo "Turning ON office lights for ${currentMode} mode"
+        turnOnDevicesWithRetry(officeLights, "Office Lights")
+    }
+    // Check if current mode should turn lights OFF
+    else if (officeLightsOffModes && officeLightsOffModes.contains(currentMode)) {
+        logInfo "Turning OFF office lights for ${currentMode} mode"
+        turnOffDevicesWithRetry(officeLights, "Office Lights")
+    }
+    else {
+        logDebug "No office lights action for ${currentMode} mode"
     }
 }
 
