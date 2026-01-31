@@ -88,6 +88,32 @@ def mainPage() {
                   required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>HEAT LAMP CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
+            input "heatLampSwitch", "capability.switch",
+                  title: "Heat Lamp Switch",
+                  description: "Switch that controls the heat lamp",
+                  required: false
+            
+            input "heatLampEnabled", "capability.switch",
+                  title: "Heat Lamp Master Control Switch",
+                  description: "Master switch to enable/disable heat lamp cycling (ON = enabled)",
+                  required: false
+            
+            input "heatLampOnMinutes", "number",
+                  title: "Heat Lamp ON Duration (minutes)",
+                  description: "How long to keep heat lamp on during each cycle",
+                  defaultValue: 15,
+                  range: "1..60",
+                  required: false
+            
+            input "heatLampOffMinutes", "number",
+                  title: "Heat Lamp OFF Duration (minutes)",
+                  description: "How long to keep heat lamp off during each cycle",
+                  defaultValue: 15,
+                  range: "1..60",
+                  required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logEnable", "bool",
                   title: "Enable Debug Logging",
@@ -112,11 +138,31 @@ def updated() {
 def initialize() {
     logInfo "Initializing Freeze Alert Manager"
     
+    // Initialize heat lamp state
+    state.heatLampCycling = state.heatLampCycling ?: false
+    state.heatLampCurrentlyOn = state.heatLampCurrentlyOn ?: false
+    
     if (settings.tempSensor) {
         subscribe(settings.tempSensor, "temperature", tempHandler)
         logInfo "Subscribed to temperature sensor: ${settings.tempSensor.displayName}"
     } else {
         logWarn "No temperature sensor configured"
+    }
+    
+    // Subscribe to heat lamp master control switch
+    if (settings.heatLampEnabled) {
+        subscribe(settings.heatLampEnabled, "switch", heatLampEnabledHandler)
+        logInfo "Subscribed to heat lamp control switch: ${settings.heatLampEnabled.displayName}"
+        
+        // Check if we should start cycling on initialization (handles hub reboot)
+        if (settings.heatLampEnabled.currentValue("switch") == "on" && settings.tempSensor && settings.heatLampSwitch) {
+            def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
+            def threshold = settings.freezeThreshold ?: 32.0
+            if (currentTemp <= threshold && !state.heatLampCycling) {
+                logInfo "Initialization: Temperature ${currentTemp}°F <= ${threshold}°F and heat lamp enabled - starting cycling"
+                startHeatLampCycling()
+            }
+        }
     }
     
     logInfo "Monitoring for temperatures at or below ${settings.freezeThreshold ?: 32.0}°F"
@@ -131,6 +177,20 @@ def tempHandler(evt) {
     if (temp <= threshold) {
         logWarn "Temperature ${temp}°F at or below freeze threshold ${threshold}°F"
         sendFreezeAlert(temp)
+        
+        // Check if heat lamp should start cycling
+        if (settings.heatLampEnabled && settings.heatLampSwitch) {
+            if (settings.heatLampEnabled.currentValue("switch") == "on" && !state.heatLampCycling) {
+                logInfo "Temperature dropped to ${temp}°F - starting heat lamp cycling"
+                startHeatLampCycling()
+            }
+        }
+    } else {
+        // Temperature above threshold - stop heat lamp cycling if active
+        if (state.heatLampCycling) {
+            logInfo "Temperature rose to ${temp}°F (above ${threshold}°F) - stopping heat lamp cycling"
+            stopHeatLampCycling(false)  // false = don't send notification (temp-based stop)
+        }
     }
 }
 
@@ -159,6 +219,14 @@ def sendFreezeAlert(BigDecimal temp) {
     // Send to Echo devices
     def message = settings.alertMessage ?: "Freeze Warning"
     def volume = settings.echoVolume ?: 30
+    
+    // Add heat lamp warning if configured but not enabled
+    if (settings.heatLampSwitch && settings.heatLampEnabled) {
+        if (settings.heatLampEnabled.currentValue("switch") != "on") {
+            message = "${message}. Warning: Heat lamp is not enabled."
+            logWarn "Heat lamp is configured but not enabled during freeze condition"
+        }
+    }
     
     if (settings.echoDevices) {
         settings.echoDevices.each { device ->
@@ -196,9 +264,163 @@ def resetEchoVolumes() {
     }
 }
 
+// ═══════════════════════════════════════
+// HEAT LAMP CONTROL METHODS
+// ═══════════════════════════════════════
+
+def heatLampEnabledHandler(evt) {
+    logInfo "Heat lamp master switch changed to: ${evt.value}"
+    
+    if (evt.value == "on") {
+        // Send notification that heat lamp control is enabled
+        sendHeatLampNotification("Heat lamp control enabled")
+        
+        // Check if we should start cycling based on current temperature
+        if (settings.tempSensor && settings.heatLampSwitch) {
+            def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
+            def threshold = settings.freezeThreshold ?: 32.0
+            if (currentTemp <= threshold) {
+                logInfo "Heat lamp enabled and temperature ${currentTemp}°F <= ${threshold}°F - starting cycling"
+                startHeatLampCycling()
+            } else {
+                logInfo "Heat lamp enabled but temperature ${currentTemp}°F > ${threshold}°F - not cycling yet"
+            }
+        }
+    } else {
+        // Master switch turned off - stop cycling and notify
+        stopHeatLampCycling(true)  // true = send notification
+        sendHeatLampNotification("Heat lamp control disabled")
+    }
+}
+
+def startHeatLampCycling() {
+    if (state.heatLampCycling) {
+        logDebug "Heat lamp cycling already active - skipping start"
+        return
+    }
+    
+    if (!settings.heatLampSwitch) {
+        logWarn "No heat lamp switch configured - cannot start cycling"
+        return
+    }
+    
+    state.heatLampCycling = true
+    logInfo "Starting heat lamp cycling (${settings.heatLampOnMinutes ?: 15} min on / ${settings.heatLampOffMinutes ?: 15} min off)"
+    heatLampCycleOn()
+}
+
+def stopHeatLampCycling(Boolean sendNotification = false) {
+    if (!state.heatLampCycling && !state.heatLampCurrentlyOn) {
+        logDebug "Heat lamp cycling not active - skipping stop"
+        return
+    }
+    
+    // Unschedule any pending cycle operations
+    unschedule('heatLampCycleOn')
+    unschedule('heatLampCycleOff')
+    
+    // Turn off the heat lamp
+    if (settings.heatLampSwitch && state.heatLampCurrentlyOn) {
+        settings.heatLampSwitch.off()
+        logInfo "Heat lamp turned off"
+    }
+    
+    state.heatLampCycling = false
+    state.heatLampCurrentlyOn = false
+    logInfo "Heat lamp cycling stopped"
+}
+
+def heatLampCycleOn() {
+    // Guard checks
+    if (!state.heatLampCycling) {
+        logDebug "Heat lamp cycling disabled - not turning on"
+        return
+    }
+    
+    if (settings.heatLampEnabled?.currentValue("switch") != "on") {
+        logDebug "Heat lamp master switch is off - stopping cycle"
+        stopHeatLampCycling(false)
+        return
+    }
+    
+    // Re-check temperature before turning on
+    if (settings.tempSensor) {
+        def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
+        def threshold = settings.freezeThreshold ?: 32.0
+        if (currentTemp > threshold) {
+            logInfo "Temperature ${currentTemp}°F now above threshold - stopping cycling"
+            stopHeatLampCycling(false)
+            return
+        }
+    }
+    
+    // Turn on the heat lamp
+    if (settings.heatLampSwitch) {
+        settings.heatLampSwitch.on()
+        state.heatLampCurrentlyOn = true
+        def onMinutes = settings.heatLampOnMinutes ?: 15
+        logInfo "Heat lamp turned ON - will turn off in ${onMinutes} minutes"
+        
+        // Schedule turn off
+        runIn(onMinutes * 60, 'heatLampCycleOff')
+    }
+}
+
+def heatLampCycleOff() {
+    // Guard checks
+    if (!state.heatLampCycling) {
+        logDebug "Heat lamp cycling disabled - not scheduling next cycle"
+        if (settings.heatLampSwitch && state.heatLampCurrentlyOn) {
+            settings.heatLampSwitch.off()
+            state.heatLampCurrentlyOn = false
+        }
+        return
+    }
+    
+    if (settings.heatLampEnabled?.currentValue("switch") != "on") {
+        logDebug "Heat lamp master switch is off - stopping cycle"
+        stopHeatLampCycling(false)
+        return
+    }
+    
+    // Turn off the heat lamp
+    if (settings.heatLampSwitch) {
+        settings.heatLampSwitch.off()
+        state.heatLampCurrentlyOn = false
+        def offMinutes = settings.heatLampOffMinutes ?: 15
+        logInfo "Heat lamp turned OFF - will turn on in ${offMinutes} minutes"
+        
+        // Schedule turn on
+        runIn(offMinutes * 60, 'heatLampCycleOn')
+    }
+}
+
+def sendHeatLampNotification(String message) {
+    def volume = settings.echoVolume ?: 30
+    
+    if (settings.echoDevices) {
+        settings.echoDevices.each { device ->
+            logDebug "Sending heat lamp notification to ${device.displayName}: ${message}"
+            device.speak(message, volume)
+        }
+        logInfo "Heat lamp notification sent: ${message}"
+        
+        // Schedule volume reset
+        runIn(10, 'resetEchoVolumes')
+    }
+    
+    if (settings.notificationDevices) {
+        settings.notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+}
+
 def uninstalled() {
     logInfo "Freeze Alert Manager uninstalled"
     unschedule('resetEchoVolumes')
+    unschedule('heatLampCycleOn')
+    unschedule('heatLampCycleOff')
 }
 
 def logInfo(String msg) {

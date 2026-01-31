@@ -18,7 +18,7 @@ definition(
     name: "Lights Automation Manager",
     namespace: "hubitat",
     author: "Tim Brown",
-    description: "Comprehensive lighting automation managing mode-based schedules, night mode lights, motion-activated floods, desk lighting, color strips, and master controls. v1.2.0",
+    description: "Comprehensive lighting automation managing mode-based schedules, night mode lights, desk lighting, color strips, and master controls. Floods handle their own motion detection. v1.2.1",
     category: "Lighting",
     iconUrl: "",
     iconX2Url: "",
@@ -122,14 +122,7 @@ def mainPage() {
             input "floodOffice", "capability.switch", title: "Office Flood Light", required: false
             input "floodCarport", "capability.switch", title: "Carport Flood Light", required: false
             input "turnFloodsOn", "capability.switch", title: "Turn Floods On Switch (turns on all floods)", required: false
-        }
-        
-        section("<b>═══════════════════════════════════════</b>\n<b>FLOOD MOTION SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "rearFloodMotion", "capability.motionSensor", title: "Rear Flood Motion Sensor", required: false
-            input "sideFloodMotion", "capability.motionSensor", title: "Side Flood Motion Sensor", required: false
-            input "officeFloodMotion", "capability.motionSensor", title: "Office Flood Motion Sensor", required: false
-            paragraph ""
-            input "floodTimeout", "number", title: "Flood Light Motion Timeout (minutes)", defaultValue: 5, required: false
+            paragraph "<small><i>Note: Flood lights handle their own motion detection internally - this app does not turn floods on for motion</i></small>"
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MASTER LIGHT CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -222,10 +215,8 @@ def initialize() {
         subscribe(deskButton, "doubleTapped", deskButtonHandler)
     }
     
-    // Flood motion sensors
-    if (rearFloodMotion) subscribe(rearFloodMotion, "motion.active", rearFloodMotionHandler)
-    if (sideFloodMotion) subscribe(sideFloodMotion, "motion.active", sideFloodMotionHandler)
-    if (officeFloodMotion) subscribe(officeFloodMotion, "motion.active", officeFloodMotionHandler)
+    // Note: Flood motion sensors are NOT subscribed here because the flood lights
+    // handle their own motion detection internally
     
     // Cross-app communication
     if (emergencyLightTrigger) subscribe(emergencyLightTrigger, "switch.on", handleEmergencyLightTrigger)
@@ -743,54 +734,9 @@ def setStripColor(String color) {
 // FLOOD LIGHT HANDLERS
 // ========================================
 
-def rearFloodMotionHandler(evt) {
-    logInfo "Rear flood motion detected"
-    handleFloodMotion(floodRear, "Rear")
-}
-
-def sideFloodMotionHandler(evt) {
-    logInfo "Side flood motion detected"
-    handleFloodMotion(floodSide, "Side")
-}
-
-def officeFloodMotionHandler(evt) {
-    logInfo "Office flood motion detected"
-    handleFloodMotion(floodOffice, "Office")
-}
-
-def handleFloodMotion(floodLight, String location) {
-    if (!floodLight) {
-        logDebug "No flood light configured for ${location}"
-        return
-    }
-    
-    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
-    logInfo "Turning on ${location} flood light"
-    if (diagnostics) logDeviceStates([floodLight], "Flood-${location}")
-    turnOnDevicesWithRetry([floodLight], "Flood-${location}")
-    
-    // Schedule auto-off
-    Integer timeout = settings.floodTimeout as Integer
-    Integer timeoutSeconds = timeout * 60
-    
-    logDebug "${location} flood will turn off in ${timeout} minutes"
-    runIn(timeoutSeconds, "turnOffFlood${location}")
-}
-
-def turnOffFloodRear() {
-    logDebug "Auto-turning off rear flood"
-    if (floodRear) turnOffDevicesWithRetry([floodRear], "Flood-Rear")
-}
-
-def turnOffFloodSide() {
-    logDebug "Auto-turning off side flood"
-    if (floodSide) turnOffDevicesWithRetry([floodSide], "Flood-Side")
-}
-
-def turnOffFloodOffice() {
-    logDebug "Auto-turning off office flood"
-    if (floodOffice) turnOffDevicesWithRetry([floodOffice], "Flood-Office")
-}
+// Note: Flood motion handlers have been removed because the flood lights
+// handle their own motion detection internally. The app no longer turns
+// floods on due to motion - the floods do that themselves.
 
 def turnFloodsOnHandler(evt) {
     logInfo "Turn Floods On switch activated - turning on all flood lights at 100% brightness"
