@@ -112,6 +112,44 @@ def mainPage() {
                   defaultValue: 15,
                   range: "1..60",
                   required: false
+            
+            input "heatLampThreshold", "decimal",
+                  title: "Heat Lamp Trigger Temperature (°F)",
+                  description: "Start heat lamp cycling when temperature falls to or below this value",
+                  defaultValue: 32.0,
+                  required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>CHICKEN HEATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Temperature-based hysteresis control for chicken pen heater. Heater turns ON when temperature falls to or below the minimum threshold, and turns OFF when temperature rises to or above the maximum threshold."
+            
+            input "chickenTempSensor", "capability.temperatureMeasurement",
+                  title: "Chicken Pen Temperature Sensor",
+                  description: "Temperature sensor for chicken pen",
+                  required: false
+            
+            input "chickenHeaterSwitch", "capability.switch",
+                  title: "Chicken Heater Switch",
+                  description: "Switch that controls the chicken heater",
+                  required: false
+            
+            input "chickenHeaterModes", "mode",
+                  title: "Chicken Heater Active Modes",
+                  description: "Chicken heater will only operate when hub is in one of these modes",
+                  multiple: true,
+                  required: false
+            
+            input "chickenMinTemp", "decimal",
+                  title: "Heater ON Temperature (°F)",
+                  description: "Turn heater ON when temperature falls to or below this value",
+                  defaultValue: 46.0,
+                  required: false
+            
+            input "chickenMaxTemp", "decimal",
+                  title: "Heater OFF Temperature (°F)",
+                  description: "Turn heater OFF when temperature rises to or above this value",
+                  defaultValue: 48.0,
+                  required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -142,6 +180,10 @@ def initialize() {
     state.heatLampCycling = state.heatLampCycling ?: false
     state.heatLampCurrentlyOn = state.heatLampCurrentlyOn ?: false
     
+    // Initialize chicken heater announced state (tracks if we've announced the current state)
+    state.chickenHeaterAnnouncedOn = state.chickenHeaterAnnouncedOn ?: false
+    state.chickenHeaterAnnouncedOff = state.chickenHeaterAnnouncedOff ?: true
+    
     if (settings.tempSensor) {
         subscribe(settings.tempSensor, "temperature", tempHandler)
         logInfo "Subscribed to temperature sensor: ${settings.tempSensor.displayName}"
@@ -157,7 +199,7 @@ def initialize() {
         // Check if we should start cycling on initialization (handles hub reboot)
         if (settings.heatLampEnabled.currentValue("switch") == "on" && settings.tempSensor && settings.heatLampSwitch) {
             def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
-            def threshold = settings.freezeThreshold ?: 32.0
+            def threshold = settings.heatLampThreshold ?: 32.0
             if (currentTemp <= threshold && !state.heatLampCycling) {
                 logInfo "Initialization: Temperature ${currentTemp}°F <= ${threshold}°F and heat lamp enabled - starting cycling"
                 startHeatLampCycling()
@@ -165,20 +207,39 @@ def initialize() {
         }
     }
     
+    // Subscribe to chicken heater temperature sensor
+    if (settings.chickenTempSensor) {
+        subscribe(settings.chickenTempSensor, "temperature", chickenTempHandler)
+        logInfo "Subscribed to chicken pen sensor: ${settings.chickenTempSensor.displayName}"
+    }
+    
+    // Subscribe to mode changes for chicken heater control
+    if (settings.chickenHeaterModes) {
+        subscribe(location, "mode", chickenHeaterModeHandler)
+        logInfo "Subscribed to mode changes for chicken heater (active modes: ${settings.chickenHeaterModes})"
+    }
+    
+    // Check chicken heater state on startup
+    checkChickenHeaterOnStartup()
+    
     logInfo "Monitoring for temperatures at or below ${settings.freezeThreshold ?: 32.0}°F"
 }
 
 def tempHandler(evt) {
     def temp = evt.value as BigDecimal
-    def threshold = settings.freezeThreshold ?: 32.0
+    def freezeThreshold = settings.freezeThreshold ?: 32.0
+    def heatLampThreshold = settings.heatLampThreshold ?: 32.0
     
-    logDebug "Temperature event: ${temp}°F (threshold: ${threshold}°F)"
+    logDebug "Temperature event: ${temp}°F (freeze alert: ${freezeThreshold}°F, heat lamp: ${heatLampThreshold}°F)"
     
-    if (temp <= threshold) {
-        logWarn "Temperature ${temp}°F at or below freeze threshold ${threshold}°F"
+    // Check freeze alert threshold
+    if (temp <= freezeThreshold) {
+        logWarn "Temperature ${temp}°F at or below freeze threshold ${freezeThreshold}°F"
         sendFreezeAlert(temp)
-        
-        // Check if heat lamp should start cycling
+    }
+    
+    // Check heat lamp threshold (separate from freeze alert)
+    if (temp <= heatLampThreshold) {
         if (settings.heatLampEnabled && settings.heatLampSwitch) {
             if (settings.heatLampEnabled.currentValue("switch") == "on" && !state.heatLampCycling) {
                 logInfo "Temperature dropped to ${temp}°F - starting heat lamp cycling"
@@ -186,9 +247,9 @@ def tempHandler(evt) {
             }
         }
     } else {
-        // Temperature above threshold - stop heat lamp cycling if active
+        // Temperature above heat lamp threshold - stop heat lamp cycling if active
         if (state.heatLampCycling) {
-            logInfo "Temperature rose to ${temp}°F (above ${threshold}°F) - stopping heat lamp cycling"
+            logInfo "Temperature rose to ${temp}°F (above ${heatLampThreshold}°F) - stopping heat lamp cycling"
             stopHeatLampCycling(false)  // false = don't send notification (temp-based stop)
         }
     }
@@ -346,7 +407,7 @@ def heatLampCycleOn() {
     // Re-check temperature before turning on
     if (settings.tempSensor) {
         def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
-        def threshold = settings.freezeThreshold ?: 32.0
+        def threshold = settings.heatLampThreshold ?: 32.0
         if (currentTemp > threshold) {
             logInfo "Temperature ${currentTemp}°F now above threshold - stopping cycling"
             stopHeatLampCycling(false)
@@ -398,12 +459,159 @@ def heatLampCycleOff() {
 def sendHeatLampNotification(String message) {
     def volume = settings.echoVolume ?: 30
     
+    // Check if notifications are enabled via switch
+    if (settings.notificationSwitch && settings.notificationSwitch.currentValue("switch") != "on") {
+        logDebug "Notification switch is off - skipping heat lamp notification"
+        return
+    }
+    
     if (settings.echoDevices) {
         settings.echoDevices.each { device ->
             logDebug "Sending heat lamp notification to ${device.displayName}: ${message}"
             device.speak(message, volume)
         }
         logInfo "Heat lamp notification sent: ${message}"
+        
+        // Schedule volume reset
+        runIn(10, 'resetEchoVolumes')
+    }
+    
+    if (settings.notificationDevices) {
+        settings.notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+}
+
+// ═══════════════════════════════════════
+// CHICKEN HEATER CONTROL METHODS
+// ═══════════════════════════════════════
+
+def chickenTempHandler(evt) {
+    def temp = evt.value as BigDecimal
+    def minTemp = settings.chickenMinTemp ?: 46.0
+    def maxTemp = settings.chickenMaxTemp ?: 48.0
+    
+    logDebug "Chicken pen temperature: ${temp}°F (ON <= ${minTemp}°F, OFF >= ${maxTemp}°F)"
+    
+    if (!settings.chickenHeaterSwitch) {
+        logDebug "No chicken heater switch configured - skipping"
+        return
+    }
+    
+    // Check if current mode allows chicken heater operation
+    if (!isChickenHeaterModeActive()) {
+        logDebug "Chicken heater not active in current mode (${location.mode}) - skipping"
+        return
+    }
+    
+    def currentState = settings.chickenHeaterSwitch.currentValue("switch")
+    
+    // Hysteresis control logic
+    if (temp <= minTemp && currentState != "on") {
+        logInfo "Chicken pen temperature ${temp}°F <= ${minTemp}°F - turning heater ON"
+        settings.chickenHeaterSwitch.on()
+        if (!state.chickenHeaterAnnouncedOn) {
+            sendChickenHeaterNotification("Chicken heater turned ON. Temperature: ${temp}°F")
+            state.chickenHeaterAnnouncedOn = true
+            state.chickenHeaterAnnouncedOff = false
+        }
+    } else if (temp >= maxTemp && currentState == "on") {
+        logInfo "Chicken pen temperature ${temp}°F >= ${maxTemp}°F - turning heater OFF"
+        settings.chickenHeaterSwitch.off()
+        if (!state.chickenHeaterAnnouncedOff) {
+            sendChickenHeaterNotification("Chicken heater turned OFF. Temperature: ${temp}°F")
+            state.chickenHeaterAnnouncedOff = true
+            state.chickenHeaterAnnouncedOn = false
+        }
+    }
+}
+
+def chickenHeaterModeHandler(evt) {
+    logInfo "Mode changed to: ${evt.value}"
+    
+    if (isChickenHeaterModeActive()) {
+        logInfo "Chicken heater active in mode: ${evt.value}"
+        // Check current temperature and set heater state
+        checkChickenHeaterOnStartup()
+    } else {
+        // Mode not in allowed list - turn off heater
+        if (settings.chickenHeaterSwitch && settings.chickenHeaterSwitch.currentValue("switch") == "on") {
+            settings.chickenHeaterSwitch.off()
+            logInfo "Chicken heater turned OFF (mode ${evt.value} not in active modes)"
+            if (!state.chickenHeaterAnnouncedOff) {
+                sendChickenHeaterNotification("Chicken heater turned OFF. Mode changed to ${evt.value}")
+                state.chickenHeaterAnnouncedOff = true
+                state.chickenHeaterAnnouncedOn = false
+            }
+        }
+    }
+}
+
+def isChickenHeaterModeActive() {
+    // If no modes configured, chicken heater is always active
+    if (!settings.chickenHeaterModes) {
+        return true
+    }
+    return settings.chickenHeaterModes.contains(location.mode)
+}
+
+def checkChickenHeaterOnStartup() {
+    if (!settings.chickenTempSensor || !settings.chickenHeaterSwitch) {
+        logDebug "Chicken heater not fully configured - skipping startup check"
+        return
+    }
+    
+    // Check if current mode allows chicken heater operation
+    if (!isChickenHeaterModeActive()) {
+        logDebug "Chicken heater not active in current mode (${location.mode}) - skipping startup check"
+        return
+    }
+    
+    def currentTemp = settings.chickenTempSensor.currentValue("temperature") as BigDecimal
+    def minTemp = settings.chickenMinTemp ?: 46.0
+    def maxTemp = settings.chickenMaxTemp ?: 48.0
+    def currentState = settings.chickenHeaterSwitch.currentValue("switch")
+    
+    logInfo "Chicken heater startup check: Temperature ${currentTemp}°F, Heater ${currentState}"
+    
+    // Apply hysteresis logic on startup
+    if (currentTemp <= minTemp && currentState != "on") {
+        logInfo "Startup: Chicken pen temperature ${currentTemp}°F <= ${minTemp}°F - turning heater ON"
+        settings.chickenHeaterSwitch.on()
+        if (!state.chickenHeaterAnnouncedOn) {
+            sendChickenHeaterNotification("Chicken heater turned ON. Temperature: ${currentTemp}°F")
+            state.chickenHeaterAnnouncedOn = true
+            state.chickenHeaterAnnouncedOff = false
+        }
+    } else if (currentTemp >= maxTemp && currentState == "on") {
+        logInfo "Startup: Chicken pen temperature ${currentTemp}°F >= ${maxTemp}°F - turning heater OFF"
+        settings.chickenHeaterSwitch.off()
+        if (!state.chickenHeaterAnnouncedOff) {
+            sendChickenHeaterNotification("Chicken heater turned OFF. Temperature: ${currentTemp}°F")
+            state.chickenHeaterAnnouncedOff = true
+            state.chickenHeaterAnnouncedOn = false
+        }
+    } else {
+        logDebug "Startup: Chicken heater state OK (temp: ${currentTemp}°F, heater: ${currentState})"
+    }
+}
+
+def sendChickenHeaterNotification(String message) {
+    def volume = settings.echoVolume ?: 30
+    
+    // Check if notifications are enabled via switch
+    if (settings.notificationSwitch && settings.notificationSwitch.currentValue("switch") != "on") {
+        logDebug "Notification switch is off - skipping chicken heater notification"
+        return
+    }
+    
+    if (settings.echoDevices) {
+        settings.echoDevices.each { device ->
+            logDebug "Sending chicken heater notification to ${device.displayName}: ${message}"
+            device.speak(message, volume)
+        }
+        logInfo "Chicken heater notification sent: ${message}"
         
         // Schedule volume reset
         runIn(10, 'resetEchoVolumes')
