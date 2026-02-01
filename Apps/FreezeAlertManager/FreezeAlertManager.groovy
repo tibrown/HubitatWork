@@ -176,9 +176,9 @@ def updated() {
 def initialize() {
     logInfo "Initializing Freeze Alert Manager"
     
-    // Initialize heat lamp state
-    state.heatLampCycling = state.heatLampCycling ?: false
-    state.heatLampCurrentlyOn = state.heatLampCurrentlyOn ?: false
+    // Initialize heat lamp state (reset on re-initialization since schedules are cleared by updated())
+    state.heatLampCycling = false
+    state.heatLampCurrentlyOn = false
     
     // Initialize chicken heater announced state (tracks if we've announced the current state)
     state.chickenHeaterAnnouncedOn = state.chickenHeaterAnnouncedOn ?: false
@@ -339,7 +339,7 @@ def heatLampEnabledHandler(evt) {
         // Check if we should start cycling based on current temperature
         if (settings.tempSensor && settings.heatLampSwitch) {
             def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
-            def threshold = settings.freezeThreshold ?: 32.0
+            def threshold = settings.heatLampThreshold ?: 32.0
             if (currentTemp <= threshold) {
                 logInfo "Heat lamp enabled and temperature ${currentTemp}°F <= ${threshold}°F - starting cycling"
                 startHeatLampCycling()
