@@ -99,6 +99,22 @@ These hub variables override default app settings and provide flexible configura
 | `OfficeHeaterTemp` | Decimal | 68.0 | Office heater temperature (°F) |
 | `WaterTimeout` | Number | 30 | Water shutoff timeout (minutes) |
 
+### NWS Weather Integration
+| Variable Name | Type | Default | Purpose |
+|--------------|------|---------|---------|
+| `NWSPrimaryStation` | String | KLEE | Primary NWS observation station (Leesburg International Airport) |
+| `NWSFallbackStation` | String | KSFB | Fallback NWS station if primary fails (Orlando/Sanford Airport) |
+| `NWSTemperatureStaleMins` | Number | 45 | Mark NWS data as stale after this many minutes |
+| `UseNWSBackup` | Boolean | true | Enable/disable NWS temperature backup feature |
+
+> **Note:** NWS Weather Integration is used by FreezeAlertManager and EnvironmentalControlManager to provide backup temperature readings. When enabled, apps use the **lower** of the local sensor or NWS temperature for freeze-related decisions, compensating for sensors that read high due to solar heating.
+>
+> **NWS Station IDs for Central Florida (Umatilla area):**
+> - `KLEE` - Leesburg International Airport (~11 miles from Umatilla)
+> - `KSFB` - Orlando/Sanford Airport (~28 miles)
+> - `KDED` - DeLand Municipal Airport (~26 miles)
+> - `KORL` - Orlando Executive Airport (~33 miles)
+
 ### DoorWindowMonitor
 | Variable Name | Type | Default | Purpose |
 |--------------|------|---------|---------|

@@ -33,8 +33,10 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Freeze Alert Manager", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>TEMPERATURE MONITORING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "tempSensor", "capability.temperatureMeasurement",
-                  title: "Temperature Sensor",
+            input "tempSensors", "capability.temperatureMeasurement",
+                  title: "Temperature Sensors",
+                  description: "Select one or more local temperature sensors (most recent reading will be used)",
+                  multiple: true,
                   required: true
             
             input "freezeThreshold", "decimal",
@@ -121,12 +123,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>CHICKEN HEATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "Temperature-based hysteresis control for chicken pen heater. Heater turns ON when temperature falls to or below the minimum threshold, and turns OFF when temperature rises to or above the maximum threshold."
-            
-            input "chickenTempSensor", "capability.temperatureMeasurement",
-                  title: "Chicken Pen Temperature Sensor",
-                  description: "Temperature sensor for chicken pen",
-                  required: false
+            paragraph "Temperature-based hysteresis control for chicken pen heater. Uses the same temperature sensors configured above. Heater turns ON when temperature falls to or below the minimum threshold, and turns OFF when temperature rises to or above the maximum threshold."
             
             input "chickenHeaterSwitch", "capability.switch",
                   title: "Chicken Heater Switch",
@@ -149,6 +146,30 @@ def mainPage() {
                   title: "Heater OFF Temperature (°F)",
                   description: "Turn heater OFF when temperature rises to or above this value",
                   defaultValue: 48.0,
+                  required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>NWS WEATHER BACKUP</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Optionally configure a NWS Weather device to provide backup temperature readings. " +
+                     "When configured, the app will use the <b>lower</b> of your local sensor or NWS temperature " +
+                     "for all threshold decisions. This helps compensate for sensors that read high due to solar heating."
+            
+            input "nwsTempDevice", "capability.temperatureMeasurement",
+                  title: "NWS Weather Device (Optional)",
+                  description: "Select the NWS Weather Driver device for backup temperature",
+                  required: false
+            
+            input "nwsStaleMinutes", "number",
+                  title: "NWS Data Staleness Threshold (minutes)",
+                  description: "Ignore NWS data older than this (default: 45 minutes)",
+                  defaultValue: 45,
+                  range: "15..120",
+                  required: false
+            
+            input "localPreferenceMinutes", "number",
+                  title: "Local Sensor Preference Time (minutes)",
+                  description: "Always prefer local sensor if reading is this fresh (default: 5 minutes)",
+                  defaultValue: 5,
                   required: false
         }
         
@@ -184,11 +205,14 @@ def initialize() {
     state.chickenHeaterAnnouncedOn = state.chickenHeaterAnnouncedOn ?: false
     state.chickenHeaterAnnouncedOff = state.chickenHeaterAnnouncedOff ?: true
     
-    if (settings.tempSensor) {
-        subscribe(settings.tempSensor, "temperature", tempHandler)
-        logInfo "Subscribed to temperature sensor: ${settings.tempSensor.displayName}"
+    if (settings.tempSensors) {
+        settings.tempSensors.each { sensor ->
+            subscribe(sensor, "temperature", tempHandler)
+        }
+        def sensorNames = settings.tempSensors.collect { it.displayName }.join(", ")
+        logInfo "Subscribed to ${settings.tempSensors.size()} temperature sensor(s): ${sensorNames}"
     } else {
-        logWarn "No temperature sensor configured"
+        logWarn "No temperature sensors configured"
     }
     
     // Subscribe to heat lamp master control switch
@@ -197,20 +221,25 @@ def initialize() {
         logInfo "Subscribed to heat lamp control switch: ${settings.heatLampEnabled.displayName}"
         
         // Check if we should start cycling on initialization (handles hub reboot)
-        if (settings.heatLampEnabled.currentValue("switch") == "on" && settings.tempSensor && settings.heatLampSwitch) {
-            def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
+        if (settings.heatLampEnabled.currentValue("switch") == "on" && settings.tempSensors && settings.heatLampSwitch) {
+            def currentTemp = getEffectiveTemperature()
             def threshold = settings.heatLampThreshold ?: 32.0
-            if (currentTemp <= threshold && !state.heatLampCycling) {
-                logInfo "Initialization: Temperature ${currentTemp}°F <= ${threshold}°F and heat lamp enabled - starting cycling"
+            if (currentTemp != null && currentTemp <= threshold && !state.heatLampCycling) {
+                logInfo "Initialization: Effective temperature ${currentTemp}°F <= ${threshold}°F and heat lamp enabled - starting cycling"
                 startHeatLampCycling()
             }
         }
     }
     
-    // Subscribe to chicken heater temperature sensor
-    if (settings.chickenTempSensor) {
-        subscribe(settings.chickenTempSensor, "temperature", chickenTempHandler)
-        logInfo "Subscribed to chicken pen sensor: ${settings.chickenTempSensor.displayName}"
+    // Log NWS weather device configuration
+    if (settings.nwsTempDevice) {
+        logInfo "NWS Weather Device configured: ${settings.nwsTempDevice.displayName}"
+        def nwsTemp = settings.nwsTempDevice.currentValue("temperature")
+        if (nwsTemp != null) {
+            logInfo "Current NWS temperature: ${nwsTemp}°F"
+        }
+    } else {
+        logDebug "No NWS Weather Device configured - using local sensor only"
     }
     
     // Subscribe to mode changes for chicken heater control
@@ -226,15 +255,21 @@ def initialize() {
 }
 
 def tempHandler(evt) {
-    def temp = evt.value as BigDecimal
     def freezeThreshold = settings.freezeThreshold ?: 32.0
     def heatLampThreshold = settings.heatLampThreshold ?: 32.0
     
-    logDebug "Temperature event: ${temp}°F (freeze alert: ${freezeThreshold}°F, heat lamp: ${heatLampThreshold}°F)"
+    // Get effective temperature (best local sensor vs NWS)
+    def temp = getEffectiveTemperature()
+    if (temp == null) {
+        logWarn "Unable to get effective temperature - skipping"
+        return
+    }
+    
+    logDebug "Temperature event from ${evt.displayName}: ${evt.value}°F, Effective=${temp}°F (freeze alert: ${freezeThreshold}°F, heat lamp: ${heatLampThreshold}°F)"
     
     // Check freeze alert threshold
     if (temp <= freezeThreshold) {
-        logWarn "Temperature ${temp}°F at or below freeze threshold ${freezeThreshold}°F"
+        logWarn "Effective temperature ${temp}°F at or below freeze threshold ${freezeThreshold}°F"
         sendFreezeAlert(temp)
     }
     
@@ -253,6 +288,9 @@ def tempHandler(evt) {
             stopHeatLampCycling(false)  // false = don't send notification (temp-based stop)
         }
     }
+    
+    // Check chicken heater thresholds
+    checkChickenHeater(temp)
 }
 
 def sendFreezeAlert(BigDecimal temp) {
@@ -337,13 +375,13 @@ def heatLampEnabledHandler(evt) {
         sendHeatLampNotification("Heat lamp control enabled")
         
         // Check if we should start cycling based on current temperature
-        if (settings.tempSensor && settings.heatLampSwitch) {
-            def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
+        if (settings.tempSensors && settings.heatLampSwitch) {
+            def currentTemp = getEffectiveTemperature()
             def threshold = settings.heatLampThreshold ?: 32.0
-            if (currentTemp <= threshold) {
+            if (currentTemp != null && currentTemp <= threshold) {
                 logInfo "Heat lamp enabled and temperature ${currentTemp}°F <= ${threshold}°F - starting cycling"
                 startHeatLampCycling()
-            } else {
+            } else if (currentTemp != null) {
                 logInfo "Heat lamp enabled but temperature ${currentTemp}°F > ${threshold}°F - not cycling yet"
             }
         }
@@ -404,12 +442,12 @@ def heatLampCycleOn() {
         return
     }
     
-    // Re-check temperature before turning on
-    if (settings.tempSensor) {
-        def currentTemp = settings.tempSensor.currentValue("temperature") as BigDecimal
+    // Re-check temperature before turning on (using effective temperature)
+    if (settings.tempSensors) {
+        def currentTemp = getEffectiveTemperature()
         def threshold = settings.heatLampThreshold ?: 32.0
-        if (currentTemp > threshold) {
-            logInfo "Temperature ${currentTemp}°F now above threshold - stopping cycling"
+        if (currentTemp != null && currentTemp > threshold) {
+            logInfo "Effective temperature ${currentTemp}°F now above threshold - stopping cycling"
             stopHeatLampCycling(false)
             return
         }
@@ -487,15 +525,11 @@ def sendHeatLampNotification(String message) {
 // CHICKEN HEATER CONTROL METHODS
 // ═══════════════════════════════════════
 
-def chickenTempHandler(evt) {
-    def temp = evt.value as BigDecimal
+def checkChickenHeater(BigDecimal temp) {
     def minTemp = settings.chickenMinTemp ?: 46.0
     def maxTemp = settings.chickenMaxTemp ?: 48.0
     
-    logDebug "Chicken pen temperature: ${temp}°F (ON <= ${minTemp}°F, OFF >= ${maxTemp}°F)"
-    
     if (!settings.chickenHeaterSwitch) {
-        logDebug "No chicken heater switch configured - skipping"
         return
     }
     
@@ -509,7 +543,7 @@ def chickenTempHandler(evt) {
     
     // Hysteresis control logic
     if (temp <= minTemp && currentState != "on") {
-        logInfo "Chicken pen temperature ${temp}°F <= ${minTemp}°F - turning heater ON"
+        logInfo "Temperature ${temp}°F <= ${minTemp}°F - turning chicken heater ON"
         settings.chickenHeaterSwitch.on()
         if (!state.chickenHeaterAnnouncedOn) {
             sendChickenHeaterNotification("Chicken heater turned ON. Temperature: ${temp}°F")
@@ -517,7 +551,7 @@ def chickenTempHandler(evt) {
             state.chickenHeaterAnnouncedOff = false
         }
     } else if (temp >= maxTemp && currentState == "on") {
-        logInfo "Chicken pen temperature ${temp}°F >= ${maxTemp}°F - turning heater OFF"
+        logInfo "Temperature ${temp}°F >= ${maxTemp}°F - turning chicken heater OFF"
         settings.chickenHeaterSwitch.off()
         if (!state.chickenHeaterAnnouncedOff) {
             sendChickenHeaterNotification("Chicken heater turned OFF. Temperature: ${temp}°F")
@@ -557,7 +591,7 @@ def isChickenHeaterModeActive() {
 }
 
 def checkChickenHeaterOnStartup() {
-    if (!settings.chickenTempSensor || !settings.chickenHeaterSwitch) {
+    if (!settings.tempSensors || !settings.chickenHeaterSwitch) {
         logDebug "Chicken heater not fully configured - skipping startup check"
         return
     }
@@ -568,16 +602,21 @@ def checkChickenHeaterOnStartup() {
         return
     }
     
-    def currentTemp = settings.chickenTempSensor.currentValue("temperature") as BigDecimal
+    def currentTemp = getEffectiveTemperature()
+    if (currentTemp == null) {
+        logDebug "Unable to get temperature - skipping chicken heater startup check"
+        return
+    }
+    
     def minTemp = settings.chickenMinTemp ?: 46.0
     def maxTemp = settings.chickenMaxTemp ?: 48.0
     def currentState = settings.chickenHeaterSwitch.currentValue("switch")
     
-    logInfo "Chicken heater startup check: Temperature ${currentTemp}°F, Heater ${currentState}"
+    logInfo "Chicken heater startup check: Effective=${currentTemp}°F, Heater ${currentState}"
     
     // Apply hysteresis logic on startup
     if (currentTemp <= minTemp && currentState != "on") {
-        logInfo "Startup: Chicken pen temperature ${currentTemp}°F <= ${minTemp}°F - turning heater ON"
+        logInfo "Startup: Temperature ${currentTemp}°F <= ${minTemp}°F - turning chicken heater ON"
         settings.chickenHeaterSwitch.on()
         if (!state.chickenHeaterAnnouncedOn) {
             sendChickenHeaterNotification("Chicken heater turned ON. Temperature: ${currentTemp}°F")
@@ -585,7 +624,7 @@ def checkChickenHeaterOnStartup() {
             state.chickenHeaterAnnouncedOff = false
         }
     } else if (currentTemp >= maxTemp && currentState == "on") {
-        logInfo "Startup: Chicken pen temperature ${currentTemp}°F >= ${maxTemp}°F - turning heater OFF"
+        logInfo "Startup: Temperature ${currentTemp}°F >= ${maxTemp}°F - turning chicken heater OFF"
         settings.chickenHeaterSwitch.off()
         if (!state.chickenHeaterAnnouncedOff) {
             sendChickenHeaterNotification("Chicken heater turned OFF. Temperature: ${currentTemp}°F")
@@ -630,6 +669,142 @@ def uninstalled() {
     unschedule('heatLampCycleOn')
     unschedule('heatLampCycleOff')
 }
+
+// ═══════════════════════════════════════
+// NWS TEMPERATURE HELPER METHODS
+// ═══════════════════════════════════════
+
+/**
+ * Get the most recent temperature reading from configured local sensors.
+ * @return Map with keys: temp, ageMinutes, sensorName; or null if no readings
+ */
+def getMostRecentLocalReading() {
+    if (!settings.tempSensors) {
+        return null
+    }
+    
+    def bestReading = null
+    def bestAge = 999999
+    
+    settings.tempSensors.each { sensor ->
+        def state = sensor.currentState("temperature")
+        if (state) {
+            def ageMinutes = (now() - state.date.time) / 60000
+            if (ageMinutes < bestAge) {
+                bestAge = ageMinutes
+                bestReading = [
+                    temp: state.value as BigDecimal,
+                    ageMinutes: ageMinutes,
+                    sensorName: sensor.displayName
+                ]
+            }
+        }
+    }
+    
+    return bestReading
+}
+
+/**
+ * Get the effective temperature for threshold decisions.
+ * First selects the most recent reading from local sensors,
+ * then compares to NWS if local reading is older than preference threshold.
+ *
+ * @return The effective temperature to use for decisions, or null if unavailable
+ */
+def getEffectiveTemperature() {
+    // Get most recent reading from local sensors
+    def bestLocal = getMostRecentLocalReading()
+    if (bestLocal == null) {
+        logWarn "No local temperature readings available"
+        return null
+    }
+    
+    def localTemp = bestLocal.temp
+    def localAgeMinutes = bestLocal.ageMinutes
+    def localSensorName = bestLocal.sensorName
+    
+    // If no NWS device configured, just use local
+    if (!settings.nwsTempDevice) {
+        logDebug "Using local temperature ${localTemp}°F from ${localSensorName} (${localAgeMinutes.toInteger()} min old)"
+        return localTemp
+    }
+    
+    try {
+        // Prefer local sensor if reading is within configured preference time
+        def localPreferenceMinutes = settings.localPreferenceMinutes ?: 5
+        if (localAgeMinutes <= localPreferenceMinutes) {
+            logDebug "Using local temperature ${localTemp}°F from ${localSensorName} (${localAgeMinutes.toInteger()} min old, within ${localPreferenceMinutes} min preference)"
+            return localTemp
+        }
+        
+        // Check if NWS data is stale
+        if (isNwsDataStale()) {
+            logDebug "NWS data is stale - using local sensor ${localSensorName} (${localAgeMinutes.toInteger()} min old)"
+            return localTemp
+        }
+        
+        // Get NWS temperature
+        def nwsTemp = settings.nwsTempDevice.currentValue("temperature")
+        if (nwsTemp == null) {
+            logDebug "NWS temperature unavailable - using local sensor only"
+            return localTemp
+        }
+        
+        nwsTemp = nwsTemp as BigDecimal
+        logDebug "Local reading older than preference (${localAgeMinutes.toInteger()} min) - using NWS temperature ${nwsTemp}°F"
+        return nwsTemp
+        
+    } catch (Exception e) {
+        logWarn "Error getting NWS temperature: ${e.message} - using local sensor"
+        return localTemp
+    }
+}
+
+/**
+ * Check if the NWS weather data is stale (older than threshold)
+ * @return true if data is stale or unavailable, false if fresh
+ */
+def isNwsDataStale() {
+    if (!settings.nwsTempDevice) {
+        return true
+    }
+    
+    try {
+        // First check the dataStale attribute if available
+        def dataStale = settings.nwsTempDevice.currentValue("dataStale")
+        if (dataStale == "true") {
+            return true
+        }
+        
+        // Also check lastUpdate timestamp
+        def lastUpdate = settings.nwsTempDevice.currentValue("lastUpdate")
+        if (!lastUpdate) {
+            logDebug "No lastUpdate attribute from NWS device"
+            return true
+        }
+        
+        // Parse the ISO timestamp
+        def lastUpdateDate = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", lastUpdate.toString())
+        def staleMinutes = settings.nwsStaleMinutes ?: 45
+        def staleMs = staleMinutes * 60 * 1000
+        def age = now() - lastUpdateDate.time
+        
+        if (age > staleMs) {
+            logDebug "NWS data is ${(age / 60000).round(1)} minutes old (threshold: ${staleMinutes} minutes)"
+            return true
+        }
+        
+        return false
+        
+    } catch (Exception e) {
+        logWarn "Error checking NWS data staleness: ${e.message}"
+        return true
+    }
+}
+
+// ═══════════════════════════════════════
+// LOGGING METHODS
+// ═══════════════════════════════════════
 
 def logInfo(String msg) {
     log.info "[Freeze Alert Manager] ${msg}"

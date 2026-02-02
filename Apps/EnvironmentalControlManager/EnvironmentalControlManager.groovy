@@ -33,8 +33,16 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Environmental Control Manager", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>GREENHOUSE CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "greenhouseTempSensor", "capability.temperatureMeasurement",
-                  title: "Greenhouse Temperature Sensor",
+            input "greenhouseEnabled", "bool",
+                  title: "Enable Greenhouse Controls",
+                  description: "Enable or disable all greenhouse automation",
+                  defaultValue: false,
+                  required: false
+            
+            input "greenhouseTempSensors", "capability.temperatureMeasurement",
+                  title: "Greenhouse Temperature Sensors",
+                  description: "Select one or more sensors (most recent reading will be used)",
+                  multiple: true,
                   required: false
             
             input "greenhouseFan", "capability.switch",
@@ -74,14 +82,15 @@ def mainPage() {
                   description: "Send alert when temperature falls below this",
                   defaultValue: 32.0,
                   required: false
-            
-            input "greenhouseAlexaToggle", "capability.switch",
-                  title: "Alexa Toggle Switch for Greenhouse (Optional)",
-                  description: "Virtual switch for Alexa voice control",
-                  required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>OFFICE CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "officeEnabled", "bool",
+                  title: "Enable Office Controls",
+                  description: "Enable or disable all office automation",
+                  defaultValue: false,
+                  required: false
+            
             input "officeTempSensor", "capability.temperatureMeasurement",
                   title: "Office Temperature Sensor",
                   required: false
@@ -106,6 +115,12 @@ def mainPage() {
             input "skeeterKiller", "capability.switch",
                   title: "Mosquito Killer Devices",
                   multiple: true,
+                  required: false
+            
+            input "skeeterTempThreshold", "decimal",
+                  title: "Minimum Temperature for Skeeter (°F)",
+                  description: "Do not run skeeter when temperature is at or below this value",
+                  defaultValue: 50.0,
                   required: false
             
             input "skeeterOnModes", "mode",
@@ -176,6 +191,31 @@ def mainPage() {
                   required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>NWS WEATHER BACKUP</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Optionally configure a NWS Weather device to provide backup temperature readings. " +
+                     "When configured, the app will use the <b>lower</b> of your local sensor or NWS temperature " +
+                     "for freeze-related decisions. This helps compensate for sensors that read high due to solar heating."
+            
+            input "nwsTempDevice", "capability.temperatureMeasurement",
+                  title: "NWS Weather Device (Optional)",
+                  description: "Select the NWS Weather Driver device for backup temperature",
+                  required: false
+            
+            input "nwsStaleMinutes", "number",
+                  title: "NWS Data Staleness Threshold (minutes)",
+                  description: "Ignore NWS data older than this (default: 45 minutes)",
+                  defaultValue: 45,
+                  range: "15..120",
+                  required: false
+            
+            input "localPreferenceMinutes", "number",
+                  title: "Local Sensor Preference (minutes)",
+                  description: "Prefer local sensor readings within this age over NWS (default: 5 minutes)",
+                  defaultValue: 5,
+                  range: "1..30",
+                  required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "This app supports the following hub variables for dynamic configuration:"
             paragraph "• <b>GreenhouseFanOnTemp</b> - Override fan on temperature (°F)\n" +
@@ -211,17 +251,20 @@ def updated() {
 def initialize() {
     logInfo "Initializing Environmental Control Manager"
     
-    // Subscribe to temperature sensors
-    if (settings.greenhouseTempSensor) {
-        subscribe(settings.greenhouseTempSensor, "temperature", greenhouseTempHandler)
-    }
-    if (settings.officeTempSensor) {
-        subscribe(settings.officeTempSensor, "temperature", officeTempHandler)
+    // Subscribe to greenhouse temperature sensors (if enabled)
+    if (settings.greenhouseEnabled && settings.greenhouseTempSensors) {
+        settings.greenhouseTempSensors.each { sensor ->
+            subscribe(sensor, "temperature", greenhouseTempHandler)
+            // Also monitor greenhouse temp for skeeter control
+            if (settings.skeeterKiller) {
+                subscribe(sensor, "temperature", skeeterTempHandler)
+            }
+        }
     }
     
-    // Subscribe to Alexa toggle for greenhouse
-    if (settings.greenhouseAlexaToggle) {
-        subscribe(settings.greenhouseAlexaToggle, "switch", greenhouseAlexaHandler)
+    // Subscribe to office temperature sensor (if enabled)
+    if (settings.officeEnabled && settings.officeTempSensor) {
+        subscribe(settings.officeTempSensor, "temperature", officeTempHandler)
     }
     
     // Subscribe to water valve to track manual operations
@@ -261,8 +304,14 @@ def initialize() {
 // ============================================================================
 
 def greenhouseTempHandler(evt) {
-    def temp = evt.value as BigDecimal
-    logDebug "Greenhouse temperature: ${temp}°F"
+    if (!settings.greenhouseEnabled) return
+    
+    // Get the most recent reading from all configured sensors
+    def reading = getMostRecentGreenhouseReading()
+    if (!reading) return
+    
+    def temp = reading.temp
+    logDebug "Greenhouse temperature: ${temp}°F from ${reading.sensorName} (${reading.ageMinutes.toInteger()} min old)"
     
     controlGreenhouseFan(temp)
     controlGreenhouseHeater(temp)
@@ -270,27 +319,31 @@ def greenhouseTempHandler(evt) {
 }
 
 def officeTempHandler(evt) {
+    if (!settings.officeEnabled) return
+    
     def temp = evt.value as BigDecimal
     logDebug "Office temperature: ${temp}°F"
     
     controlOfficeHeater(temp)
 }
 
-def greenhouseAlexaHandler(evt) {
-    logInfo "Greenhouse Alexa toggle: ${evt.value}"
+def skeeterTempHandler(evt) {
+    def temp = evt.value as BigDecimal
+    def threshold = settings.skeeterTempThreshold ?: 50.0
     
-    if (evt.value == "on") {
-        // Alexa command to turn on greenhouse controls
-        def currentTemp = settings.greenhouseTempSensor?.currentValue("temperature") as BigDecimal
-        if (currentTemp) {
-            controlGreenhouseFan(currentTemp)
-            controlGreenhouseHeater(currentTemp)
+    logDebug "Skeeter temperature check: ${temp}°F (threshold: ${threshold}°F)"
+    
+    // If temp drops to or below threshold, turn off skeeter
+    if (temp <= threshold) {
+        def anyOn = settings.skeeterKiller?.any { it.currentValue("switch") == "on" }
+        if (anyOn) {
+            logInfo "Temperature ${temp}°F <= ${threshold}°F, turning skeeter killers OFF"
+            settings.skeeterKiller?.each { device ->
+                if (device.currentValue("switch") == "on") {
+                    device.off()
+                }
+            }
         }
-    } else {
-        // Alexa command to turn off greenhouse controls
-        settings.greenhouseFan?.off()
-        settings.greenhouseHeater?.off()
-        logInfo "Greenhouse controls turned off by Alexa"
     }
 }
 
@@ -364,33 +417,45 @@ def controlGreenhouseFan(BigDecimal temp) {
     }
 }
 
-def controlGreenhouseHeater(BigDecimal temp) {
+def controlGreenhouseHeater(BigDecimal localTemp) {
     def heaterOn = getConfigValue("heaterOnTemp", "GreenhouseHeaterOnTemp") as BigDecimal
     def heaterOff = getConfigValue("heaterOffTemp", "GreenhouseHeaterOffTemp") as BigDecimal
     
     if (!settings.greenhouseHeater) return
     
+    // Use effective temperature (compares local vs NWS based on freshness) for heater control
+    def temp = getEffectiveTemperature()
+    if (temp == null) {
+        temp = localTemp
+    }
+    
     def currentState = settings.greenhouseHeater.currentValue("switch")
     
     if (temp <= heaterOn && currentState != "on") {
-        logInfo "Greenhouse temperature ${temp}°F <= ${heaterOn}°F, turning heater ON"
+        logInfo "Greenhouse effective temp ${temp}°F (local: ${localTemp}°F) <= ${heaterOn}°F, turning heater ON"
         settings.greenhouseHeater.on()
-        announceAlexa("Greenhouse heater turned on, temperature is ${temp} degrees")
+        announceAlexa("Greenhouse heater turned on, temperature is ${temp.round(0)} degrees")
         sendAlert("Greenhouse heater activated (${temp}°F)")
     } else if (temp >= heaterOff && currentState == "on") {
-        logInfo "Greenhouse temperature ${temp}°F >= ${heaterOff}°F, turning heater OFF"
+        logInfo "Greenhouse effective temp ${temp}°F (local: ${localTemp}°F) >= ${heaterOff}°F, turning heater OFF"
         settings.greenhouseHeater.off()
-        announceAlexa("Greenhouse heater turned off, temperature is ${temp} degrees")
+        announceAlexa("Greenhouse heater turned off, temperature is ${temp.round(0)} degrees")
     }
 }
 
-def checkFreezeRisk(BigDecimal temp) {
+def checkFreezeRisk(BigDecimal localTemp) {
     def freezeTemp = getConfigValue("freezeAlertTemp", "FreezeAlertThreshold") as BigDecimal
     
+    // Use effective temperature (compares local vs NWS based on freshness) for freeze risk
+    def temp = getEffectiveTemperature()
+    if (temp == null) {
+        temp = localTemp
+    }
+    
     if (temp <= freezeTemp) {
-        logWarn "FREEZE ALERT: Greenhouse temperature ${temp}°F at or below ${freezeTemp}°F"
+        logWarn "FREEZE ALERT: Greenhouse effective temp ${temp}°F (local: ${localTemp}°F) at or below ${freezeTemp}°F"
         sendAlert("FREEZE ALERT: Greenhouse at ${temp}°F!")
-        announceAlexa("Freeze alert! Greenhouse temperature is ${temp} degrees!")
+        announceAlexa("Freeze alert! Greenhouse temperature is ${temp.round(0)} degrees!")
     }
 }
 
@@ -449,6 +514,12 @@ def handleSkeeterMode(String mode) {
     
     // For modes NOT using illuminance control, use mode-based On/Off rules
     if (settings.skeeterOnModes?.contains(mode)) {
+        // Check temperature before turning on
+        if (!isSkeeterTempOk()) {
+            logInfo "Mode ${mode} would trigger mosquito killer ON, but temperature is too low"
+            return
+        }
+        
         logInfo "Mode ${mode} triggers mosquito killer ON (mode-based rule)"
         settings.skeeterKiller?.each { device ->
             if (device.currentValue("switch") != "on") {
@@ -537,6 +608,12 @@ def checkIlluminance() {
     logInfo "Illuminance check in ${currentMode} mode: ${illuminance} lux vs threshold ${threshold} lux"
     
     if (illuminance < threshold) {
+        // Check temperature before turning on
+        if (!isSkeeterTempOk()) {
+            logInfo "Illuminance ${illuminance} lux < ${threshold} lux would trigger skeeter ON, but temperature is too low"
+            return
+        }
+        
         logInfo "Illuminance ${illuminance} lux < ${threshold} lux, turning skeeter ON"
         settings.skeeterKiller?.each { device ->
             if (device.currentValue("switch") != "on") {
@@ -559,6 +636,33 @@ def checkIlluminance() {
 // WATER CONTROL
 // ============================================================================
 
+/**
+ * Check if temperature is suitable for running skeeter killers
+ * @return true if temp is above threshold, false if at or below threshold
+ */
+def isSkeeterTempOk() {
+    if (!settings.greenhouseTempSensors) {
+        // No temp sensor configured, allow operation
+        return true
+    }
+    
+    def reading = getMostRecentGreenhouseReading()
+    if (reading == null) {
+        // Can't read temp, allow operation
+        return true
+    }
+    
+    def temp = reading.temp
+    def threshold = settings.skeeterTempThreshold ?: 50.0
+    def tempOk = temp > threshold
+    
+    if (!tempOk) {
+        logDebug "Skeeter temperature check failed: ${temp}°F <= ${threshold}°F"
+    }
+    
+    return tempOk
+}
+
 def waterAutoOff() {
     if (settings.waterValve?.currentValue("switch") == "on") {
         logInfo "Water timeout reached, turning off valve"
@@ -578,16 +682,17 @@ def resetWaterResetSwitch() {
 def checkAllTemperatures() {
     logDebug "Checking all temperatures"
     
-    if (settings.greenhouseTempSensor) {
-        def temp = settings.greenhouseTempSensor.currentValue("temperature") as BigDecimal
-        if (temp) {
+    if (settings.greenhouseEnabled && settings.greenhouseTempSensors) {
+        def reading = getMostRecentGreenhouseReading()
+        if (reading) {
+            def temp = reading.temp
             controlGreenhouseFan(temp)
             controlGreenhouseHeater(temp)
             checkFreezeRisk(temp)
         }
     }
     
-    if (settings.officeTempSensor) {
+    if (settings.officeEnabled && settings.officeTempSensor) {
         def temp = settings.officeTempSensor.currentValue("temperature") as BigDecimal
         if (temp) {
             controlOfficeHeater(temp)
@@ -655,6 +760,138 @@ def convertValue(value, type) {
         case "string":
         default:
             return value.toString()
+    }
+}
+
+// ============================================================================
+// NWS TEMPERATURE HELPER METHODS
+// ============================================================================
+
+/**
+ * Get the most recent temperature reading from configured greenhouse sensors.
+ * @return Map with keys: temp, ageMinutes, sensorName; or null if no readings
+ */
+def getMostRecentGreenhouseReading() {
+    if (!settings.greenhouseTempSensors) {
+        return null
+    }
+    
+    def bestReading = null
+    def bestAge = 999999
+    
+    settings.greenhouseTempSensors.each { sensor ->
+        def state = sensor.currentState("temperature")
+        if (state) {
+            def ageMinutes = (now() - state.date.time) / 60000
+            if (ageMinutes < bestAge) {
+                bestAge = ageMinutes
+                bestReading = [
+                    temp: state.value as BigDecimal,
+                    ageMinutes: ageMinutes,
+                    sensorName: sensor.displayName
+                ]
+            }
+        }
+    }
+    
+    return bestReading
+}
+
+/**
+ * Get the effective temperature for threshold decisions.
+ * First selects the most recent reading from local sensors,
+ * then compares to NWS if local reading is older than preference threshold.
+ *
+ * @return The effective temperature to use for decisions, or null if unavailable
+ */
+def getEffectiveTemperature() {
+    // Get most recent reading from local sensors
+    def bestLocal = getMostRecentGreenhouseReading()
+    if (bestLocal == null) {
+        logWarn "No local temperature readings available"
+        return null
+    }
+    
+    def localTemp = bestLocal.temp
+    def localAgeMinutes = bestLocal.ageMinutes
+    def localSensorName = bestLocal.sensorName
+    
+    // If no NWS device configured, just use local
+    if (!settings.nwsTempDevice) {
+        logDebug "Using local temperature ${localTemp}°F from ${localSensorName} (${localAgeMinutes.toInteger()} min old)"
+        return localTemp
+    }
+    
+    try {
+        // Prefer local sensor if reading is within configured preference time
+        def localPrefMinutes = settings.localPreferenceMinutes ?: 5
+        if (localAgeMinutes <= localPrefMinutes) {
+            logDebug "Using local temperature ${localTemp}°F from ${localSensorName} (${localAgeMinutes.toInteger()} min old, within ${localPrefMinutes} min preference)"
+            return localTemp
+        }
+        
+        // Check if NWS data is stale
+        if (isNwsDataStale()) {
+            logDebug "NWS data is stale - using local sensor ${localSensorName} (${localAgeMinutes.toInteger()} min old)"
+            return localTemp
+        }
+        
+        // Get NWS temperature
+        def nwsTemp = settings.nwsTempDevice.currentValue("temperature")
+        if (nwsTemp == null) {
+            logDebug "NWS temperature unavailable - using local sensor only"
+            return localTemp
+        }
+        
+        nwsTemp = nwsTemp as BigDecimal
+        logDebug "Local reading older than preference (${localAgeMinutes.toInteger()} min) - using NWS temperature ${nwsTemp}°F"
+        return nwsTemp
+        
+    } catch (Exception e) {
+        logWarn "Error getting NWS temperature: ${e.message} - using local sensor"
+        return localTemp
+    }
+}
+
+/**
+ * Check if the NWS weather data is stale (older than threshold)
+ * @return true if data is stale or unavailable, false if fresh
+ */
+def isNwsDataStale() {
+    if (!settings.nwsTempDevice) {
+        return true
+    }
+    
+    try {
+        // First check the dataStale attribute if available
+        def dataStale = settings.nwsTempDevice.currentValue("dataStale")
+        if (dataStale == "true") {
+            return true
+        }
+        
+        // Also check lastUpdate timestamp
+        def lastUpdate = settings.nwsTempDevice.currentValue("lastUpdate")
+        if (!lastUpdate) {
+            logDebug "No lastUpdate attribute from NWS device"
+            return true
+        }
+        
+        // Parse the ISO timestamp
+        def lastUpdateDate = Date.parse("yyyy-MM-dd'T'HH:mm:ssXXX", lastUpdate.toString())
+        def staleMinutes = settings.nwsStaleMinutes ?: 45
+        def staleMs = staleMinutes * 60 * 1000
+        def age = now() - lastUpdateDate.time
+        
+        if (age > staleMs) {
+            logDebug "NWS data is ${(age / 60000).round(1)} minutes old (threshold: ${staleMinutes} minutes)"
+            return true
+        }
+        
+        return false
+        
+    } catch (Exception e) {
+        logWarn "Error checking NWS data staleness: ${e.message}"
+        return true
     }
 }
 
