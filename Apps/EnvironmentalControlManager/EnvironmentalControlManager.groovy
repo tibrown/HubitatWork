@@ -117,6 +117,12 @@ def mainPage() {
                   multiple: true,
                   required: false
             
+            input "skeeterTempSensors", "capability.temperatureMeasurement",
+                  title: "Temperature Sensors for Skeeter Control",
+                  description: "Select one or more outdoor temperature sensors (lowest reading used when all active)",
+                  multiple: true,
+                  required: false
+            
             input "skeeterTempThreshold", "decimal",
                   title: "Minimum Temperature for Skeeter (°F)",
                   description: "Do not run skeeter when temperature is at or below this value",
@@ -255,11 +261,16 @@ def initialize() {
     if (settings.greenhouseEnabled && settings.greenhouseTempSensors) {
         settings.greenhouseTempSensors.each { sensor ->
             subscribe(sensor, "temperature", greenhouseTempHandler)
-            // Also monitor greenhouse temp for skeeter control
-            if (settings.skeeterKiller) {
-                subscribe(sensor, "temperature", skeeterTempHandler)
-            }
         }
+    }
+    
+    // Subscribe to skeeter temperature sensors (independent of greenhouse)
+    if (settings.skeeterTempSensors && settings.skeeterKiller) {
+        settings.skeeterTempSensors.each { sensor ->
+            subscribe(sensor, "temperature", skeeterTempHandler)
+        }
+        def sensorNames = settings.skeeterTempSensors.collect { it.displayName }.join(", ")
+        logInfo "Subscribed to skeeter temperature sensor(s): ${sensorNames}"
     }
     
     // Subscribe to office temperature sensor (if enabled)
@@ -328,7 +339,13 @@ def officeTempHandler(evt) {
 }
 
 def skeeterTempHandler(evt) {
-    def temp = evt.value as BigDecimal
+    // Use effective temperature (considers all sensors + NWS backup)
+    def temp = getSkeeterEffectiveTemperature()
+    if (temp == null) {
+        logDebug "Skeeter temp handler: Unable to get effective temperature"
+        return
+    }
+    
     def threshold = settings.skeeterTempThreshold ?: 50.0
     
     logDebug "Skeeter temperature check: ${temp}°F (threshold: ${threshold}°F)"
@@ -633,26 +650,186 @@ def checkIlluminance() {
 }
 
 // ============================================================================
-// WATER CONTROL
+// SKEETER TEMPERATURE METHODS
 // ============================================================================
+
+/**
+ * Get the most recent attribute update time from a sensor, checking
+ * temperature, illuminance, and humidity attributes to determine if sensor is active.
+ * @param sensor The sensor device to check
+ * @return The most recent State object across all checked attributes, or null if none found
+ */
+def getMostRecentSensorActivity(sensor) {
+    def attributesToCheck = ["temperature", "illuminance", "humidity"]
+    def mostRecentState = null
+    def mostRecentTime = 0
+    
+    attributesToCheck.each { attrName ->
+        if (sensor.hasAttribute(attrName)) {
+            def attrState = sensor.currentState(attrName)
+            if (attrState && attrState.date.time > mostRecentTime) {
+                mostRecentTime = attrState.date.time
+                mostRecentState = attrState
+            }
+        }
+    }
+    
+    return mostRecentState
+}
+
+/**
+ * Get the best temperature reading from configured skeeter temperature sensors.
+ * If all sensors are "active" (any attribute updated within the preference window),
+ * returns the LOWEST temperature for cold-weather safety.
+ * Otherwise, falls back to the most recent temperature reading.
+ * @return Map with keys: temp, ageMinutes, sensorName; or null if no readings
+ */
+def getMostRecentSkeeterReading() {
+    if (!settings.skeeterTempSensors) {
+        return null
+    }
+    
+    def nowMs = now()
+    def preferenceWindowMs = (settings.localPreferenceMinutes ?: 5) * 60000
+    def validReadings = []
+    def allWithinWindow = true
+    
+    // First pass: collect all valid readings and check if all sensors are active
+    settings.skeeterTempSensors.each { sensor ->
+        def tempState = sensor.currentState("temperature")
+        if (tempState) {
+            // Get most recent activity from ANY attribute to determine if sensor is active
+            def mostRecentActivity = getMostRecentSensorActivity(sensor)
+            def activityAgeMs = mostRecentActivity ? (nowMs - mostRecentActivity.date.time) : Long.MAX_VALUE
+            def activityAttr = mostRecentActivity?.name ?: "unknown"
+            
+            // Use temperature state for temp value and age
+            def tempAgeMs = nowMs - tempState.date.time
+            def tempAgeMinutes = tempAgeMs / 60000
+            def temp = tempState.value as BigDecimal
+            
+            // Sensor is "active" if ANY attribute was updated within the window
+            def isActive = activityAgeMs <= preferenceWindowMs
+            
+            validReadings << [
+                temp: temp,
+                ageMinutes: tempAgeMinutes,
+                ageMs: tempAgeMs,
+                activityAgeMs: activityAgeMs,
+                activityAttr: activityAttr,
+                sensorName: sensor.displayName,
+                withinWindow: isActive
+            ]
+            
+            if (!isActive) {
+                allWithinWindow = false
+                logDebug "Skeeter ${sensor.displayName}: temp ${tempAgeMinutes.toInteger()} min old, most recent activity (${activityAttr}) ${(activityAgeMs/60000).toInteger()} min ago - outside window"
+            } else {
+                logDebug "Skeeter ${sensor.displayName}: active (last ${activityAttr} update ${(activityAgeMs/60000).toInteger()} min ago), temp: ${temp}°F"
+            }
+        }
+    }
+    
+    if (validReadings.isEmpty()) {
+        return null
+    }
+    
+    def bestReading = null
+    
+    if (allWithinWindow && validReadings.size() > 0) {
+        // All sensors active - use LOWEST temperature for cold-weather safety
+        def sortedByTemp = validReadings.sort { it.temp }
+        bestReading = sortedByTemp.first()
+        
+        // Log all sensor temps for debugging
+        def allTemps = validReadings.collect { "${it.sensorName}: ${it.temp}°F" }.join(", ")
+        logDebug "Skeeter: All sensors active - selecting lowest temp. Sensors: [${allTemps}]"
+    } else {
+        // Not all sensors active - fall back to most recent temperature reading
+        def sortedByAge = validReadings.sort { it.ageMs }
+        bestReading = sortedByAge.first()
+        logDebug "Skeeter: Not all sensors active - using most recent reading from ${bestReading.sensorName}"
+    }
+    
+    return [
+        temp: bestReading.temp,
+        ageMinutes: bestReading.ageMinutes,
+        sensorName: bestReading.sensorName
+    ]
+}
+
+/**
+ * Get the effective temperature for skeeter threshold decisions.
+ * Uses dedicated skeeter temp sensors with NWS backup.
+ * @return The effective temperature to use for decisions, or null if unavailable
+ */
+def getSkeeterEffectiveTemperature() {
+    // Get most recent reading from skeeter temp sensors
+    def bestLocal = getMostRecentSkeeterReading()
+    if (bestLocal == null) {
+        logDebug "No skeeter temperature sensors configured or no readings available"
+        return null
+    }
+    
+    def localTemp = bestLocal.temp
+    def localAgeMinutes = bestLocal.ageMinutes
+    def localSensorName = bestLocal.sensorName
+    
+    // If no NWS device configured, just use local
+    if (!settings.nwsTempDevice) {
+        logDebug "Skeeter: Using local temperature ${localTemp}°F from ${localSensorName} (${localAgeMinutes.toInteger()} min old)"
+        return localTemp
+    }
+    
+    try {
+        // Prefer local sensor if reading is within configured preference time
+        def localPrefMinutes = settings.localPreferenceMinutes ?: 5
+        if (localAgeMinutes <= localPrefMinutes) {
+            logDebug "Skeeter: Using local temperature ${localTemp}°F from ${localSensorName} (${localAgeMinutes.toInteger()} min old, within ${localPrefMinutes} min preference)"
+            return localTemp
+        }
+        
+        // Check if NWS data is stale
+        if (isNwsDataStale()) {
+            logDebug "Skeeter: NWS data is stale - using local sensor ${localSensorName} (${localAgeMinutes.toInteger()} min old)"
+            return localTemp
+        }
+        
+        // Get NWS temperature
+        def nwsTemp = settings.nwsTempDevice.currentValue("temperature")
+        if (nwsTemp == null) {
+            logDebug "Skeeter: NWS temperature unavailable - using local sensor only"
+            return localTemp
+        }
+        
+        nwsTemp = nwsTemp as BigDecimal
+        logDebug "Skeeter: Local reading older than preference (${localAgeMinutes.toInteger()} min) - using NWS temperature ${nwsTemp}°F"
+        return nwsTemp
+        
+    } catch (Exception e) {
+        logWarn "Error getting NWS temperature for skeeter: ${e.message} - using local sensor"
+        return localTemp
+    }
+}
 
 /**
  * Check if temperature is suitable for running skeeter killers
  * @return true if temp is above threshold, false if at or below threshold
  */
 def isSkeeterTempOk() {
-    if (!settings.greenhouseTempSensors) {
+    if (!settings.skeeterTempSensors) {
         // No temp sensor configured, allow operation
+        logDebug "No skeeter temperature sensors configured - allowing operation"
         return true
     }
     
-    def reading = getMostRecentGreenhouseReading()
-    if (reading == null) {
+    def temp = getSkeeterEffectiveTemperature()
+    if (temp == null) {
         // Can't read temp, allow operation
+        logDebug "Cannot get skeeter temperature - allowing operation"
         return true
     }
     
-    def temp = reading.temp
     def threshold = settings.skeeterTempThreshold ?: 50.0
     def tempOk = temp > threshold
     
@@ -662,6 +839,10 @@ def isSkeeterTempOk() {
     
     return tempOk
 }
+
+// ============================================================================
+// WATER CONTROL
+// ============================================================================
 
 def waterAutoOff() {
     if (settings.waterValve?.currentValue("switch") == "on") {

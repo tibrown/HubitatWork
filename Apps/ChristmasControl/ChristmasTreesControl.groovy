@@ -34,10 +34,8 @@ def mainPage() {
             input "masterSwitch", "capability.switch", title: "Master Switch (Optional)", required: false, multiple: false, description: "A switch to manually control all Christmas devices."
             input "enableSchedule", "bool", title: "Enable Schedule?", submitOnChange: true
             if (enableSchedule) {
-                input "startMonth", "number", title: "Start Month (e.g. 11)", defaultValue: 11
-                input "startDay", "number", title: "Start Day (e.g. 23)", defaultValue: 23
-                input "endMonth", "number", title: "End Month (e.g. 1)", defaultValue: 1
-                input "endDay", "number", title: "End Day (e.g. 2)", defaultValue: 2
+                input "startDate", "date", title: "Start Date (e.g. Nov 23)", required: false
+                input "endDate", "date", title: "End Date (e.g. Jan 2)", required: false
                 input "onTimeType", "enum", title: "Turn On At", options: ["Sunset", "Time", "Mode"], defaultValue: "Sunset", submitOnChange: true
                 if (onTimeType == "Time") {
                     input "onTimeVal", "time", title: "On Time"
@@ -537,18 +535,30 @@ def checkDate() {
     def currentDay = now.format("d", tz).toInteger()
     def curr = currentMonth * 100 + currentDay
     
-    // Use defaults if settings are null
-    def sMonth = startMonth != null ? startMonth : 11
-    def sDay = startDay != null ? startDay : 23
-    def eMonth = endMonth != null ? endMonth : 1
-    def eDay = endDay != null ? endDay : 2
+    // Parse dates from date picker, use defaults if not set
+    def sMonth = 11
+    def sDay = 23
+    def eMonth = 1
+    def eDay = 2
+    
+    if (startDate) {
+        def sd = Date.parse("yyyy-MM-dd", startDate)
+        sMonth = sd.format("M", tz).toInteger()
+        sDay = sd.format("d", tz).toInteger()
+    }
+    
+    if (endDate) {
+        def ed = Date.parse("yyyy-MM-dd", endDate)
+        eMonth = ed.format("M", tz).toInteger()
+        eDay = ed.format("d", tz).toInteger()
+    }
     
     def s = sMonth * 100 + sDay
     def e = eMonth * 100 + eDay
     
     log.debug "checkDate: Current: $curr (Month: $currentMonth, Day: $currentDay), Start: $s, End: $e"
     
-    if (s > e) { // Wraps year
+    if (s > e) { // Wraps year (e.g., Nov to Jan)
         return (curr >= s || curr <= e)
     } else {
         return (curr >= s && curr <= e)

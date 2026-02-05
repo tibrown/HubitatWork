@@ -120,6 +120,11 @@ def mainPage() {
                   description: "Start heat lamp cycling when temperature falls to or below this value",
                   defaultValue: 32.0,
                   required: false
+            
+            input "cyclingIndicatorSwitch", "capability.switch",
+                  title: "Heat Lamp Cycling Indicator (Connector)",
+                  description: "Connector switch that shows ON when heat lamp cycling is active",
+                  required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>CHICKEN HEATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
@@ -200,6 +205,13 @@ def initialize() {
     // Initialize heat lamp state (reset on re-initialization since schedules are cleared by updated())
     state.heatLampCycling = false
     state.heatLampCurrentlyOn = false
+    
+    // Sync cycling indicator to current state
+    if (state.heatLampCycling) {
+        settings.cyclingIndicatorSwitch?.on()
+    } else {
+        settings.cyclingIndicatorSwitch?.off()
+    }
     
     // Initialize chicken heater announced state (tracks if we've announced the current state)
     state.chickenHeaterAnnouncedOn = state.chickenHeaterAnnouncedOn ?: false
@@ -404,6 +416,7 @@ def startHeatLampCycling() {
     }
     
     state.heatLampCycling = true
+    settings.cyclingIndicatorSwitch?.on()
     logInfo "Starting heat lamp cycling (${settings.heatLampOnMinutes ?: 15} min on / ${settings.heatLampOffMinutes ?: 15} min off)"
     heatLampCycleOn()
 }
@@ -426,6 +439,7 @@ def stopHeatLampCycling(Boolean sendNotification = false) {
     
     state.heatLampCycling = false
     state.heatLampCurrentlyOn = false
+    settings.cyclingIndicatorSwitch?.off()
     logInfo "Heat lamp cycling stopped"
 }
 
@@ -675,7 +689,35 @@ def uninstalled() {
 // ═══════════════════════════════════════
 
 /**
- * Get the most recent temperature reading from configured local sensors.
+ * Get the most recent attribute update time from a sensor, checking
+ * temperature, illuminance, and humidity attributes to determine if sensor is active.
+ * This handles sensors where temperature may remain stable but other attributes update.
+ * @param sensor The sensor device to check
+ * @return The most recent State object across all checked attributes, or null if none found
+ */
+def getMostRecentSensorActivity(sensor) {
+    def attributesToCheck = ["temperature", "illuminance", "humidity"]
+    def mostRecentState = null
+    def mostRecentTime = 0
+    
+    attributesToCheck.each { attrName ->
+        if (sensor.hasAttribute(attrName)) {
+            def attrState = sensor.currentState(attrName)
+            if (attrState && attrState.date.time > mostRecentTime) {
+                mostRecentTime = attrState.date.time
+                mostRecentState = attrState
+            }
+        }
+    }
+    
+    return mostRecentState
+}
+
+/**
+ * Get the best temperature reading from configured local sensors.
+ * If all sensors are "active" (any attribute updated within the preference window),
+ * returns the LOWEST temperature for freeze safety (coldest reading wins regardless of recency).
+ * Otherwise, falls back to the most recent temperature reading.
  * @return Map with keys: temp, ageMinutes, sensorName; or null if no readings
  */
 def getMostRecentLocalReading() {
@@ -683,25 +725,73 @@ def getMostRecentLocalReading() {
         return null
     }
     
-    def bestReading = null
-    def bestAge = 999999
+    def nowMs = now()
+    def preferenceWindowMs = (settings.localPreferenceMinutes ?: 5) * 60000
+    def validReadings = []
+    def allWithinWindow = true
     
+    // First pass: collect all valid readings and check if all sensors are active
     settings.tempSensors.each { sensor ->
-        def state = sensor.currentState("temperature")
-        if (state) {
-            def ageMinutes = (now() - state.date.time) / 60000
-            if (ageMinutes < bestAge) {
-                bestAge = ageMinutes
-                bestReading = [
-                    temp: state.value as BigDecimal,
-                    ageMinutes: ageMinutes,
-                    sensorName: sensor.displayName
-                ]
+        def tempState = sensor.currentState("temperature")
+        if (tempState) {
+            // Get most recent activity from ANY attribute to determine if sensor is active
+            def mostRecentActivity = getMostRecentSensorActivity(sensor)
+            def activityAgeMs = mostRecentActivity ? (nowMs - mostRecentActivity.date.time) : Long.MAX_VALUE
+            def activityAttr = mostRecentActivity?.name ?: "unknown"
+            
+            // Use temperature state for temp value and age
+            def tempAgeMs = nowMs - tempState.date.time
+            def tempAgeMinutes = tempAgeMs / 60000
+            def temp = tempState.value as BigDecimal
+            
+            // Sensor is "active" if ANY attribute was updated within the window
+            def isActive = activityAgeMs <= preferenceWindowMs
+            
+            validReadings << [
+                temp: temp,
+                ageMinutes: tempAgeMinutes,
+                ageMs: tempAgeMs,
+                activityAgeMs: activityAgeMs,
+                activityAttr: activityAttr,
+                sensorName: sensor.displayName,
+                withinWindow: isActive
+            ]
+            
+            if (!isActive) {
+                allWithinWindow = false
+                logDebug "${sensor.displayName}: temp ${tempAgeMinutes.toInteger()} min old, most recent activity (${activityAttr}) ${(activityAgeMs/60000).toInteger()} min ago - outside window"
+            } else {
+                logDebug "${sensor.displayName}: active (last ${activityAttr} update ${(activityAgeMs/60000).toInteger()} min ago), temp: ${temp}°F"
             }
         }
     }
     
-    return bestReading
+    if (validReadings.isEmpty()) {
+        return null
+    }
+    
+    def bestReading = null
+    
+    if (allWithinWindow && validReadings.size() > 0) {
+        // All sensors active - use LOWEST temperature for freeze safety
+        def sortedByTemp = validReadings.sort { it.temp }
+        bestReading = sortedByTemp.first()
+        
+        // Log all sensor temps for debugging
+        def allTemps = validReadings.collect { "${it.sensorName}: ${it.temp}°F (temp ${it.ageMinutes.toInteger()} min, activity ${(it.activityAgeMs/60000).toInteger()} min)" }.join(", ")
+        logDebug "All sensors active - selecting lowest temp for freeze safety. Sensors: [${allTemps}]"
+    } else {
+        // Not all sensors active - fall back to most recent temperature reading
+        def sortedByAge = validReadings.sort { it.ageMs }
+        bestReading = sortedByAge.first()
+        logDebug "Not all sensors active within preference window - using most recent temperature reading"
+    }
+    
+    return [
+        temp: bestReading.temp,
+        ageMinutes: bestReading.ageMinutes,
+        sensorName: bestReading.sensorName
+    ]
 }
 
 /**
