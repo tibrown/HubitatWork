@@ -62,10 +62,10 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>ALARM CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "alarmVolume", "number", title: "Default Alarm Volume (0-100)", range: "0..100", defaultValue: 80, required: false
-            input "alarmDuration", "number", title: "Alarm Auto-Stop Duration (seconds)", defaultValue: 300, required: false
-            input "armDelay", "number", title: "Arm Delay (seconds)", defaultValue: 0, required: false
-            input "disarmDelay", "number", title: "Disarm Delay (seconds)", defaultValue: 0, required: false
+            input "hubVar_AlarmVolume", "number", title: "Alarm Volume", description: "Siren volume level (0-100). Sets AlarmVolume hub variable.", range: "0..100", defaultValue: 80, required: false
+            input "hubVar_AlarmDuration", "number", title: "Alarm Duration", description: "How long alarms sound before auto-stopping (seconds). Sets AlarmDuration hub variable.", defaultValue: 300, required: false
+            input "hubVar_ArmDelay", "number", title: "Arm Delay", description: "Delay before arming alarms (seconds). Sets ArmDelay hub variable.", defaultValue: 0, required: false
+            input "hubVar_DisarmDelay", "number", title: "Disarm Delay", description: "Delay before disarming alarms (seconds). Sets DisarmDelay hub variable.", defaultValue: 0, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
@@ -76,14 +76,12 @@ def mainPage() {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• AlarmVolume - Override default siren volume (0-100)"
-            paragraph "• AlarmDuration - Override alarm sound duration (seconds)"
-            paragraph "• ArmDelay - Override arm delay timer (seconds)"
-            paragraph "• DisarmDelay - Override disarm delay (seconds)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• AlarmVolume, AlarmDuration, ArmDelay, DisarmDelay - Configuration variables"
             paragraph "• AlarmActive - Status variable (written by this app, read by others)"
             paragraph "• AlarmsEnabled - Status variable (written by this app, read by others)"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -102,6 +100,7 @@ def updated() {
     logInfo "Security Alarm Manager updated"
     unsubscribe()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -405,18 +404,24 @@ def playTuningBell() {
 // HELPER METHODS
 // ========================================
 
+def syncHubVariables() {
+    setHubVar("AlarmVolume", (hubVar_AlarmVolume ?: 80).toString())
+    setHubVar("AlarmDuration", (hubVar_AlarmDuration ?: 300).toString())
+    setHubVar("ArmDelay", (hubVar_ArmDelay ?: 0).toString())
+    setHubVar("DisarmDelay", (hubVar_DisarmDelay ?: 0).toString())
+    logInfo "Hub variables synced from app settings"
+}
+
 def getConfigValue(String settingName, String hubVarName) {
-    // Try to get value from hub variable first
+    // Get value from hub variable
     def hubVarValue = getHubVar(hubVarName)
     if (hubVarValue != null) {
         logDebug "Using hub variable '${hubVarName}' = ${hubVarValue}"
         return hubVarValue
     }
     
-    // Fall back to setting value
-    def settingValue = settings[settingName]
-    logDebug "Using setting '${settingName}' = ${settingValue}"
-    return settingValue
+    logDebug "Hub variable '${hubVarName}' not set"
+    return null
 }
 
 def getHubVar(String varName, defaultValue = null) {

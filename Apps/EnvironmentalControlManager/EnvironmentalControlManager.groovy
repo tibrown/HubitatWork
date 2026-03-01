@@ -53,33 +53,33 @@ def mainPage() {
                   title: "Greenhouse Heater",
                   required: false
             
-            input "fanOnTemp", "decimal",
-                  title: "Fan On Temperature (°F)",
-                  description: "Turn fan on when temperature rises above this",
+            input "hubVar_GreenhouseFanOnTemp", "decimal",
+                  title: "Fan On Temperature",
+                  description: "Turn greenhouse fan on above this temperature (°F). Sets GreenhouseFanOnTemp hub variable.",
                   defaultValue: 75.0,
                   required: false
             
-            input "fanOffTemp", "decimal",
-                  title: "Fan Off Temperature (°F)",
-                  description: "Turn fan off when temperature falls below this",
+            input "hubVar_GreenhouseFanOffTemp", "decimal",
+                  title: "Fan Off Temperature",
+                  description: "Turn greenhouse fan off below this temperature (°F). Sets GreenhouseFanOffTemp hub variable.",
                   defaultValue: 70.0,
                   required: false
             
-            input "heaterOnTemp", "decimal",
-                  title: "Heater On Temperature (°F)",
-                  description: "Turn heater on when temperature falls below this",
+            input "hubVar_GreenhouseHeaterOnTemp", "decimal",
+                  title: "Heater On Temperature",
+                  description: "Turn greenhouse heater on below this temperature (°F). Sets GreenhouseHeaterOnTemp hub variable.",
                   defaultValue: 40.0,
                   required: false
             
-            input "heaterOffTemp", "decimal",
-                  title: "Heater Off Temperature (°F)",
-                  description: "Turn heater off when temperature rises above this",
+            input "hubVar_GreenhouseHeaterOffTemp", "decimal",
+                  title: "Heater Off Temperature",
+                  description: "Turn greenhouse heater off above this temperature (°F). Sets GreenhouseHeaterOffTemp hub variable.",
                   defaultValue: 45.0,
                   required: false
             
-            input "freezeAlertTemp", "decimal",
-                  title: "Freeze Alert Temperature (°F)",
-                  description: "Send alert when temperature falls below this",
+            input "hubVar_FreezeAlertThreshold", "decimal",
+                  title: "Freeze Alert Temperature",
+                  description: "Send freeze warning when temperature drops to this (°F). Sets FreezeAlertThreshold hub variable.",
                   defaultValue: 32.0,
                   required: false
         }
@@ -104,9 +104,9 @@ def mainPage() {
                   multiple: true,
                   required: false
             
-            input "officeHeaterTemp", "decimal",
-                  title: "Office Heater Temperature (°F)",
-                  description: "Target temperature for office heater",
+            input "hubVar_OfficeHeaterTemp", "decimal",
+                  title: "Office Heater Temperature",
+                  description: "Target temperature for office heater (°F). Sets OfficeHeaterTemp hub variable.",
                   defaultValue: 68.0,
                   required: false
         }
@@ -152,9 +152,9 @@ def mainPage() {
                   multiple: true,
                   required: false
             
-            input "skeeterIlluminanceThreshold", "number",
-                  title: "Illuminance Threshold (lux)",
-                  description: "Turn skeeter ON when illuminance drops below this threshold",
+            input "hubVar_SkeeterIlluminanceThreshold", "number",
+                  title: "Illuminance Threshold",
+                  description: "Turn on mosquito control below this light level (lux). Sets SkeeterIlluminanceThreshold hub variable.",
                   defaultValue: 200,
                   required: false
             
@@ -171,9 +171,9 @@ def mainPage() {
                   title: "Water Control Valve",
                   required: false
             paragraph ""
-            input "waterTimeoutMinutes", "number",
-                  title: "Water Auto-Off Timeout (minutes)",
-                  description: "Automatically turn off water after this duration",
+            input "hubVar_WaterTimeout", "number",
+                  title: "Water Auto-Off Timeout",
+                  description: "Automatically shut off water after this duration (minutes). Sets WaterTimeout hub variable.",
                   defaultValue: 30,
                   range: "1..180",
                   required: false
@@ -222,15 +222,15 @@ def mainPage() {
                   required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports the following hub variables for dynamic configuration:"
-            paragraph "• <b>GreenhouseFanOnTemp</b> - Override fan on temperature (°F)\n" +
-                     "• <b>GreenhouseFanOffTemp</b> - Override fan off temperature (°F)\n" +
-                     "• <b>GreenhouseHeaterOnTemp</b> - Override heater on temperature (°F)\n" +
-                     "• <b>GreenhouseHeaterOffTemp</b> - Override heater off temperature (°F)\n" +
-                     "• <b>FreezeAlertThreshold</b> - Override freeze warning temperature (°F)\n" +
-                     "• <b>OfficeHeaterTemp</b> - Override office heater temperature (°F)\n" +
-                     "• <b>WaterTimeout</b> - Override water shutoff timeout (minutes)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• GreenhouseFanOnTemp, GreenhouseFanOffTemp - Greenhouse fan control"
+            paragraph "• GreenhouseHeaterOnTemp, GreenhouseHeaterOffTemp - Greenhouse heater control"
+            paragraph "• FreezeAlertThreshold - Freeze warning temperature"
+            paragraph "• OfficeHeaterTemp - Office heater target"
+            paragraph "• WaterTimeout - Water shutoff timeout"
+            paragraph "• SkeeterIlluminanceThreshold - Mosquito control light threshold"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -252,6 +252,7 @@ def updated() {
     unsubscribe()
     unschedule()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -907,6 +908,18 @@ def announceAlexa(String message) {
 // HELPER METHODS
 // ============================================================================
 
+def syncHubVariables() {
+    setGlobalVar("GreenhouseFanOnTemp", (hubVar_GreenhouseFanOnTemp ?: 75.0).toString())
+    setGlobalVar("GreenhouseFanOffTemp", (hubVar_GreenhouseFanOffTemp ?: 70.0).toString())
+    setGlobalVar("GreenhouseHeaterOnTemp", (hubVar_GreenhouseHeaterOnTemp ?: 40.0).toString())
+    setGlobalVar("GreenhouseHeaterOffTemp", (hubVar_GreenhouseHeaterOffTemp ?: 45.0).toString())
+    setGlobalVar("FreezeAlertThreshold", (hubVar_FreezeAlertThreshold ?: 32.0).toString())
+    setGlobalVar("OfficeHeaterTemp", (hubVar_OfficeHeaterTemp ?: 68.0).toString())
+    setGlobalVar("WaterTimeout", (hubVar_WaterTimeout ?: 30).toString())
+    setGlobalVar("SkeeterIlluminanceThreshold", (hubVar_SkeeterIlluminanceThreshold ?: 200).toString())
+    logInfo "Hub variables synced from app settings"
+}
+
 /**
  * Get configuration value from hub variable or fall back to app setting
  */
@@ -921,10 +934,8 @@ def getConfigValue(String settingName, String hubVarName) {
         logDebug "Hub variable '${hubVarName}' not found: ${e.message}"
     }
     
-    // Fall back to app setting
-    def settingValue = settings[settingName]
-    logDebug "Using app setting ${settingName}: ${settingValue}"
-    return settingValue
+    logDebug "Hub variable '${hubVarName}' not set"
+    return null
 }
 
 /**

@@ -41,9 +41,9 @@ def mainPage() {
                   title: "Side Yard Gate Sensor",
                   required: false
             
-            input "gateAlertDelaySeconds", "number",
-                  title: "Gate Alert Delay (seconds)",
-                  description: "Delay before alerting on gate open",
+            input "hubVar_GateAlertDelay", "number",
+                  title: "Gate Alert Delay",
+                  description: "Delay before alerting when gate opens (seconds). Sets GateAlertDelay hub variable.",
                   defaultValue: 30,
                   range: "0..300",
                   required: false
@@ -54,9 +54,9 @@ def mainPage() {
                   title: "Rear Gate Shock Sensor",
                   required: false
             
-            input "shockSensitivity", "number",
-                  title: "Shock Sensitivity (1-10)",
-                  description: "Higher = more sensitive",
+            input "hubVar_ShockSensitivity", "number",
+                  title: "Shock Sensitivity",
+                  description: "Sensitivity level for shock sensors (1-10, higher = more sensitive). Sets ShockSensitivity hub variable.",
                   defaultValue: 5,
                   range: "1..10",
                   required: false
@@ -76,6 +76,12 @@ def mainPage() {
             
             input "gunCabinet", "capability.contactSensor",
                   title: "Gun Cabinet Sensor",
+                  required: false
+            
+            input "hubVar_GunCabinetAlertEnabled", "bool",
+                  title: "Gun Cabinet Alerts",
+                  description: "Enable alerts when gun cabinet is opened. Sets GunCabinetAlertEnabled hub variable.",
+                  defaultValue: true,
                   required: false
         }
         
@@ -114,16 +120,16 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>CARPORT BEAM TIMING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "carportBeamPauseDuration", "number",
-                  title: "Carport Beam Pause Duration (seconds)",
-                  description: "How long to pause after beam break in Day mode",
+            input "hubVar_CarportBeamPauseDuration", "number",
+                  title: "Carport Beam Pause Duration",
+                  description: "How long to pause carport beam alerts after trigger (minutes). Sets CarportBeamPauseDuration hub variable.",
                   defaultValue: 300,
                   range: "60..600",
                   required: false
             
-            input "silentCarportTimeout", "number",
-                  title: "Silent Carport Auto-Off (seconds)",
-                  description: "How long silent carport stays on in Morning mode",
+            input "hubVar_SilentCarportTimeout", "number",
+                  title: "Silent Carport Timeout",
+                  description: "Duration for silent carport monitoring mode (minutes). Sets SilentCarportTimeout hub variable.",
                   defaultValue: 120,
                   range: "30..300",
                   required: false
@@ -168,6 +174,12 @@ def mainPage() {
             input "eveningMode", "mode",
                   title: "Evening Mode",
                   description: "Mode for evening-specific alerts",
+                  required: false
+            
+            input "hubVar_AwayModeAlertEnabled", "bool",
+                  title: "Away Mode Alerts",
+                  description: "Enable enhanced alerts when in Away mode. Sets AwayModeAlertEnabled hub variable.",
+                  defaultValue: true,
                   required: false
         }
         
@@ -276,16 +288,15 @@ def mainPage() {
                   required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES SUPPORT</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports the following hub variables for dynamic configuration:"
-            paragraph "• <b>GateAlertDelay</b> - Override gate alert delay (seconds)\n" +
-                     "• <b>ShockSensitivity</b> - Override shock sensitivity (1-10)\n" +
-                     "• <b>PerimeterCheckInterval</b> - Override check interval (minutes)\n" +
-                     "• <b>AwayModeAlertEnabled</b> - Enable/disable away alerts (true/false)\n" +
-                     "• <b>RingPersonTimeout</b> - Override Ring timeout (seconds)\n" +
-                     "• <b>GunCabinetAlertEnabled</b> - Enable/disable cabinet alerts (true/false)\n" +
-                     "• <b>CarportBeamPauseDuration</b> - Override beam pause duration (seconds)\n" +
-                     "• <b>SilentCarportTimeout</b> - Override silent carport timeout (seconds)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• GateAlertDelay - Gate alert delay"
+            paragraph "• ShockSensitivity - Shock sensor sensitivity"
+            paragraph "• GunCabinetAlertEnabled - Gun cabinet alerts"
+            paragraph "• AwayModeAlertEnabled - Away mode enhanced alerts"
+            paragraph "• CarportBeamPauseDuration - Carport beam pause duration"
+            paragraph "• SilentCarportTimeout - Silent carport timeout"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -307,6 +318,7 @@ def updated() {
     unsubscribe()
     unschedule()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -905,6 +917,16 @@ def sendAlert(String message) {
 // HELPER METHODS
 // ============================================================================
 
+def syncHubVariables() {
+    setGlobalVar("GateAlertDelay", (hubVar_GateAlertDelay ?: 30).toString())
+    setGlobalVar("ShockSensitivity", (hubVar_ShockSensitivity ?: 5).toString())
+    setGlobalVar("GunCabinetAlertEnabled", (hubVar_GunCabinetAlertEnabled != null ? hubVar_GunCabinetAlertEnabled : true).toString())
+    setGlobalVar("AwayModeAlertEnabled", (hubVar_AwayModeAlertEnabled != null ? hubVar_AwayModeAlertEnabled : true).toString())
+    setGlobalVar("CarportBeamPauseDuration", (hubVar_CarportBeamPauseDuration ?: 300).toString())
+    setGlobalVar("SilentCarportTimeout", (hubVar_SilentCarportTimeout ?: 120).toString())
+    logInfo "Hub variables synced from app settings"
+}
+
 /**
  * Get configuration value from hub variable or fall back to app setting
  */
@@ -919,19 +941,13 @@ def getConfigValue(String settingName, String hubVarName, defaultValue = null) {
         logDebug "Hub variable '${hubVarName}' not found: ${e.message}"
     }
     
-    // Fall back to app setting
-    def settingValue = settings[settingName]
-    if (settingValue != null) {
-        logDebug "Using app setting ${settingName}: ${settingValue}"
-        return settingValue
-    }
-    
     // Use default if provided
     if (defaultValue != null) {
         logDebug "Using default value: ${defaultValue}"
         return defaultValue
     }
     
+    logDebug "Hub variable '${hubVarName}' not set"
     return null
 }
 

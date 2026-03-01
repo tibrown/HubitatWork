@@ -115,12 +115,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>FLOOD LIGHTS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "floodRear", "capability.switch", title: "Rear Flood Light", required: false
-            input "floodSide", "capability.switch", title: "Side Flood Light", required: false
-            input "floodShower", "capability.switch", title: "Shower Flood Light", required: false
-            input "floodWoodshed", "capability.switch", title: "Woodshed Flood Light", required: false
-            input "floodOffice", "capability.switch", title: "Office Flood Light", required: false
-            input "floodCarport", "capability.switch", title: "Carport Flood Light", required: false
+            input "floodLights", "capability.switch", title: "Flood Lights", multiple: true, required: false
             input "turnFloodsOn", "capability.switch", title: "Turn Floods On Switch (turns on all floods)", required: false
             paragraph "<small><i>Note: Flood lights handle their own motion detection internally - this app does not turn floods on for motion</i></small>"
         }
@@ -742,22 +737,15 @@ def turnFloodsOnHandler(evt) {
     logInfo "Turn Floods On switch activated - turning on all flood lights at 100% brightness"
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
-    def floodLights = [
-        floodRear,
-        floodSide,
-        floodShower,
-        floodWoodshed,
-        floodOffice,
-        floodCarport
-    ].findAll { it != null }
+    def floods = settings.floodLights ?: []
     
-    if (floodLights.isEmpty()) {
+    if (floods.isEmpty()) {
         logDebug "No flood lights configured"
     } else {
-        if (diagnostics) logDeviceStates(floodLights, "AllFloods")
+        if (diagnostics) logDeviceStates(floods, "AllFloods")
         
         // Turn on floods at 100% brightness
-        floodLights.each { flood ->
+        floods.each { flood ->
             if (flood.hasCommand("setLevel")) {
                 flood.setLevel(100)
                 logDebug "Set ${flood.displayName} to 100% brightness"
@@ -767,7 +755,7 @@ def turnFloodsOnHandler(evt) {
             }
         }
         
-        logInfo "Turned on ${floodLights.size()} flood light(s) at 100% brightness"
+        logInfo "Turned on ${floods.size()} flood light(s) at 100% brightness"
     }
     
     // Reset the switch after a short delay
@@ -798,15 +786,11 @@ def allLightsOn() {
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (allLights) {
+        def floodIds = (settings.floodLights ?: []).collect { it.id }
         def lightsToControl = allLights.findAll { 
             it.id != lightStrip?.id && 
             it.id != lanStrip?.id && 
-            it.id != floodRear?.id && 
-            it.id != floodSide?.id && 
-            it.id != floodShower?.id && 
-            it.id != floodWoodshed?.id && 
-            it.id != floodOffice?.id && 
-            it.id != floodCarport?.id 
+            !floodIds.contains(it.id)
         }
         if (diagnostics) logDeviceStates(lightsToControl, "AllLights")
         turnOnDevicesWithRetry(lightsToControl, "AllLights")
@@ -830,15 +814,11 @@ def allLightsOff() {
     def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : false
     
     if (allLights) {
+        def floodIds = (settings.floodLights ?: []).collect { it.id }
         def lightsToControl = allLights.findAll { 
             it.id != lightStrip?.id && 
             it.id != lanStrip?.id && 
-            it.id != floodRear?.id && 
-            it.id != floodSide?.id && 
-            it.id != floodShower?.id && 
-            it.id != floodWoodshed?.id && 
-            it.id != floodOffice?.id && 
-            it.id != floodCarport?.id 
+            !floodIds.contains(it.id)
         }
         if (diagnostics) logDeviceStates(lightsToControl, "AllLights")
         turnOffDevicesWithRetry(lightsToControl, "AllLights")

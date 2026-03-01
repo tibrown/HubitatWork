@@ -58,10 +58,10 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>ALERT CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "helpAlertDuration", "number", title: "Help Alert Duration (seconds)", defaultValue: 300, required: false
-            input "repeatCount", "number", title: "Alert Repeat Count", defaultValue: 5, required: false
-            input "repeatInterval", "number", title: "Alert Repeat Interval (seconds)", defaultValue: 300, required: false
-            input "flashRate", "number", title: "Light Flash Rate (flashes per second)", defaultValue: 2, required: false
+            input "hubVar_HelpAlertDuration", "number", title: "Help Alert Duration", description: "How long emergency help alerts continue (seconds). Sets HelpAlertDuration hub variable.", defaultValue: 300, required: false
+            input "hubVar_FlashRate", "number", title: "Light Flash Rate", description: "How fast lights flash during emergency (flashes per second). Sets FlashRate hub variable.", defaultValue: 2, required: false
+            input "hubVar_HelpAlertRepeat", "number", title: "Alert Repeat Count", description: "Number of times to repeat alert. Sets HelpAlertRepeat hub variable.", defaultValue: 5, required: false
+            input "hubVar_HelpAlertInterval", "number", title: "Alert Interval", description: "Time between alert repetitions (seconds). Sets HelpAlertInterval hub variable.", defaultValue: 300, required: false
             input "silentModeAutoOffTime", "time", title: "Time to Automatically Turn Off Silent Mode", required: false
         }
         
@@ -69,14 +69,13 @@ def mainPage() {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• HelpAlertDuration - Override help alert duration (seconds)"
-            paragraph "• FlashRate - Override light flash rate (flashes per second)"
-            paragraph "• EmergencyVolume - Override emergency siren volume (0-100)"
-            paragraph "• SilentModeTimeout - Override silent mode timeout (minutes)"
-            paragraph "• NotificationDelay - Override notification delay (seconds)"
-            paragraph "• VisualOnlyMode - Enable visual-only alerts (boolean: true/false)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• HelpAlertDuration - Help alert duration"
+            paragraph "• FlashRate - Light flash rate for alerts"
+            paragraph "• HelpAlertRepeat - Alert repeat count"
+            paragraph "• HelpAlertInterval - Time between repetitions"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -96,6 +95,7 @@ def updated() {
     unsubscribe()
     unschedule()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -353,18 +353,24 @@ def sendAlexaMessage(String message) {
 // HELPER METHODS
 // ========================================
 
+def syncHubVariables() {
+    setHubVar("HelpAlertDuration", (hubVar_HelpAlertDuration ?: 300).toString())
+    setHubVar("FlashRate", (hubVar_FlashRate ?: 2).toString())
+    setHubVar("HelpAlertRepeat", (hubVar_HelpAlertRepeat ?: 5).toString())
+    setHubVar("HelpAlertInterval", (hubVar_HelpAlertInterval ?: 300).toString())
+    logInfo "Hub variables synced from app settings"
+}
+
 def getConfigValue(String settingName, String hubVarName) {
-    // Try to get value from hub variable first
+    // Get value from hub variable
     def hubVarValue = getHubVar(hubVarName)
     if (hubVarValue != null) {
         logDebug "Using hub variable '${hubVarName}' = ${hubVarValue}"
         return hubVarValue
     }
     
-    // Fall back to setting value
-    def settingValue = settings[settingName]
-    logDebug "Using setting '${settingName}' = ${settingValue}"
-    return settingValue
+    logDebug "Hub variable '${hubVarName}' not set"
+    return null
 }
 
 def getHubVar(String varName, defaultValue = null) {

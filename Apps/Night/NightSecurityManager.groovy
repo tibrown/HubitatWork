@@ -83,23 +83,20 @@ def mainPage() {
             input "emergencyLightsSwitch", "capability.switch", title: "Emergency Lights Switch (sends to LightsAutomationManager)", required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>TIME WINDOW CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "nightAlertStartTime", "time", title: "Night Alert Start Time (ends when mode changes to Morning)", defaultValue: "20:00", required: false
-        }
-        
         section("<b>═══════════════════════════════════════</b>\n<b>ALERT CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "alertDelay", "number", title: "Delay before triggering alarms (seconds)", defaultValue: 5, required: false
-            input "sirenDuration", "number", title: "Siren duration (seconds)", defaultValue: 300, required: false
-            input "beamLogging", "bool", title: "Enable detailed carport beam logging", defaultValue: true, required: false
+            input "hubVar_AlertDelay", "number", title: "Alert Delay", description: "Wait this long before triggering security alert (seconds). Sets AlertDelay hub variable.", defaultValue: 5, required: false
+            input "hubVar_AlarmDuration", "number", title: "Alarm Duration", description: "How long security alarm sounds (seconds). Sets AlarmDuration hub variable.", defaultValue: 300, required: false
+            input "hubVar_BeamLogEnabled", "bool", title: "Beam Logging Enabled", description: "Enable detailed logging of beam sensor activity. Sets BeamLogEnabled hub variable.", defaultValue: true, required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• NightAlertStartTime - Override night alert start time (HH:mm format)"
-            paragraph "• AlertDelay - Override delay before alerting (seconds)"
-            paragraph "• BeamLogEnabled - Enable/disable detailed beam logging (true/false)"
-            paragraph "• AlarmsEnabled - Read alarm status from SecurityAlarmManager (read-only)"
-            paragraph "• AlarmActive - Check if alarms are currently active (read-only)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• AlertDelay - Security alert delay"
+            paragraph "• AlarmDuration - Alarm sound duration"
+            paragraph "• BeamLogEnabled - Beam sensor logging"
+            paragraph "• AlarmsEnabled - Alarm status from SecurityAlarmManager (read-only)"
+            paragraph "• AlarmActive - Current alarm state (read-only)"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -118,6 +115,7 @@ def updated() {
     logInfo "Night Security Manager updated"
     unsubscribe()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -143,9 +141,9 @@ def initialize() {
 def modeChangeHandler(evt) {
     logDebug "Mode changed from ${evt.value} to ${location.mode}"
     
-    // If mode changed away from restricted modes after night alert start time, disable security
-    if (restrictedModes && !restrictedModes.contains(location.mode) && isAfterNightAlertStart()) {
-        logInfo "Mode changed to ${location.mode} after night alert start time - disabling night security"
+    // If mode changed away from restricted modes, disable security
+    if (restrictedModes && !restrictedModes.contains(location.mode)) {
+        logInfo "Mode changed to ${location.mode} - disabling night security"
         disableNightSecurity()
     }
 }
@@ -205,10 +203,7 @@ def handleCarportBeam(evt) {
              return
          }
          
-         // Check if past night alert start time
-         boolean timeCondition = isAfterNightAlertStart()
-         
-         if (silent.currentSwitch == "off" && (timeCondition || highAlert.currentSwitch == "on")) {
+         if (silent.currentSwitch == "off") {
              // Check cooldown to avoid repeated alerts
              if (state.lastCarportAlert && (now() - state.lastCarportAlert) < 300000) { // 5 minute cooldown
                  logDebug "Carport alert in cooldown period - skipping"
@@ -216,7 +211,7 @@ def handleCarportBeam(evt) {
              }
              
              state.lastCarportAlert = now()
-             logInfo "Intruder detected in carport - motion/person verified, time condition or high alert active"
+             logInfo "Intruder detected in carport - motion/person verified"
              notificationDevices.each { it.deviceNotification("Alert! Intruder in the carport!") }
              Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
              runIn(delay, executeAlarmsOn)
@@ -332,7 +327,7 @@ def handleRPDGarden(evt) {
 def handleRPDRearGate(evt) {
     // NOTE: Shock correlation is handled by PerimeterSecurityManager
     // This handler is just for logging during night mode
-    if (evt.value == "on" && isAfterNightAlertStart()) {
+    if (evt.value == "on") {
         logDebug "Person detected at CPen/Rear Gate - PerimeterSecurityManager handles shock correlation"
     }
 }
@@ -463,25 +458,23 @@ def disableNightSecurity() {
 // HELPER METHODS
 // ========================================
 
-def isAfterNightAlertStart() {
-    def startTimeStr = getConfigValue("nightAlertStartTime", "NightAlertStartTime") ?: "20:00"
-    def startTime = timeToday(startTimeStr, location.timeZone)
-    def now = new Date()
-    return now.after(startTime)
+def syncHubVariables() {
+    setHubVar("AlertDelay", (hubVar_AlertDelay ?: 5).toString())
+    setHubVar("AlarmDuration", (hubVar_AlarmDuration ?: 300).toString())
+    setHubVar("BeamLogEnabled", (hubVar_BeamLogEnabled != null ? hubVar_BeamLogEnabled : true).toString())
+    logInfo "Hub variables synced from app settings"
 }
 
 def getConfigValue(String settingName, String hubVarName) {
-    // Try to get value from hub variable first
+    // Get value from hub variable
     def hubVarValue = getHubVar(hubVarName)
     if (hubVarValue != null) {
         logDebug "Using hub variable '${hubVarName}' = ${hubVarValue}"
         return hubVarValue
     }
     
-    // Fall back to setting value
-    def settingValue = settings[settingName]
-    logDebug "Using setting '${settingName}' = ${settingValue}"
-    return settingValue
+    logDebug "Hub variable '${hubVarName}' not set"
+    return null
 }
 
 def getHubVar(String varName, defaultValue = null) {

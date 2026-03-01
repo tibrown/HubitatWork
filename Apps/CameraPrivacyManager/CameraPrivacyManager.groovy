@@ -52,16 +52,16 @@ def mainPage() {
                   description: "Switch that turns OFF when your phone leaves (e.g., from geofence)",
                   required: true
             paragraph ""
-            input "privacyDelayMinutes", "number",
-                  title: "Privacy Delay (minutes)",
-                  description: "Delay before turning cameras off when arriving home",
+            input "hubVar_PrivacyDelay", "number",
+                  title: "Privacy Delay",
+                  description: "Delay before turning cameras off when phone arrives (minutes). Sets PrivacyDelay hub variable.",
                   defaultValue: 2,
                   range: "0..60",
                   required: false
             
-            input "enableDelayMinutes", "number",
-                  title: "Enable Delay (minutes)",
-                  description: "Delay before turning cameras on when leaving",
+            input "hubVar_EnableDelay", "number",
+                  title: "Enable Delay",
+                  description: "Delay before turning cameras on when phone leaves (minutes). Sets EnableDelay hub variable.",
                   defaultValue: 1,
                   range: "0..60",
                   required: false
@@ -78,19 +78,20 @@ def mainPage() {
                   description: "Switch to manually force cameras off",
                   required: false
             
-            input "overrideDurationHours", "number",
-                  title: "Manual Override Duration (hours)",
-                  description: "How long manual override lasts before reverting",
+            input "hubVar_ManualOverrideDuration", "number",
+                  title: "Manual Override Duration",
+                  description: "How long manual camera control lasts before reverting to automatic (hours). Sets ManualOverrideDuration hub variable.",
                   defaultValue: 4,
                   range: "1..24",
                   required: false
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports the following hub variables for dynamic configuration:"
-            paragraph "• <b>PrivacyDelay</b> - Override camera off delay (minutes)\n" +
-                     "• <b>EnableDelay</b> - Override camera on delay (minutes)\n" +
-                     "• <b>ManualOverrideDuration</b> - Override manual override timeout (hours)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• PrivacyDelay - Camera off delay when arriving"
+            paragraph "• EnableDelay - Camera on delay when leaving"
+            paragraph "• ManualOverrideDuration - Manual override timeout"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -112,6 +113,7 @@ def updated() {
     unsubscribe()
     unschedule()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -295,6 +297,13 @@ def revertToAutomatic() {
 // HELPER METHODS
 // ============================================================================
 
+def syncHubVariables() {
+    setGlobalVar("PrivacyDelay", (hubVar_PrivacyDelay ?: 2).toString())
+    setGlobalVar("EnableDelay", (hubVar_EnableDelay ?: 1).toString())
+    setGlobalVar("ManualOverrideDuration", (hubVar_ManualOverrideDuration ?: 4).toString())
+    logInfo "Hub variables synced from app settings"
+}
+
 /**
  * Get configuration value from hub variable or fall back to app setting
  */
@@ -309,10 +318,8 @@ def getConfigValue(String settingName, String hubVarName) {
         logDebug "Hub variable '${hubVarName}' not found: ${e.message}"
     }
     
-    // Fall back to app setting
-    def settingValue = settings[settingName]
-    logDebug "Using app setting ${settingName}: ${settingValue}"
-    return settingValue
+    logDebug "Hub variable '${hubVarName}' not set"
+    return null
 }
 
 /**

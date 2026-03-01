@@ -49,7 +49,7 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>ARRIVAL GRACE PERIOD</b>\n<b>═══════════════════════════════════════</b>") {
             input "arriveGracePeriodSwitch", "capability.switch", title: "Arrive Grace Period Switch", required: false
-            input "graceDuration", "number", title: "Grace Period Duration (minutes)", defaultValue: 30, required: false
+            input "hubVar_GracePeriodDuration", "number", title: "Grace Period Duration", description: "How long grace period lasts after arrival (minutes). Sets GracePeriodDuration hub variable.", defaultValue: 30, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
@@ -65,25 +65,25 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MOTION CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "motionTimeout", "number", title: "Motion Detection Timeout (seconds)", defaultValue: 60, required: false
-            input "enableDayMotion", "bool", title: "Enable Day Mode Motion Detection", defaultValue: true
-            input "enableNightMotion", "bool", title: "Enable Night Mode Motion Detection", defaultValue: false
+            input "hubVar_MotionTimeout", "number", title: "Motion Detection Timeout", description: "How long to keep lights on after motion stops (seconds). Sets MotionTimeout hub variable.", defaultValue: 60, required: false
+            input "hubVar_EnableDayMotion", "bool", title: "Enable Day Motion", description: "Process motion events during daytime. Sets EnableDayMotion hub variable.", defaultValue: true
+            input "hubVar_EnableNightMotion", "bool", title: "Enable Night Motion", description: "Process motion events during nighttime. Sets EnableNightMotion hub variable.", defaultValue: false
             input "generalMotionModes", "enum", title: "General Motion Active Modes", options: ["Day", "Morning", "Evening", "Night"], multiple: true, required: false
             input "backDoorMotionModes", "enum", title: "Back Door Motion Active Modes", options: ["Day", "Morning", "Evening", "Night"], multiple: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>PRESENCE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "arrivalNotification", "bool", title: "Send Arrival Notifications", defaultValue: true
-            input "departureNotification", "bool", title: "Send Departure Notifications", defaultValue: false
+            input "hubVar_ArrivalNotifications", "bool", title: "Arrival/Departure Notifications", description: "Send notifications when people arrive/depart. Sets ArrivalNotifications hub variable.", defaultValue: true
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• GracePeriodDuration - Override grace period duration (minutes)"
-            paragraph "• MotionTimeout - Override motion sensor timeout (seconds)"
-            paragraph "• EnableDayMotion - Enable/disable day motion detection (true/false)"
-            paragraph "• EnableNightMotion - Enable/disable night motion detection (true/false)"
-            paragraph "• ArrivalNotifications - Enable/disable arrival notifications (true/false)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• GracePeriodDuration - Grace period after arrival"
+            paragraph "• MotionTimeout - Motion detection timeout"
+            paragraph "• EnableDayMotion - Day motion control"
+            paragraph "• EnableNightMotion - Night motion control"
+            paragraph "• ArrivalNotifications - Arrival/departure alerts"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -103,6 +103,7 @@ def updated() {
     unsubscribe()
     unschedule()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -386,18 +387,25 @@ def endGracePeriod() {
 // HELPER METHODS
 // ========================================
 
+def syncHubVariables() {
+    setHubVar("MotionTimeout", (hubVar_MotionTimeout ?: 60).toString())
+    setHubVar("EnableDayMotion", (hubVar_EnableDayMotion != null ? hubVar_EnableDayMotion : true).toString())
+    setHubVar("EnableNightMotion", (hubVar_EnableNightMotion != null ? hubVar_EnableNightMotion : false).toString())
+    setHubVar("ArrivalNotifications", (hubVar_ArrivalNotifications != null ? hubVar_ArrivalNotifications : true).toString())
+    setHubVar("GracePeriodDuration", (hubVar_GracePeriodDuration ?: 30).toString())
+    logInfo "Hub variables synced from app settings"
+}
+
 def getConfigValue(String settingName, String hubVarName) {
-    // Try to get value from hub variable first
+    // Get value from hub variable
     def hubVarValue = getHubVar(hubVarName)
     if (hubVarValue != null) {
         logDebug "Using hub variable '${hubVarName}' = ${hubVarValue}"
         return hubVarValue
     }
     
-    // Fall back to setting value
-    def settingValue = settings[settingName]
-    logDebug "Using setting '${settingName}' = ${settingValue}"
-    return settingValue
+    logDebug "Hub variable '${hubVarName}' not set"
+    return null
 }
 
 def getHubVar(String varName, defaultValue = null) {

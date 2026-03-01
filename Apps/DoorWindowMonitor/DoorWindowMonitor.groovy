@@ -92,26 +92,26 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>ALERT THRESHOLDS</b>\n<b>═══════════════════════════════════════</b>") {
             input "ignoreLeftOpenSwitch", "capability.switch", title: "Switch to disable left-open alerts (when ON, all left-open monitoring is disabled)", required: false
-            input "doorOpenThreshold", "number", title: "Door Left Open Alert (minutes)", defaultValue: 5, required: false
-            input "windowOpenThreshold", "number", title: "Window Left Open Alert (minutes)", defaultValue: 10, required: false
-            input "freezerDoorThreshold", "number", title: "Freezer Door Left Open Alert (minutes)", defaultValue: 2, required: false
-            input "checkInterval", "number", title: "Check Interval for Left Open (minutes)", defaultValue: 1, required: false
+            input "hubVar_DoorOpenThreshold", "number", title: "Door Left Open Alert", description: "Alert after door left open this long (minutes). Sets DoorOpenThreshold hub variable.", defaultValue: 5, required: false
+            input "hubVar_WindowOpenThreshold", "number", title: "Window Left Open Alert", description: "Alert after window left open this long (minutes). Sets WindowOpenThreshold hub variable.", defaultValue: 10, required: false
+            input "hubVar_FreezerDoorThreshold", "number", title: "Freezer Door Left Open Alert", description: "Alert after freezer door left open this long (minutes). Sets FreezerDoorThreshold hub variable.", defaultValue: 2, required: false
+            input "hubVar_CheckInterval", "number", title: "Check Interval", description: "How often to check for doors/windows left open (minutes). Sets CheckInterval hub variable.", defaultValue: 1, required: false
+            input "hubVar_TamperAlertEnabled", "bool", title: "Tamper Alert Enabled", description: "Enable alerts when sensors detect tampering. Sets TamperAlertEnabled hub variable.", defaultValue: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>PAUSE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "pauseDuration", "number", title: "Auto Pause Duration (minutes)", defaultValue: 5, required: false
+            input "hubVar_PauseDuration", "number", title: "Auto Pause Duration", description: "How long to pause alerts when pause button pressed (minutes). Sets PauseDuration hub variable.", defaultValue: 5, required: false
             input "pauseMotionActiveModes", "mode", title: "Pause Motion Active Modes (motion triggers pause only in these modes)", multiple: true, required: false
             paragraph "Configure when motion sensors should trigger pause alarms. The pause duration applies to both manual and motion-triggered pauses."
         }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLE OVERRIDES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "This app supports hub variable overrides for flexible configuration:"
-            paragraph "• DoorOpenThreshold - Override time before alerting on open door (minutes)"
-            paragraph "• WindowOpenThreshold - Override time before alerting on open window (minutes)"
-            paragraph "• FreezerDoorThreshold - Override freezer door open threshold (minutes)"
-            paragraph "• PauseDuration - Override alarm pause duration (minutes)"
-            paragraph "• CheckInterval - Override periodic check interval (minutes)"
-            paragraph "• TamperAlertEnabled - Enable/disable tamper detection (true/false)"
+        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
+            paragraph "• DoorOpenThreshold, WindowOpenThreshold, FreezerDoorThreshold - Alert thresholds"
+            paragraph "• CheckInterval - Periodic check frequency"
+            paragraph "• PauseDuration - Pause duration for alerts"
+            paragraph "• TamperAlertEnabled - Tamper detection control"
+            paragraph "Hub variables are automatically synced when this app is updated."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -131,6 +131,7 @@ def updated() {
     unsubscribe()
     unschedule()
     initialize()
+    syncHubVariables()
 }
 
 def initialize() {
@@ -636,18 +637,26 @@ def handleTamper(device) {
 // HELPER METHODS
 // ========================================
 
+def syncHubVariables() {
+    setHubVar("CheckInterval", (hubVar_CheckInterval ?: 1).toString())
+    setHubVar("DoorOpenThreshold", (hubVar_DoorOpenThreshold ?: 5).toString())
+    setHubVar("WindowOpenThreshold", (hubVar_WindowOpenThreshold ?: 10).toString())
+    setHubVar("FreezerDoorThreshold", (hubVar_FreezerDoorThreshold ?: 2).toString())
+    setHubVar("PauseDuration", (hubVar_PauseDuration ?: 5).toString())
+    setHubVar("TamperAlertEnabled", (hubVar_TamperAlertEnabled != null ? hubVar_TamperAlertEnabled : true).toString())
+    logInfo "Hub variables synced from app settings"
+}
+
 def getConfigValue(String settingName, String hubVarName) {
-    // Try to get value from hub variable first
+    // Get value from hub variable
     def hubVarValue = getHubVar(hubVarName)
     if (hubVarValue != null) {
         logDebug "Using hub variable '${hubVarName}' = ${hubVarValue}"
         return hubVarValue
     }
     
-    // Fall back to setting value
-    def settingValue = settings[settingName]
-    logDebug "Using setting '${settingName}' = ${settingValue}"
-    return settingValue
+    logDebug "Hub variable '${hubVarName}' not set"
+    return null
 }
 
 def getHubVar(String varName, defaultValue = null) {
