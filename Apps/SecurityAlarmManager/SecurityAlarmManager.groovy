@@ -66,6 +66,7 @@ def mainPage() {
             input "hubVar_AlarmDuration", "number", title: "Alarm Duration", description: "How long alarms sound before auto-stopping (seconds). Sets AlarmDuration hub variable.", defaultValue: 300, required: false
             input "hubVar_ArmDelay", "number", title: "Arm Delay", description: "Delay before arming alarms (seconds). Sets ArmDelay hub variable.", defaultValue: 0, required: false
             input "hubVar_DisarmDelay", "number", title: "Disarm Delay", description: "Delay before disarming alarms (seconds). Sets DisarmDelay hub variable.", defaultValue: 0, required: false
+            input "announceArmed", "bool", title: "Announce when alarms are armed", description: "Send notification and play chime when alarms are armed", defaultValue: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
@@ -233,14 +234,18 @@ def doArmAlarms() {
     alarmsEnabledSwitch?.on()
     setHubVar("AlarmsEnabled", "true")
     
-    // Play armed chime
-    playSound(6, [siren2])
-    
-    // Notify via Alexa or notification device
-    String message = "Alarms are armed"
-    sendNotification(message)
-    
-    logInfo message
+    // Check if arm announcement is enabled
+    if (settings.announceArmed != false) {
+        // Play armed chime
+        playSound(6, [siren2])
+        
+        // Notify via Alexa or notification device
+        String message = "Alarms are armed"
+        sendNotification(message)
+        logInfo message
+    } else {
+        logInfo "Alarms armed (announcement disabled)"
+    }
 }
 
 def disarmAlarms() {
