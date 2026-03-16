@@ -1,356 +1,192 @@
-# Special Automations Manager
+# Mains Power Monitor
+
+> **Note**: This app is stored in the `SpecialAutomationsManager` folder for historical reasons. The app definition name is **Mains Power Monitor**.
 
 ## Overview
-The Special Automations Manager is a comprehensive Hubitat app that handles miscellaneous automations that don't fit into other specialized categories. It provides pet monitoring, work reminders, power monitoring, communication routing, and various convenience automations.
+Mains Power Monitor tracks the power source of the Hubitat hub (mains vs. battery/UPS), alerts on power outages, sends periodic battery reminders, and safely shuts down the hub after an extended outage to prevent data corruption.
 
 ## Purpose
-- Centralize diverse automation logic in one maintainable app
-- Pet monitoring and care reminders
-- Work-life balance features (meetings, PTO, wake-up)
-- Critical infrastructure monitoring (power, water)
-- Multi-channel communication routing
-- Convenience automations (safe monitoring)
-
-## Rules Consolidated
-This app consolidates **19 rules**:
-
-| Rule Name | Rule ID | Category | Function |
-|-----------|---------|----------|----------|
-| CarportZoneActiveSiren | 1656 | Pet | Dog in carport zone detection |
-| DogIsOnTheFloor | 1698 | Pet | Dog floor sensor tracking |
-| DogsOutside | 1780 | Pet | Dogs outside monitoring |
-| DogOnFloorTest | 1669 | Pet | Dog floor sensor testing |
-| DogsFedReset | 1645 | Pet | Daily feeding status reset |
-| CheckDogsFed | 1646 | Pet | Feeding reminder |
-| MeetingReminder | 866 | Work | Meeting notifications |
-| MeetingTime | 1691 | Work | Meeting time indicator |
-| PtoOn | 1690 | Work | PTO mode management |
-| SetAwayDelay | 1644 | Mode | Delayed away mode |
-| MainsDown | 1716 | Power | Mains power failure alert |
-| MainsWatch | 1715 | Power | Mains power monitoring |
-| SeeSlack | 1706 | Communication | Slack message reminder |
-| CheckSafeLocked | 1672 | Security | Safe lock verification |
-| WakeUpForWork | 1686 | Work | Morning wake-up alarm |
-| NotifyPhone | 1718 | Communication | Phone notifications |
-| TellAlexa | 694 | Communication | Alexa announcements |
-| TellMe | 1347 | Communication | General notifications |
-| PlaySO25 | 1658 | Audio | Audio playback |
+- Detect when the hub switches from mains power to battery backup
+- Alert via push notification when the outage persists
+- Send periodic reminders while running on battery
+- Automatically shut down the hub before the battery is exhausted
+- Alert when mains power is restored
+- Support a bypass switch to disable alerts/shutdown during maintenance
 
 ## Features
-
-### Pet Monitoring
-- **Dog Floor Detection**: Track when dog is on floor
-- **Dogs Outside Tracking**: Monitor time dogs spend outside
-- **Outside Timeout Alerts**: Alert if dogs outside too long
-- **Feeding Reminders**: Daily feeding time reminders
-- **Fed Status Reset**: Automatic daily reset
-- **Carport Zone Detection**: Alert and siren for dog in restricted zone
-
-### Work Reminders
-- **Meeting Reminders**: Advance notice for upcoming meetings
-- **Meeting Time Indicator**: Visual indicator during meetings
-- **PTO Mode**: Toggle work vs. vacation mode
-- **Wake-Up Alarm**: Weekday-specific wake-up alerts
-- **Day-of-Week Filtering**: Different schedules for different days
-
-### Power Monitoring
-- **Mains Power Detection**: Alert when power fails
-- **Battery Backup Tracking**: Know when running on backup
-- **Delayed Alerts**: Prevent false alarms
-- **Power Restoration Notifications**: Know when power returns
-- **Water Monitoring**: Track water valve state
-
-### Communication Routing
-- **Multi-Channel Support**: Push, Alexa, Phone, Slack
-- **Slack Integration**: Webhook-based Slack notifications
-- **Slack Reminders**: Prompt to check Slack messages
-- **Message Routing**: Context-aware delivery
-
-### Miscellaneous Automations
-- **Safe Monitoring**: Periodic lock status checks
-- **Away Mode Delay**: Graceful transition to away
-- **Audio Playback**: Scheduled or triggered sounds
-
-## Configuration
-
-### Pet Monitoring Settings
-- **Dog Floor Sensor**: Contact sensor for dog presence
-- **Dog On Floor Switch**: State indicator switch
-- **Dogs Outside Switch**: Track when dogs go outside
-- **Dogs Fed Switch**: Daily feeding status
-- **Carport Zone Active**: Dog detection in carport
-- **Carport Siren**: Alert device for carport zone
-- **Feeding Reminder Time**: Daily reminder schedule (optional - leave blank to disable)
-  - Hub Variable: `dogFeedingReminderTime` (HH:mm)
-- **Fed Reset Time**: When to reset fed status (optional)
-- **Dog Outside Timeout**: Minutes before alert (5-120)
-  - Hub Variable: `dogOutsideTimeout`
-- **Enable Feeding Reminder**: Toggle reminders (requires Feeding Reminder Time to be set)
-- **Enable Outside Alerts**: Toggle timeout alerts
-
-### Work Reminders Settings
-- **Calendar Device**: Calendar integration sensor
-- **Meeting Reminder Advance**: Minutes before meeting (5-60)
-  - Hub Variable: `meetingReminderAdvance`
-- **Meeting Time Switch**: Indicator for active meetings
-- **Enable Meeting Reminders**: Toggle meeting alerts
-- **PTO Switch**: Work vs. vacation mode
-- **Enable PTO Mode**: Toggle PTO features
-- **Wake-Up Time**: Daily alarm time
-  - Hub Variable: `wakeUpTime` (HH:mm)
-- **Wake-Up Days**: Days to trigger alarm
-- **Enable Wake-Up Alarm**: Toggle alarm
-
-### Power Monitoring Settings
-- **Mains Power Sensor**: Power source detection
-- **On Mains Switch**: State indicator
-- **Power Alert Delay**: Seconds before alert (10-300)
-  - Hub Variable: `powerMonitorDelay`
-- **Enable Mains Monitoring**: Toggle power alerts
-- **Water Switch**: Water valve state indicator
-
-### Communication Settings
-- **Push Notification Devices**: Push notification targets
-- **Alexa Device**: Voice announcement device
-- **Phone Device**: Phone-specific notifications
-- **Slack Webhook URL**: Slack integration endpoint
-- **Enable Slack Notifications**: Toggle Slack messages
-- **See Slack Switch**: Slack reminder trigger
-
-### Miscellaneous Settings
-- **Safe Sensor**: Lock status sensor
-- **Safe Check Interval**: Hours between checks (1-168)
-  - Hub Variable: `safeCheckInterval`
-- **Enable Safe Checks**: Toggle safe monitoring
-- **Set Away Delay Switch**: Trigger delayed away mode
-- **Away Mode Delay**: Minutes before mode change (1-60)
-  - Hub Variable: `awayModeDelay`
-- **Audio Device**: Audio playback device
-- **Enable Audio Notifications**: Toggle audio features
-
-## Hub Variable Support
-
-The app supports the following hub variables for dynamic configuration:
-
-| Hub Variable | Type | Description | Default |
-|--------------|------|-------------|--------|
-| `dogFeedingReminderTime` | String | Feeding reminder time (HH:mm) | Setting value |
-| `dogOutsideTimeout` | Number | Dog outside timeout (minutes) | 30 |
-| `meetingReminderAdvance` | Number | Meeting reminder advance (minutes) | 15 |
-| `wakeUpTime` | String | Wake-up alarm time (HH:mm) | Setting value |
-| `safeCheckInterval` | Number | Safe check interval (hours) | 24 |
-| `powerMonitorDelay` | Number | Power alert delay (seconds) | 30 |
-| `awayModeDelay` | Number | Away mode delay (minutes) | 5 |
-
-**Hub Variable Priority**: Hub variables take precedence over app settings. If a hub variable is not set, the app falls back to the configured setting value.
-
-## Logic Flows
-
-### Dog Feeding Reminder Flow
-```
-1. Only scheduled if dogFeedingReminderTime is set
-2. At scheduled time, check if dogsFedSwitch is ON
-3. If not fed:
-   - Alexa announcement
-   - Push notification
-4. If fed: Skip reminder
-5. Daily reset at fedResetTime (if configured)
-```
-
-### Dogs Outside Timeout Flow
-```
-1. DogsOutsideSwitch turns ON
-2. Start timer for dogOutsideTimeout minutes
-3. When timer expires:
-   - Check if still outside (switch ON)
-   - If yes: Send alert notification
-   - If no: Cancel (already brought in)
-```
-
-### Mains Power Down Flow
-```
-1. Power source changes to "battery"
-2. Set onMainsSwitch to OFF
-3. Wait powerMonitorDelay seconds
-4. If still on battery:
-   - Send push notification
-   - Alexa announcement
-   - Slack message
-5. When power restored:
-   - Set onMainsSwitch to ON
-   - Send restoration notification
-```
-
-### Meeting Reminder Flow
-```
-1. Calendar event detected
-2. Calculate reminder time (event time - advance minutes)
-3. At reminder time:
-   - Turn on meetingTimeSwitch
-   - Alexa announcement
-   - Push notification
-4. After 1 hour: Auto-reset switch
-```
-
-### Wake-Up Alarm Flow
-```
-1. Triggered at wakeUpTime
-2. Check if today in wakeUpDays
-3. If yes:
-   - Alexa "Good morning"
-   - Push notification
-   - Play audio (if configured)
-4. If no: Skip
-```
-
-## Integration Points
-
-### Outbound (This App Calls)
-None - standalone automations
-
-### Inbound (Other Apps Can Monitor)
-- **Meeting Time Switch**: Other apps can check meeting status
-- **PTO Switch**: Other apps can adapt to vacation mode
-- **On Mains Switch**: Other apps can check power status
-- **Dogs Outside Switch**: Other apps can check dog location
-- **Dogs Fed Switch**: Other apps can check feeding status
-
-## Code Structure
-
-### Key Methods
-- **Pet Monitoring**:
-  - `dogFloorHandler(evt)`: Dog floor sensor changes
-  - `dogsOutsideHandler(evt)`: Dogs went outside
-  - `dogsOutsideTimeout()`: Alert for extended outside time
-  - `checkDogsFed()`: Check and remind feeding
-  - `resetDogsFed()`: Daily reset
-  - `carportZoneActiveHandler(evt)`: Dog in restricted zone
-
-- **Work Reminders**:
-  - `meetingEventHandler(evt)`: Calendar event changes
-  - `meetingReminder()`: Send meeting notification
-  - `ptoHandler(evt)`: PTO mode changes
-  - `wakeUpAlarm()`: Morning wake-up
-
-- **Power Monitoring**:
-  - `powerSourceHandler(evt)`: Power source changes
-  - `handleMainsDown()`: Power failure response
-  - `handleMainsRestored()`: Power restoration
-  - `sendMainsDownAlert()`: Delayed alert
-
-- **Communication**:
-  - `notify(destination, message)`: Route notifications
-  - `sendSlackMessage(message)`: Slack webhook
-  - `seeSlackHandler(evt)`: Slack reminder
-
-- **Miscellaneous**:
-  - `checkSafeLocked()`: Safe status verification
-  - `setAwayDelayHandler(evt)`: Delayed away mode
-  - `setAwayMode()`: Execute mode change
-
-- **Helpers**:
-  - `getConfigValue(settingName, hubVarName)`: Get value from hub variable or setting
-  - `convertValue(value, settingName)`: Type conversion
-
-### State Variables
-Minimal state usage - primarily event-driven
+- **Power Loss Detection**: Reacts immediately to `powerSource` events (mains to battery)
+- **Configurable Stay Duration**: Only alerts after the hub has been on battery for a configurable minimum time (avoids false alarms from brief flickers)
+- **Hub Shutdown**: Safely shuts down the hub via the Hubitat Hub Controller device to prevent SD card/database corruption
+- **Periodic Reminders**: Sends regular battery-level reminders with countdown to shutdown
+- **Power Restore Notification**: Cancels all pending alerts/shutdown and notifies when mains power returns
+- **Bypass Switch**: An ignore switch disables all alerts and scheduled shutdown during planned maintenance
+- **Status Display**: Shows real-time power source and battery level in the app settings page
 
 ## Installation
 
-1. **Create Hub Variables** (optional, for dynamic configuration):
-   ```
-   Settings → Hub Variables → Add Variable
-   - dogFeedingReminderTime (String): "18:00"
-   - dogOutsideTimeout (Number): 30
-   - meetingReminderAdvance (Number): 15
-   - wakeUpTime (String): "06:00"
-   - safeCheckInterval (Number): 24
-   - powerMonitorDelay (Number): 30
-   - awayModeDelay (Number): 5
-   ```
+### Prerequisites
+1. A UPS or battery backup device reported to Hubitat as a `powerSource` sensor (e.g., via a compatible driver)
+2. The Hubitat Hub Controller device must be enabled if you want hub shutdown functionality: **Settings > Hub Details > Hub Controller**
+3. Optional: virtual switches for status tracking and ignore functionality
 
-2. **Configure Slack** (optional):
-   - Create Slack webhook in your workspace
-   - Copy webhook URL
-   - Paste into app settings
+### Installation Steps
+1. Navigate to **Apps Code** in Hubitat
+2. Click **New App**
+3. Paste the `SpecialAutomationsManager.groovy` code
+4. Click **Save**
+5. Navigate to **Apps**
+6. Click **Add User App**
+7. Select **Mains Power Monitor**
+8. Configure the app (see Configuration below)
 
-3. **Install App**:
-   - Apps → Add User App → Special Automations Manager
-   - Navigate through configuration pages
-   - Configure only features you need
-   - Set logging level (recommend "Info" initially)
+## Configuration
 
-4. **Test Each Feature**:
-   - Trigger dog sensors
-   - Test feeding reminder
-   - Verify power monitoring
-   - Check coffee automation
-   - Test wake-up alarm
-   - Verify Slack integration
+### Power Source Device
+- **Mains Power Sensor** (required): The device that reports `powerSource` capability (e.g., a UPS device driver). The `powerSource` attribute should report `"mains"` when on utility power and `"battery"` when on battery backup.
+- **Enable Mains Power Monitoring**: Toggle all mains monitoring on/off. When disabled, the app subscribes to nothing. Default: true.
 
-## Testing Checklist
+### Status & Control Devices
+- **On Mains Status Switch**: Optional virtual switch that mirrors the power source state. ON = on mains, OFF = on battery. Useful for dashboard indicators or triggering other rules.
+- **Ignore Mains Check Switch**: Optional virtual switch. When this switch is **ON**, all battery alerts and hub shutdown are bypassed. Use during planned maintenance or testing.
+- **Hub Controller Device**: The Hubitat Hub Controller device (actuator). Required for hub shutdown functionality. Receives a `.shutdown()` command when shutdown is triggered.
 
-### Pet Monitoring
-- [ ] Dog floor sensor triggers switch
-- [ ] Dogs outside timeout alerts
-- [ ] Feeding reminder fires at correct time
-- [ ] Fed status resets daily
-- [ ] Carport zone triggers siren
+### Timing Settings
+- **Battery Stay Duration Before Alert (minutes)**: How many minutes the hub must be on battery before an alert is sent (1-30, default: 5). Prevents false alarms from momentary power glitches.
+- **Hub Shutdown Delay After Alert (minutes)**: How many minutes after the first alert before the hub shuts down (5-120, default: 30). This is the total time from the alert, not from the power loss.
+- **Battery Reminder Interval (minutes)**: How often to send "still on battery" reminders while awaiting shutdown (1-30, default: 5).
 
-### Work Reminders
-- [ ] Meeting reminders work
-- [ ] PTO mode toggles correctly
-- [ ] Wake-up alarm fires on correct days
-- [ ] Wake-up skips non-work days
+### Notifications
+- **Notification Devices**: Devices to receive push notifications for power events.
 
-### Power Monitoring
-- [ ] Mains down alert triggers
-- [ ] Power restoration notification sent
-- [ ] Delay prevents false alarms
+### Logging
+- **Logging Level**: None, Info, Debug, or Trace. Info is recommended for production use.
 
-### Communication
-- [ ] Push notifications delivered
-- [ ] Alexa announcements work
-- [ ] Slack messages received
-- [ ] See Slack reminder triggers
+## How It Works
 
-### Miscellaneous
-- [ ] Safe check alerts work
-- [ ] Away delay triggers correctly
-- [ ] Hub variables override settings
+### Power Loss Sequence
+```
+1. Mains power lost - powerSource event fires ("battery")
+2. onMainsSwitch set to OFF
+3. Wait configured Stay Duration (default: 5 minutes)
+4. If still on battery and Ignore switch is OFF:
+   - Send alert: "ALERT: Mains power is DOWN. Hub will shut down in X minutes..."
+   - Schedule hub shutdown after configured delay
+   - Begin sending periodic battery reminders every interval minutes
+5. If power restores before any step: cancel all scheduled jobs, send restoration notification
+```
 
-## Maintenance
+### Battery Reminder Messages
+Each reminder includes a countdown: "Still on battery - hub shutdown in X minutes"
+Reminders stop automatically once the remaining time is shorter than the reminder interval.
 
-### Adjusting Schedules
-- Modify time settings for feeding, coffee, wake-up
-- Update day-of-week selections
-- Adjust timeout and delay values
+### Hub Shutdown Sequence
+```
+1. Shutdown delay expires
+2. Verify still on battery (cancel if power restored)
+3. Check Ignore switch (cancel if bypassed)
+4. Send notification: "Hub shutting down due to extended power outage"
+5. Call hubController.shutdown()
+```
 
-### Monitoring
-- Review logs for automation triggers
-- Check notification delivery
-- Verify schedules execute correctly
-- Monitor power events
+### Power Restored Sequence
+```
+1. Mains power restored - powerSource event fires ("mains")
+2. onMainsSwitch set to ON
+3. Cancel all pending scheduled jobs (alert, shutdown, reminders)
+4. Send notification: "Mains power restored"
+```
 
-### Troubleshooting
-- **No notifications**: Check notification devices configured
-- **Reminders not firing**: Verify time format (HH:mm)
-- **Slack not working**: Verify webhook URL
-- **Safe alerts too frequent**: Increase check interval
+## Usage Examples
 
-## Performance Notes
-- **Lines of Code**: ~620
-- **State Variables**: Minimal (mostly event-driven)
-- **Scheduled Jobs**: ~6 (depending on enabled features)
-- **Subscriptions**: ~15 (depending on configured devices)
-- **Performance**: Lightweight, efficient
-- **Memory**: Low state usage
+### Example 1: Basic Power Outage Alerting
+**Scenario**: Receive a notification if the hub loses power and may shut down
 
-## Future Enhancements
-- Google Calendar integration
-- Advanced pet activity tracking
-- Energy usage monitoring
-- Weather-based automation
-- Voice command integration
-- Mobile app integration
-- Machine learning for pattern detection
+**Configuration**:
+- Mains Power Sensor: UPS device
+- Enable Monitoring: ON
+- Battery Stay Duration: 3 minutes
+- Hub Shutdown Delay: 45 minutes
+- Reminder Interval: 10 minutes
+- Notification Device: Phone
+
+**Behavior**:
+1. Power outage - after 3 minutes, alert sent: "Hub shuts down in 45 minutes"
+2. Every 10 minutes: "Still on battery - shutdown in X minutes"
+3. After 45 minutes on battery: hub shuts down safely
+4. When power returns: "Mains power restored"
+
+### Example 2: With Dashboard Indicator
+**Scenario**: Show power status on a Hubitat dashboard
+
+**Configuration**:
+- On Mains Status Switch: Virtual switch "Hub On Mains"
+- Display this switch on your dashboard
+
+**Behavior**:
+- Switch turns OFF when power is lost (visible on dashboard)
+- Switch turns ON when power is restored
+
+### Example 3: Maintenance Bypass
+**Scenario**: Testing UPS or doing electrical work - don't want shutdown triggered
+
+**Configuration**:
+- Ignore Mains Check Switch: Virtual switch "Ignore Mains"
+
+**Behavior**:
+1. Turn ON "Ignore Mains" switch before maintenance
+2. Power can be cycled without triggering alerts or shutdown
+3. Turn OFF "Ignore Mains" when done
+
+## Troubleshooting
+
+### App Not Detecting Power Events
+1. Verify the power sensor device reports the `powerSource` attribute
+2. Check **Device Page > Current States** for `powerSource` value
+3. Enable debug logging and check for subscription messages on initialize
+4. Verify **Enable Mains Power Monitoring** is ON
+
+### Alert Not Sent After Power Loss
+1. Check the **Battery Stay Duration** - alert does not fire until after this delay
+2. Verify **Ignore Mains Check Switch** is OFF
+3. Check notification devices are configured and working
+4. Review logs for "cancelling alert" messages (power may have been briefly restored)
+
+### Hub Not Shutting Down
+1. Verify **Hub Controller Device** is configured in the app
+2. Verify the Hub Controller device is enabled in Hubitat settings
+3. Check logs for the shutdown call
+4. Note: if `ignoreMainsCheckSwitch` is ON, shutdown is bypassed
+
+### Shutdown Triggered When It Shouldn't Be
+1. Turn ON the **Ignore Mains Check Switch** immediately to cancel pending shutdown
+2. Fix the underlying power sensor issue (may be reporting incorrect values)
+
+## Technical Details
+
+### App Properties
+- **Definition Name**: Mains Power Monitor (in SpecialAutomationsManager.groovy)
+- **Namespace**: timbrown
+- **Author**: Tim Brown
+- **Category**: Safety & Security
+- **Single Threaded**: Yes
+
+### Supported Capabilities
+- `capability.powerSource` - Mains power sensor
+- `capability.switch` - Status switch, ignore switch
+- `capability.actuator` - Hub Controller for shutdown
+- `capability.notification` - Push notification devices
+
+### State Variables
+- `mainsAlertStartTime` (Long): Timestamp when the battery alert started; used to calculate remaining shutdown time for reminders
+
+### Event Subscriptions
+- `mainsPowerSensor.powerSource` - fires on any change between "mains" and "battery"
+
+### Scheduled Jobs
+- `handleMainsStayedOnBattery` - fires once after the stay duration when battery is detected
+- `shutdownHub` - fires after the shutdown delay to execute hub shutdown
+- `sendBatteryReminder` - fires repeatedly at the reminder interval while on battery
+
+## License
+
+Copyright 2025 Tim Brown - Licensed under the Apache License, Version 2.0

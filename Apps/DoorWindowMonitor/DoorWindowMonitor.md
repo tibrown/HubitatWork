@@ -18,6 +18,7 @@ Door Window Monitor is a comprehensive Hubitat app that monitors all doors and w
 - **Freezer Monitoring**: Quick alerts for freezer door left open
 - **Safe Monitoring**: Immediate notification when safe is opened
 - **Pause Functionality**: Temporarily disable alarms for specific doors
+- **Motion-Triggered Pause**: DR motion sensor auto-activates DR door pause; backdoor motion turns on lights and triggers pause
 - **Mode-Based Alerts**: Different responses for Day/Evening/Night/Morning modes
 - **Tamper Detection**: Security alerts for device tampering
 - **Hub Variable Support**: Dynamic threshold configuration
@@ -61,9 +62,19 @@ Door Window Monitor is a comprehensive Hubitat app that monitors all doors and w
 ### Windows
 - **Living Room Window**: Main living area window
 
-### Pause Switches
+### Pause DR Door Motion
 - **Pause DR Door Alarm Switch**: Temporarily disable dining room door alerts
+- **DR Motion Sensor** (optional): Motion sensor that automatically activates the DR door alarm pause when motion is detected (in active modes)
+
+### Pause Backdoor Motion
 - **Pause Backdoor Alarm Switch**: Temporarily disable backdoor alerts
+- **Backdoor Motion Sensor** (optional): Motion sensor that automatically activates the backdoor alarm pause when motion is detected
+- **Lights to Control** (optional): One or more switches/lights to turn ON when backdoor motion is detected
+- **Additional Pause Switch** (optional): Extra switch to activate alongside the pause alarm when backdoor motion is detected
+- **Auto-Off Delay**: Minutes after motion detection before lights/switches automatically turn off (default: 30 minutes)
+
+### Pause Mode Restriction
+- **Pause Motion Active Modes** (optional): Motion-triggered pauses only activate when the hub is in one of these modes; if empty, motion triggers pause in all modes
 
 ### Alert Thresholds
 - **Door Left Open Alert**: Minutes before alerting (default: 5)
@@ -76,6 +87,7 @@ Door Window Monitor is a comprehensive Hubitat app that monitors all doors and w
 
 ### Notifications
 - **Notification Devices**: Devices to receive door/window alerts
+- **Pause Alarm Notification Devices**: Separate notification devices to receive pause activation and deactivation messages
 
 ## Hub Variables
 
@@ -156,18 +168,27 @@ The app periodically scans all doors and windows every minute (configurable):
 Temporarily disable alarms for specific doors:
 
 #### Pause Dining Room Door Alarm
-1. Turn on **Pause DR Door Alarm Switch**
+1. Turn on **Pause DR Door Alarm Switch** (manually *or* automatically via DR Motion Sensor)
 2. Alarm paused for configured duration (default: 5 minutes)
 3. Notification sent: "Dining room door alarm paused for 5 minutes"
 4. Automatically unpauses after duration
 5. Switch automatically turns off
 
+**Motion Auto-Pause**: When a DR Motion Sensor is configured, motion.active events automatically activate the DR door alarm pause (respects Pause Motion Active Modes if set).
+
 **Use Case**: Moving furniture through door, loading groceries, etc.
 
 #### Pause Backdoor Alarm
-1. Turn on **Pause Backdoor Alarm Switch**
+1. Turn on **Pause Backdoor Alarm Switch** (manually *or* automatically via Backdoor Motion Sensor)
 2. Same behavior as dining room pause
 3. Notification sent: "Backdoor alarm paused for 5 minutes"
+
+**Motion Auto-Pause with Lights**: When a Backdoor Motion Sensor is configured:
+- Motion detected → configured lights turn ON
+- Backdoor alarm pause activates
+- Optional additional pause switch also activates
+- After **Auto-Off Delay** minutes (default: 30), lights and switches automatically turn off
+- Only activates in **Pause Motion Active Modes** if configured
 
 ### Tamper Detection
 
@@ -305,12 +326,15 @@ This app replaces the following 16 Rule Machine rules:
 
 ### Supported Capabilities
 - `capability.contactSensor` - Door/window sensors
-- `capability.switch` - Pause switches
+- `capability.motionSensor` - DR and backdoor motion sensors
+- `capability.switch` - Pause switches and motion-controlled lights
 - `capability.notification` - Notification devices
 
 ### Event Subscriptions
 - Contact sensor state changes (open/closed)
 - Pause switch activations
+- DR motion sensor active events (auto-activates DR door pause)
+- Backdoor motion sensor events (turns on lights, activates pause)
 
 ### Scheduled Jobs
 - Periodic left-open check (cron schedule)

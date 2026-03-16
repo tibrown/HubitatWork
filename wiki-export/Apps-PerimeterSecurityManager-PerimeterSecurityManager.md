@@ -49,7 +49,7 @@ This app replaces the following Rule Machine rules:
 The app supports these hub variables for dynamic configuration:
 - `gateAlertDelay` - Override gate alert delay (seconds)
 - `shockSensitivity` - Override shock sensitivity (1-10)
-- `perimeterCheckInterval` - Override check interval (minutes)
+- `perimeterCheckInterval` - Override check interval (hours, 1-24)
 - `awayModeAlertEnabled` - Enable/disable away alerts (true/false)
 - `ringPersonTimeout` - Override Ring timeout (seconds)
 - `gunCabinetAlertEnabled` - Enable/disable cabinet alerts (true/false)
@@ -81,7 +81,7 @@ Initial Value: 5
 
 Name: perimeterCheckInterval
 Type: number
-Initial Value: 15
+Initial Value: 1
 
 Name: awayModeAlertEnabled
 Type: boolean
@@ -167,9 +167,16 @@ Ring Person Detection (RPD) uses virtual switches that are triggered through an 
 - **Alexa Devices**: Voice announcement devices
 
 ### Monitoring
-- **Perimeter Check Interval**: Minutes between status checks (0 = disabled)
-  - Periodic verification of gate states
-  - Only alerts in away modes
+- **Enable Perimeter Checks**: Toggle to enable/disable scheduled perimeter monitoring
+- **Check Schedule Mode**: How to schedule perimeter checks
+  - **Hourly Interval**: Run checks every N hours throughout the day
+  - **Start/End Time**: Run checks at a fixed frequency between two specific times
+- **Check Interval (hours)**: How often to check perimeter status when using Hourly Interval mode (1-24 hours, default: 1)
+- **Start Time**: When to begin perimeter checks (used with Start/End Time mode)
+- **End Time**: When to stop perimeter checks (used with Start/End Time mode)
+- **Check Frequency During Time Range (minutes)**: How often to check between Start and End Time (5-60 minutes, default: 15)
+- **Enable Mode-Based Checking**: Only run checks during specific hub modes
+- **Active Modes for Perimeter Checks**: The modes in which scheduled checks are performed
 
 ### Logging
 - **Enable Debug Logging**: Detailed logs for troubleshooting
@@ -220,8 +227,11 @@ Ring Person Detection (RPD) uses virtual switches that are triggered through an 
 **Scenario**: Verify gates every 15 minutes when away
 
 **Configuration**:
-- Perimeter Check Interval: 15 minutes
-- Away Modes: Away, Vacation
+- Enable Perimeter Checks: enabled
+- Check Schedule Mode: Hourly Interval
+- Check Interval: 1 hour
+- Enable Mode-Based Checking: enabled
+- Active Modes: Away, Vacation
 
 **Behavior**:
 1. Every 15 minutes → Check all gate states
@@ -285,10 +295,11 @@ Ring Person Detection (RPD) uses virtual switches that are triggered through an 
 4. Enable debug logging
 
 ### Perimeter Checks Not Running
-1. Verify interval > 0
-2. Check scheduled jobs in app
-3. Hub reboot may have cleared schedule
-4. Update app to reinitialize schedule
+1. Verify "Enable Perimeter Checks" is enabled
+2. Check Check Interval is within 1-24 hours for interval mode
+3. Verify start/end times are set correctly for time-range mode
+4. Check Mode-Based Checking — confirm current mode matches selected modes
+5. Hub reboot may have cleared schedule; re-save app to reinitialize schedule
 
 ## Technical Details
 

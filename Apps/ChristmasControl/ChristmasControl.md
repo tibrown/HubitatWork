@@ -32,10 +32,8 @@
 - **Master Switch** (optional): Single switch to control all Christmas devices at once
 - **Enable Schedule** (optional): Toggle for automated scheduling
   - When enabled, additional scheduling options appear:
-  - **Start Month** (default: 11): Month to begin Christmas automation (1-12)
-  - **Start Day** (default: 23): Day to begin automation
-  - **End Month** (default: 1): Month to end automation
-  - **End Day** (default: 2): Day to end automation
+  - **Start Date**: Start date for the Christmas season (e.g., Nov 23)
+  - **End Date**: End date for the Christmas season (e.g., Jan 2)
   - **Turn On At**: Choose trigger method
     - **Sunset**: Automatically turns on at sunset
     - **Time**: Specific time each day

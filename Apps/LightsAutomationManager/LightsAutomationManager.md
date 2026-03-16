@@ -77,7 +77,7 @@ Configure individual flood lights and their associated motion sensors:
 - **All Lights Master Switch**: Virtual or physical switch for all lights
 
 ### Condition Switches
-- **On PTO Switch**: When on, skips morning light automation. **Automatically turns ON at sunset on Fridays and OFF at sunrise on Sundays** for weekend PTO mode.
+- **On PTO Switch**: When on, skips morning light automation. **Automatically turns ON at 11pm Friday and OFF at 11pm Sunday** for weekend PTO mode.
 - **Holiday Switch**: When on, skips morning light automation
 - **Traveling Switch**: Travel mode indicator
 
