@@ -70,6 +70,9 @@ def mainPage() {
             input "hubVar_EnableNightMotion", "bool", title: "Enable Night Motion", description: "Process motion events during nighttime. Sets EnableNightMotion hub variable.", defaultValue: false
             input "generalMotionModes", "enum", title: "General Motion Active Modes", options: ["Day", "Morning", "Evening", "Night"], multiple: true, required: false
             input "backDoorMotionModes", "enum", title: "Back Door Motion Active Modes", options: ["Day", "Morning", "Evening", "Night"], multiple: true, required: false
+            input "motionDebounceSeconds", "number", title: "Minimum Motion Hold Time (seconds)",
+                description: "Minimum time a motion state must be held before acting. Filters rapid/noisy sensor transitions caused by low battery or interference.",
+                defaultValue: 3, range: "1..30", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>PRESENCE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
@@ -139,6 +142,7 @@ def initialize() {
 // ========================================
 
 def handleCarportMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
     logInfo "Carport motion detected in ${mode} mode"
     
@@ -151,6 +155,7 @@ def handleCarportMotion(evt) {
 }
 
 def handleBackDoorMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
     logInfo "Back door motion detected in ${mode} mode"
     
@@ -170,6 +175,7 @@ def handleBackDoorMotion(evt) {
 }
 
 def handleSideYardMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
     logInfo "Side yard (AMC) motion detected in ${mode} mode"
     
@@ -182,6 +188,7 @@ def handleSideYardMotion(evt) {
 }
 
 def handleRVMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
     logInfo "RV motion detected in ${mode} mode"
     
@@ -194,6 +201,7 @@ def handleRVMotion(evt) {
 }
 
 def handleOfficeMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
     logInfo "Office motion detected in ${mode} mode"
     
@@ -207,6 +215,7 @@ def handleOfficeMotion(evt) {
 }
 
 def handleRearCarportMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
     logInfo "Rear carport motion detected in ${mode} mode"
     
@@ -226,6 +235,7 @@ def handleRearCarportMotion(evt) {
 }
 
 def handleCarportFrontMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
     logInfo "Carport front motion detected in ${mode} mode"
     
@@ -451,6 +461,30 @@ def sendBackDoorNotification(String message) {
         }
         logInfo "Notification (fallback): ${message}"
     }
+}
+
+// ========================================
+// MOTION DEBOUNCE
+// ========================================
+
+Boolean isValidMotionTransition(String deviceId, String newValue) {
+    Integer minHoldSeconds = (settings.motionDebounceSeconds ?: 3)
+    String stateKey = "motionDebounce_${deviceId}"
+    Map lastEvent = atomicState[stateKey] as Map
+
+    if (lastEvent) {
+        Long prevTime = lastEvent.timestamp as Long
+        Long elapsed = now() - prevTime
+        Long minHoldMs = minHoldSeconds * 1000L
+
+        if (elapsed < minHoldMs) {
+            logDebug "Ignoring rapid motion '${newValue}' from device ${deviceId} — only ${elapsed}ms since last event (min ${minHoldMs}ms required)"
+            return false
+        }
+    }
+
+    atomicState[stateKey] = [value: newValue, timestamp: now()]
+    return true
 }
 
 // ========================================

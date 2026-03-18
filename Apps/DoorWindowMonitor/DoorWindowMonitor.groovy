@@ -72,6 +72,9 @@ def mainPage() {
             input "motionLights", "capability.switch", title: "Lights to Control (turn ON when motion detected)", multiple: true, required: false
             input "motionPauseSwitch", "capability.switch", title: "Additional Pause Switch to Activate (optional)", required: false
             input "motionTimeout", "number", title: "Auto-Off Delay (minutes after motion detected)", defaultValue: 30, required: false
+            input "motionDebounceSeconds", "number", title: "Minimum Motion Hold Time (seconds)",
+                description: "Minimum time a motion state must be held before acting. Filters rapid/noisy sensor transitions caused by low battery or interference.",
+                defaultValue: 3, range: "1..30", required: false
             paragraph "When backdoor motion is detected in active modes, the configured lights will turn ON. The pause switch and optional additional pause switch will also be turned ON. After the delay period, lights and switches will automatically turn OFF."
         }
         
@@ -512,6 +515,7 @@ def unpauseBD() {
 
 def handleMotion(evt) {
     String motionValue = evt.value
+    if (!isValidMotionTransition(evt.deviceId.toString(), motionValue)) return
     String currentMode = location.mode
     
     logDebug "Motion event: ${evt.displayName} ${motionValue}, Mode: ${currentMode}"
@@ -581,6 +585,7 @@ def autoOffMotionLights() {
 }
 
 def handleDRMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String currentMode = location.mode
     logInfo "DR motion detected in ${currentMode} mode"
     
@@ -686,6 +691,34 @@ def isSilentMode() {
     }
     return false
 }
+
+// ========================================
+// MOTION DEBOUNCE
+// ========================================
+
+Boolean isValidMotionTransition(String deviceId, String newValue) {
+    Integer minHoldSeconds = (settings.motionDebounceSeconds ?: 3)
+    String stateKey = "motionDebounce_${deviceId}"
+    Map lastEvent = atomicState[stateKey] as Map
+
+    if (lastEvent) {
+        Long prevTime = lastEvent.timestamp as Long
+        Long elapsed = now() - prevTime
+        Long minHoldMs = minHoldSeconds * 1000L
+
+        if (elapsed < minHoldMs) {
+            logDebug "Ignoring rapid motion '${newValue}' from device ${deviceId} — only ${elapsed}ms since last event (min ${minHoldMs}ms required)"
+            return false
+        }
+    }
+
+    atomicState[stateKey] = [value: newValue, timestamp: now()]
+    return true
+}
+
+// ========================================
+// NOTIFICATIONS
+// ========================================
 
 def sendNotification(String message) {
     // Check Silent switch first - takes precedence over all other settings

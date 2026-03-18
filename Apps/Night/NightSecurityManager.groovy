@@ -87,6 +87,9 @@ def mainPage() {
             input "hubVar_AlertDelay", "number", title: "Alert Delay", description: "Wait this long before triggering security alert (seconds). Sets AlertDelay hub variable.", defaultValue: 5, required: false
             input "hubVar_AlarmDuration", "number", title: "Alarm Duration", description: "How long security alarm sounds (seconds). Sets AlarmDuration hub variable.", defaultValue: 300, required: false
             input "hubVar_BeamLogEnabled", "bool", title: "Beam Logging Enabled", description: "Enable detailed logging of beam sensor activity. Sets BeamLogEnabled hub variable.", defaultValue: true, required: false
+            input "motionDebounceSeconds", "number", title: "Minimum Motion Hold Time (seconds)",
+                description: "Minimum time a motion state must be held before acting. Filters rapid/noisy sensor transitions caused by low battery or interference.",
+                defaultValue: 3, range: "1..30", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
@@ -342,6 +345,7 @@ def handleSheShed(evt) {
 }
 
 def handleBackdoorMotion(evt) {
+    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     if (evt.value == "active" && floodSide.currentMotion == "active" && highAlert.currentSwitch == "on") {
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Backdoor") }
@@ -496,6 +500,30 @@ def setHubVar(String varName, String value) {
         logDebug "Failed to set hub variable '${varName}': ${e.message}"
         return false
     }
+}
+
+// ========================================
+// MOTION DEBOUNCE
+// ========================================
+
+Boolean isValidMotionTransition(String deviceId, String newValue) {
+    Integer minHoldSeconds = (settings.motionDebounceSeconds ?: 3)
+    String stateKey = "motionDebounce_${deviceId}"
+    Map lastEvent = atomicState[stateKey] as Map
+
+    if (lastEvent) {
+        Long prevTime = lastEvent.timestamp as Long
+        Long elapsed = now() - prevTime
+        Long minHoldMs = minHoldSeconds * 1000L
+
+        if (elapsed < minHoldMs) {
+            logDebug "Ignoring rapid motion '${newValue}' from device ${deviceId} — only ${elapsed}ms since last event (min ${minHoldMs}ms required)"
+            return false
+        }
+    }
+
+    atomicState[stateKey] = [value: newValue, timestamp: now()]
+    return true
 }
 
 // ========================================
