@@ -849,7 +849,7 @@ def handleBeamDay() {
     settings.pauseCarportBeam?.on()
     
     // Schedule auto-off
-    Integer delay = getConfigValue("carportBeamPauseDuration", "CarportBeamPauseDuration") as Integer
+    Integer delay = (getConfigValue("carportBeamPauseDuration", "CarportBeamPauseDuration", 300) ?: 300) as Integer
     runIn(delay, turnOffPauseCarportBeam)
     
     // Send notification
@@ -886,7 +886,7 @@ def handleBeamEvening() {
     
     // Activate pause for cooldown
     settings.pauseCarportBeam?.on()
-    Integer delay = getConfigValue("carportBeamPauseDuration", "CarportBeamPauseDuration") as Integer
+    Integer delay = (getConfigValue("carportBeamPauseDuration", "CarportBeamPauseDuration", 300) ?: 300) as Integer
     runIn(delay, turnOffPauseCarportBeam)
     
     sendAlert("Someone in the carport")
@@ -904,7 +904,7 @@ def handleBeamMorning() {
     settings.silentCarport?.on()
     
     // Schedule auto-off
-    Integer timeout = getConfigValue("silentCarportTimeout", "SilentCarportTimeout") as Integer
+    Integer timeout = (getConfigValue("silentCarportTimeout", "SilentCarportTimeout", 120) ?: 120) as Integer
     runIn(timeout, turnOffSilentCarport)
     
     // Send notification - more urgent message for morning
