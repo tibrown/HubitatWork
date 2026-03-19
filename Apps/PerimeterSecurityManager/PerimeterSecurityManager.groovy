@@ -122,7 +122,7 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>CARPORT BEAM TIMING</b>\n<b>═══════════════════════════════════════</b>") {
             input "hubVar_CarportBeamPauseDuration", "number",
                   title: "Carport Beam Pause Duration",
-                  description: "How long to pause carport beam alerts after trigger (minutes). Sets CarportBeamPauseDuration hub variable.",
+                  description: "How long to pause carport beam alerts after trigger (seconds). Sets CarportBeamPauseDuration hub variable.",
                   defaultValue: 300,
                   range: "60..600",
                   required: false
@@ -796,9 +796,17 @@ def handleBeamAway() {
 }
 
 def handleBeamDay() {
-    // Check silent switches
-    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silentCarport) || isSwitchOn(settings.pauseCarportBeam)) {
-        logDebug "Day mode: Silent or paused, skipping beam action"
+    // Check silent/pause switches
+    if (isSwitchOn(settings.silentSwitch)) {
+        logInfo "Day mode: Silent switch is ON, skipping beam action"
+        return
+    }
+    if (isSwitchOn(settings.silentCarport)) {
+        logInfo "Day mode: Silent carport switch is ON, skipping beam action"
+        return
+    }
+    if (isSwitchOn(settings.pauseCarportBeam)) {
+        logInfo "Day mode: Pause carport beam switch is ON (auto-set from previous break), skipping beam action"
         return
     }
     
