@@ -46,17 +46,7 @@ This app replaces the following Rule Machine rules:
 - **Dual Notification**: Push notifications and Alexa announcements
 
 ### Hub Variables Support
-The app supports these hub variables for dynamic configuration:
-- `gateAlertDelay` - Override gate alert delay (seconds)
-- `shockSensitivity` - Override shock sensitivity (1-10)
-- `perimeterCheckInterval` - Override check interval (hours, 1-24)
-- `awayModeAlertEnabled` - Enable/disable away alerts (true/false)
-- `ringPersonTimeout` - Override Ring timeout (seconds)
-- `gunCabinetAlertEnabled` - Enable/disable cabinet alerts (true/false)
-- `CarportBeamPauseDuration` - Override carport beam pause duration (seconds)
-- `SilentCarportTimeout` - Override silent carport timeout (seconds)
-
-If hub variables are not set, the app uses the configured settings as defaults.
+Hub variables are no longer used by this app. All configuration is managed directly through the app settings.
 
 ## Installation
 
@@ -68,33 +58,7 @@ If hub variables are not set, the app uses the configured settings as defaults.
 5. Alexa devices for voice alerts (optional)
 
 ### Hub Variables (Optional)
-Create these hub variables in Settings → Hub Variables for dynamic control:
-
-```
-Name: gateAlertDelay
-Type: number
-Initial Value: 30
-
-Name: shockSensitivity
-Type: number
-Initial Value: 5
-
-Name: perimeterCheckInterval
-Type: number
-Initial Value: 1
-
-Name: awayModeAlertEnabled
-Type: boolean
-Initial Value: true
-
-Name: ringPersonTimeout
-Type: number
-Initial Value: 30
-
-Name: gunCabinetAlertEnabled
-Type: boolean
-Initial Value: true
-```
+Hub variables are no longer used by this app. All configuration is managed directly through the app settings UI.
 
 ### Installation Steps
 1. Add the app code to Apps Code in Hubitat
