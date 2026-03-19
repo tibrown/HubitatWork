@@ -333,6 +333,16 @@ def updated() {
 def initialize() {
     logInfo "Initializing Perimeter Security Manager"
     
+    // Reset auto-managed switches in case timers were lost (e.g. hub reboot)
+    if (settings.pauseCarportBeam && isSwitchOn(settings.pauseCarportBeam)) {
+        logInfo "Resetting pauseCarportBeam switch on initialize"
+        settings.pauseCarportBeam.off()
+    }
+    if (settings.silentCarport && isSwitchOn(settings.silentCarport)) {
+        logInfo "Resetting silentCarport switch on initialize"
+        settings.silentCarport.off()
+    }
+    
     // Subscribe to gate sensors
     if (settings.frontGate) subscribe(settings.frontGate, "contact", gateHandler)
     if (settings.sideYardGate) subscribe(settings.sideYardGate, "contact", gateHandler)
