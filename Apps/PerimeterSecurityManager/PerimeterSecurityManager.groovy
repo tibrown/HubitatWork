@@ -317,6 +317,15 @@ def updated() {
     logInfo "Perimeter Security Manager updated"
     unsubscribe()
     unschedule()
+    // Reset auto-managed switches in case timers were cancelled by this update
+    if (settings.pauseCarportBeam && isSwitchOn(settings.pauseCarportBeam)) {
+        logInfo "Resetting pauseCarportBeam switch on update"
+        settings.pauseCarportBeam.off()
+    }
+    if (settings.silentCarport && isSwitchOn(settings.silentCarport)) {
+        logInfo "Resetting silentCarport switch on update"
+        settings.silentCarport.off()
+    }
     initialize()
     syncHubVariables()
 }
@@ -893,12 +902,12 @@ def handleBeamMorning() {
 }
 
 def turnOffPauseCarportBeam() {
-    logDebug "Auto-turning off pause carport beam"
+    logInfo "Auto-turning off pause carport beam (pause duration elapsed)"
     settings.pauseCarportBeam?.off()
 }
 
 def turnOffSilentCarport() {
-    logDebug "Auto-turning off silent carport"
+    logInfo "Auto-turning off silent carport (timeout elapsed)"
     settings.silentCarport?.off()
 }
 
