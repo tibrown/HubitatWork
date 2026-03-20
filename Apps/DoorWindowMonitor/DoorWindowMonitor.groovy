@@ -94,7 +94,8 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>ALERT THRESHOLDS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "ignoreLeftOpenSwitch", "capability.switch", title: "Switch to disable left-open alerts (when ON, all left-open monitoring is disabled)", required: false
+            input "pauseDoorAjarSwitch", "capability.switch", title: "Pause Door Ajar Switch (when ON, left-open notifications to devices are suppressed — hub logs and phone alerts still sent)", required: false
+            input "leftOpenPhoneDevice", "capability.notification", title: "Phone Device for Left-Open Alerts (always notified regardless of Pause Door Ajar switch)", required: false
             input "hubVar_DoorOpenThreshold", "number", title: "Door Left Open Alert", description: "Alert after door left open this long (minutes). Sets DoorOpenThreshold hub variable.", defaultValue: 5, required: false
             input "hubVar_WindowOpenThreshold", "number", title: "Window Left Open Alert", description: "Alert after window left open this long (minutes). Sets WindowOpenThreshold hub variable.", defaultValue: 10, required: false
             input "hubVar_FreezerDoorThreshold", "number", title: "Freezer Door Left Open Alert", description: "Alert after freezer door left open this long (minutes). Sets FreezerDoorThreshold hub variable.", defaultValue: 2, required: false
@@ -397,12 +398,6 @@ def handleDoorClosed(device) {
 def checkLeftOpen() {
     logDebug "Checking for doors/windows left open"
     
-    // Check if left-open monitoring is disabled via switch
-    if (ignoreLeftOpenSwitch && ignoreLeftOpenSwitch.currentValue("switch") == "on") {
-        logDebug "Left-open monitoring disabled - ${ignoreLeftOpenSwitch.displayName} is ON"
-        return
-    }
-    
     // Check if current mode suppresses left-open alerts
     String currentMode = location.mode
     Boolean suppressNonCritical = leftOpenSilentModes && leftOpenSilentModes.contains(currentMode)
@@ -448,7 +443,7 @@ def checkLeftOpen() {
             if (duration >= threshold) {
                 logInfo "${deviceName} has been open for ${duration / 60000} minutes"
                 String alertPrefix = isFreezer ? "CRITICAL" : "ALERT"
-                sendNotification("${alertPrefix}: ${deviceName} has been left open!")
+                sendLeftOpenAlert("${alertPrefix}: ${deviceName} has been left open!")
                 
                 // Clear the open time so we don't spam alerts
                 // Will reset if door is opened again
@@ -719,6 +714,34 @@ Boolean isValidMotionTransition(String deviceId, String newValue) {
 // ========================================
 // NOTIFICATIONS
 // ========================================
+
+def sendLeftOpenAlert(String message) {
+    // Always log — regardless of master switch or silent mode
+    log.info "${app.label}: LEFT-OPEN: ${message}"
+    
+    // Always notify the dedicated phone device — regardless of master switch or silent mode
+    if (leftOpenPhoneDevice) {
+        leftOpenPhoneDevice.deviceNotification(message)
+    }
+    
+    // Only notify general notification devices if Pause Door Ajar switch is OFF
+    if (pauseDoorAjarSwitch && pauseDoorAjarSwitch.currentValue("switch") == "on") {
+        logDebug "Left-open notification alerts paused by PauseDoorAjar switch - skipping notificationDevices: ${message}"
+        return
+    }
+    
+    // Respect silent switch for notification devices
+    if (isSilentMode()) {
+        logDebug "Left-open notification suppressed by Silent switch: ${message}"
+        return
+    }
+    
+    if (notificationDevices) {
+        notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+}
 
 def sendNotification(String message) {
     // Check Silent switch first - takes precedence over all other settings

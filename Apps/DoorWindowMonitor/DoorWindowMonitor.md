@@ -15,6 +15,8 @@ Door Window Monitor is a comprehensive Hubitat app that monitors all doors and w
 ## Features
 - **Comprehensive Monitoring**: 11+ door/window sensors
 - **Left-Open Detection**: Periodic scanning with configurable thresholds
+- **Left-Open Master Toggle**: `PauseDoorAjar` virtual switch — when ON suppresses left-open notifications to devices; phone and hub logs always receive alerts
+- **Dedicated Phone Alert**: A separate phone notification device that always receives left-open alerts regardless of the master toggle
 - **Freezer Monitoring**: Quick alerts for freezer door left open
 - **Safe Monitoring**: Immediate notification when safe is opened
 - **Pause Functionality**: Temporarily disable alarms for specific doors
@@ -77,6 +79,8 @@ Door Window Monitor is a comprehensive Hubitat app that monitors all doors and w
 - **Pause Motion Active Modes** (optional): Motion-triggered pauses only activate when the hub is in one of these modes; if empty, motion triggers pause in all modes
 
 ### Alert Thresholds
+- **Pause Door Ajar Switch**: Virtual switch (`PauseDoorAjar`). When ON, left-open notifications to `Notification Devices` are suppressed — hub logs and the phone device still receive alerts.
+- **Phone Device for Left-Open Alerts**: A single notification device (typically your phone) that always receives left-open alerts regardless of the Pause Door Ajar switch or Silent switch.
 - **Door Left Open Alert**: Minutes before alerting (default: 5)
 - **Window Left Open Alert**: Minutes before alerting (default: 10)
 - **Freezer Door Left Open Alert**: Minutes before alerting (default: 2)
@@ -158,8 +162,9 @@ The app periodically scans all doors and windows every minute (configurable):
    - **Doors**: 5 minutes (configurable)
    - **Windows**: 10 minutes (configurable)
    - **Freezer**: 2 minutes (configurable)
-4. Sends alert if threshold exceeded
-5. Clears tracking to prevent spam (alerts once per opening)
+4. Always logs to hub and notifies the **Phone Device** when threshold is exceeded
+5. If **Enable Left-Open Notification Alerts** is ON, also notifies all **Notification Devices**
+6. Clears tracking to prevent spam (alerts once per opening)
 
 **Example Alert**: "ALERT: Front door has been left open!"
 
@@ -374,6 +379,11 @@ This app replaces the following 16 Rule Machine rules:
 - Review logs for missed events
 
 ## Version History
+- **1.1.0** (2026-03-20): Left-open notification master switch
+  - Added `leftOpenAlertsEnabled` boolean toggle to enable/disable left-open notifications to Notification Devices
+  - Added `leftOpenPhoneDevice` dedicated phone input — always notified on left-open regardless of toggle or Silent switch
+  - Removed `ignoreLeftOpenSwitch` virtual switch input — **delete this virtual switch device from Hubitat → Devices**
+  - Hub logs always record left-open events regardless of toggle state
 - **1.0.0** (2025-12-04): Initial release
   - Consolidates 16 Rule Machine rules
   - Comprehensive door/window monitoring
