@@ -61,6 +61,7 @@ def mainPage() {
             input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm", required: true
             input "rearGateActive", "capability.switch", title: "Rear Gate Active Switch", required: true
             input "allLightsOn", "capability.switch", title: "All Lights ON Switch", required: true
+            input "ringModeOnOff", "capability.switch", title: "Ring Mode On/Off", required: true
         }
 
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -139,6 +140,7 @@ def initialize() {
     subscribe(doorLanai, "contact", evtHandler)
     subscribe(location, "mode", modeChangeHandler)
     subscribe(alarmsEnabled, "switch", handleAlarmsEnabledSwitch)
+    subscribe(pauseBDAlarm, "switch", handlePauseBDAlarm)
 }
 
 def modeChangeHandler(evt) {
@@ -257,7 +259,7 @@ def whisperToGuestroomNow() {
 }
 
 def handleConcreteShed(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && siren1.currentSwitch == "off") {
+    if (evt.value == "open" && alarmsEnabled.currentSwitch == "on") {
         logInfo "Intruder detected in concrete shed"
         notificationDevices.each { it.deviceNotification("Intruder in the Concrete Shed") }
         executeShedSirenOn()
@@ -357,6 +359,16 @@ def handleIntruderBackdoor(evt) {
         setGlobalVar("AlertMessage", "Intruder at the Backdoor")
         logInfo "Intruder detected at backdoor - triggering alarms"
         executeAlarmsOn()
+    }
+}
+
+def handlePauseBDAlarm(evt) {
+    if (evt.value == "on") {
+        logInfo "Pause Backdoor Alarm activated - turning Ring Mode OFF"
+        ringModeOnOff.off()
+    } else if (evt.value == "off") {
+        logInfo "Pause Backdoor Alarm deactivated - turning Ring Mode ON"
+        ringModeOnOff.on()
     }
 }
 
