@@ -145,8 +145,8 @@ def handleRPDBackDoor(evt) {
     def delay = backdoorResetDelay ?: 3
     runIn(delay, "resetRPDBackDoor")
     
-    // Mode-based actions (from RPDBackDoor rule: Night mode, silent switches off)
-    if (isNightMode() && !isSilent() && !isSilentBackdoor()) {
+    // Notify when person detected, regardless of mode, unless silent
+    if (!isSilent() && !isSilentBackdoor()) {
         sendNotification("Alert, person detected at Back Door")
     }
 }
@@ -161,7 +161,10 @@ def handleRPDBirdHouse(evt) {
     // Night mode actions (from Night-RPDBirdHouse rule)
     if (isNightMode()) {
         sendNotification("Person detected at Bird House")
-        setGlobalVar("EchoMessage", "Person detected at Bird House")
+        
+        if (!isSilent()) {
+            setGlobalVar("EchoMessage", "Person detected at Bird House")
+        }
         
         // Turn on lights
         if (allLightsSwitch) {
@@ -169,7 +172,7 @@ def handleRPDBirdHouse(evt) {
         }
         
         // Whisper to guest room
-        if (guestRoomEcho) {
+        if (guestRoomEcho && !isSilent()) {
             guestRoomEcho.deviceNotification("Person detected at Bird House")
         }
     }
@@ -285,6 +288,11 @@ def setLastPersonTime(String location, String hubVarName) {
  * Send notification to all configured devices
  */
 def sendNotification(String message) {
+    if (isSilent()) {
+        logInfo "Silent switch is ON - suppressing notification: ${message}"
+        return
+    }
+    
     logInfo "Sending notification: ${message}"
     
     if (notificationDevices) {
@@ -293,8 +301,7 @@ def sendNotification(String message) {
         }
     }
     
-    // Alexa announcement (unless silent)
-    if (alexaDevice && !isSilent()) {
+    if (alexaDevice) {
         alexaDevice.speak(message)
     }
 }

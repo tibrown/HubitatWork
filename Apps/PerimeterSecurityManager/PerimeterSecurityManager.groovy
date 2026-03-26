@@ -504,6 +504,11 @@ def ringHandler(evt) {
     def locationName = evt.displayName
     logInfo "Ring person detected: ${locationName}"
     
+    if (isSwitchOn(settings.silentSwitch)) {
+        logInfo "Silent switch is ON - suppressing Ring person detection alert for ${locationName}"
+        return
+    }
+    
     def currentMode = location.currentMode.toString()
     
     // Track Ring CPen triggers for shock correlation
@@ -920,6 +925,11 @@ def isSwitchOn(device) {
 // ============================================================================
 
 def sendAlert(String message) {
+    if (isSwitchOn(settings.silentSwitch)) {
+        logInfo "Silent switch is ON - suppressing alert: ${message}"
+        return
+    }
+    
     logInfo "Sending alert: ${message}"
     
     settings.notificationDevices?.each { device ->

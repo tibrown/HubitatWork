@@ -165,6 +165,12 @@ def handleBackDoorMotion(evt) {
         return
     }
     
+    // Check if global silent mode switch is on
+    if (silentMode?.currentValue("switch") == "on") {
+        logDebug "Back door motion ignored - silent mode switch is on"
+        return
+    }
+    
     // Check if current mode is in backdoor motion modes list
     if (!isBackDoorMotionActiveInMode(mode)) {
         logDebug "Back door motion ignored - mode ${mode} not in active modes list"
@@ -440,6 +446,10 @@ def setHubVar(String varName, String value) {
 }
 
 def sendNotification(String message) {
+    if (silentMode?.currentValue("switch") == "on") {
+        logDebug "Notification suppressed by silent mode: ${message}"
+        return
+    }
     if (notificationDevices) {
         notificationDevices.each { device ->
             device.deviceNotification(message)

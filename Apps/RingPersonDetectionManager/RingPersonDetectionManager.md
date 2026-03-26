@@ -98,8 +98,8 @@ Select the RPD virtual switches triggered by Ring person detection.
 - **Guest Room Echo**: For whisper notifications
 
 ### Control Switches
-- **Silent Mode Switch**: Disables all audible alerts
-- **Silent Backdoor Switch**: Disables backdoor alerts specifically
+- **Silent Mode Switch**: Silences all person detected notifications (push, Alexa announcements, and Guest Room Echo whisper)
+- **Silent Backdoor Switch**: Disables backdoor alerts specifically (in addition to the silent switch)
 - **All Lights ON Switch**: Turned on during night detections
 - **Rear Gate Active Switch**: Turned on for rear gate/pen detections
 

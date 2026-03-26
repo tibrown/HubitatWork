@@ -33,44 +33,104 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Door Window Monitor", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>EXTERIOR DOORS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "frontDoor", "capability.contactSensor", title: "Front Door (Living Room)", required: false
-            input "diningRoomDoor", "capability.contactSensor", title: "Dining Room Front Door", required: false
-            input "frenchDoors", "capability.contactSensor", title: "Living Room French Doors", required: false
-            input "backdoor", "capability.contactSensor", title: "Backdoor (Lanai)", required: false
+            input "useFrontDoor", "bool", title: "Use Front Door (Living Room)?", defaultValue: false, submitOnChange: true
+            if (settings.useFrontDoor) {
+                input "frontDoor", "capability.contactSensor", title: "Front Door (Living Room) Device", required: true
+            }
+            input "useDiningRoomDoor", "bool", title: "Use Dining Room Front Door?", defaultValue: false, submitOnChange: true
+            if (settings.useDiningRoomDoor) {
+                input "diningRoomDoor", "capability.contactSensor", title: "Dining Room Front Door Device", required: true
+            }
+            input "useFrenchDoors", "bool", title: "Use Living Room French Doors?", defaultValue: false, submitOnChange: true
+            if (settings.useFrenchDoors) {
+                input "frenchDoors", "capability.contactSensor", title: "Living Room French Doors Device", required: true
+            }
+            input "useBackdoor", "bool", title: "Use Backdoor (Lanai)?", defaultValue: false, submitOnChange: true
+            if (settings.useBackdoor) {
+                input "backdoor", "capability.contactSensor", title: "Backdoor (Lanai) Device", required: true
+            }
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>SHED & STORAGE DOORS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "birdHouseDoor", "capability.contactSensor", title: "Bird House Door (She Shed)", required: false
-            input "birdHouseScreen", "capability.contactSensor", title: "Bird House Screen Door", required: false
-            input "concreteShedDoor", "capability.contactSensor", title: "Concrete Shed Door", required: false
-            input "woodshedDoor", "capability.contactSensor", title: "Woodshed Door", required: false
+            input "useBirdHouseDoor", "bool", title: "Use Bird House Door (She Shed)?", defaultValue: false, submitOnChange: true
+            if (settings.useBirdHouseDoor) {
+                input "birdHouseDoor", "capability.contactSensor", title: "Bird House Door (She Shed) Device", required: true
+            }
+            input "useBirdHouseScreen", "bool", title: "Use Bird House Screen Door?", defaultValue: false, submitOnChange: true
+            if (settings.useBirdHouseScreen) {
+                input "birdHouseScreen", "capability.contactSensor", title: "Bird House Screen Door Device", required: true
+            }
+            input "useConcreteShedDoor", "bool", title: "Use Concrete Shed Door?", defaultValue: false, submitOnChange: true
+            if (settings.useConcreteShedDoor) {
+                input "concreteShedDoor", "capability.contactSensor", title: "Concrete Shed Door Device", required: true
+            }
+            input "useWoodshedDoor", "bool", title: "Use Woodshed Door?", defaultValue: false, submitOnChange: true
+            if (settings.useWoodshedDoor) {
+                input "woodshedDoor", "capability.contactSensor", title: "Woodshed Door Device", required: true
+            }
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>SPECIAL DOORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "freezerDoors", "capability.contactSensor", title: "Freezer Doors", multiple: true, required: false
-            input "safeDoor", "capability.contactSensor", title: "Safe Door", required: false
-            input "suppressSafeDoorAlert", "capability.switch", title: "Suppress Safe Door Alert Switch (when ON, safe door alerts are disabled)", required: false
-            input "officeDoor", "capability.contactSensor", title: "Office Door", required: false
+            input "useSafeDoor", "bool", title: "Use Safe Door?", defaultValue: false, submitOnChange: true
+            if (settings.useSafeDoor) {
+                input "safeDoor", "capability.contactSensor", title: "Safe Door Device", required: true
+            }
+            input "useSuppressSafeDoorAlert", "bool", title: "Use Suppress Safe Door Alert Switch?", defaultValue: false, submitOnChange: true
+            if (settings.useSuppressSafeDoorAlert) {
+                input "suppressSafeDoorAlert", "capability.switch", title: "Suppress Safe Door Alert Switch (when ON, safe door alerts are disabled)", required: true
+            }
+            input "useOfficeDoor", "bool", title: "Use Office Door?", defaultValue: false, submitOnChange: true
+            if (settings.useOfficeDoor) {
+                input "officeDoor", "capability.contactSensor", title: "Office Door Device", required: true
+            }
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>WINDOWS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "lrWindow1", "capability.contactSensor", title: "Living Room Window 1", required: false
-            input "lrWindow2", "capability.contactSensor", title: "Living Room Window 2", required: false
-            input "lrWindow3", "capability.contactSensor", title: "Living Room Window 3", required: false
-            input "lrWindow4", "capability.contactSensor", title: "Living Room Window 4", required: false
+            input "useLrWindow1", "bool", title: "Use Living Room Window 1?", defaultValue: false, submitOnChange: true
+            if (settings.useLrWindow1) {
+                input "lrWindow1", "capability.contactSensor", title: "Living Room Window 1 Device", required: true
+            }
+            input "useLrWindow2", "bool", title: "Use Living Room Window 2?", defaultValue: false, submitOnChange: true
+            if (settings.useLrWindow2) {
+                input "lrWindow2", "capability.contactSensor", title: "Living Room Window 2 Device", required: true
+            }
+            input "useLrWindow3", "bool", title: "Use Living Room Window 3?", defaultValue: false, submitOnChange: true
+            if (settings.useLrWindow3) {
+                input "lrWindow3", "capability.contactSensor", title: "Living Room Window 3 Device", required: true
+            }
+            input "useLrWindow4", "bool", title: "Use Living Room Window 4?", defaultValue: false, submitOnChange: true
+            if (settings.useLrWindow4) {
+                input "lrWindow4", "capability.contactSensor", title: "Living Room Window 4 Device", required: true
+            }
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>PAUSE DR DOOR MOTION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "pauseDRDoorAlarm", "capability.switch", title: "Pause DR Door Alarm Switch", required: false
-            input "drMotionSensor", "capability.motionSensor", title: "DR Motion Sensor (auto-activates pause)", required: false
+            input "usePauseDRDoorAlarm", "bool", title: "Use Pause DR Door Alarm Switch?", defaultValue: false, submitOnChange: true
+            if (settings.usePauseDRDoorAlarm) {
+                input "pauseDRDoorAlarm", "capability.switch", title: "Pause DR Door Alarm Switch", required: true
+            }
+            input "useDrMotionSensor", "bool", title: "Use DR Motion Sensor (auto-activates pause)?", defaultValue: false, submitOnChange: true
+            if (settings.useDrMotionSensor) {
+                input "drMotionSensor", "capability.motionSensor", title: "DR Motion Sensor Device", required: true
+            }
             paragraph "When dining room motion is detected in active modes, the pause switch will be turned ON. After the configured pause duration, the switch will automatically turn OFF."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>PAUSE BACKDOOR MOTION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm Switch", required: false
-            input "motionSensor", "capability.motionSensor", title: "Backdoor Motion Sensor (auto-activates pause)", required: false
+            input "usePauseBDAlarm", "bool", title: "Use Pause Backdoor Alarm Switch?", defaultValue: false, submitOnChange: true
+            if (settings.usePauseBDAlarm) {
+                input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm Switch", required: true
+            }
+            input "useMotionSensor", "bool", title: "Use Backdoor Motion Sensor (auto-activates pause)?", defaultValue: false, submitOnChange: true
+            if (settings.useMotionSensor) {
+                input "motionSensor", "capability.motionSensor", title: "Backdoor Motion Sensor Device", required: true
+            }
             input "motionLights", "capability.switch", title: "Lights to Control (turn ON when motion detected)", multiple: true, required: false
-            input "motionPauseSwitch", "capability.switch", title: "Additional Pause Switch to Activate (optional)", required: false
+            input "useMotionPauseSwitch", "bool", title: "Use Additional Pause Switch to Activate (optional)?", defaultValue: false, submitOnChange: true
+            if (settings.useMotionPauseSwitch) {
+                input "motionPauseSwitch", "capability.switch", title: "Additional Pause Switch Device", required: true
+            }
             input "motionTimeout", "number", title: "Auto-Off Delay (minutes after motion detected)", defaultValue: 30, required: false
             input "motionDebounceSeconds", "number", title: "Minimum Motion Hold Time (seconds)",
                 description: "Minimum time a motion state must be held before acting. Filters rapid/noisy sensor transitions caused by low battery or interference.",
@@ -79,7 +139,10 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "silentSwitch", "capability.switch", title: "Silent Switch (when ON, ALL alerts are suppressed - takes precedence)", required: false
+            input "useSilentSwitch", "bool", title: "Use Silent Switch (when ON, ALL alerts are suppressed - takes precedence)?", defaultValue: false, submitOnChange: true
+            if (settings.useSilentSwitch) {
+                input "silentSwitch", "capability.switch", title: "Silent Switch Device", required: true
+            }
             input "birdHouseSilentModes", "mode", title: "Modes to suppress Bird House alerts", multiple: true, required: false
             input "leftOpenSilentModes", "mode", title: "Modes to suppress left-open alerts", multiple: true, required: false
         }
@@ -94,8 +157,14 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>ALERT THRESHOLDS</b>\n<b>═══════════════════════════════════════</b>") {
-            input "pauseDoorAjarSwitch", "capability.switch", title: "Pause Door Ajar Switch (when ON, left-open notifications to devices are suppressed — hub logs and phone alerts still sent)", required: false
-            input "leftOpenPhoneDevice", "capability.notification", title: "Phone Device for Left-Open Alerts (always notified regardless of Pause Door Ajar switch)", required: false
+            input "usePauseDoorAjarSwitch", "bool", title: "Use Pause Door Ajar Switch (when ON, left-open notifications to devices are suppressed — hub logs and phone alerts still sent)?", defaultValue: false, submitOnChange: true
+            if (settings.usePauseDoorAjarSwitch) {
+                input "pauseDoorAjarSwitch", "capability.switch", title: "Pause Door Ajar Switch Device", required: true
+            }
+            input "useLeftOpenPhoneDevice", "bool", title: "Use Phone Device for Left-Open Alerts (always notified regardless of Pause Door Ajar switch)?", defaultValue: false, submitOnChange: true
+            if (settings.useLeftOpenPhoneDevice) {
+                input "leftOpenPhoneDevice", "capability.notification", title: "Phone Device for Left-Open Alerts", required: true
+            }
             input "hubVar_DoorOpenThreshold", "number", title: "Door Left Open Alert", description: "Alert after door left open this long (minutes). Sets DoorOpenThreshold hub variable.", defaultValue: 5, required: false
             input "hubVar_WindowOpenThreshold", "number", title: "Window Left Open Alert", description: "Alert after window left open this long (minutes). Sets WindowOpenThreshold hub variable.", defaultValue: 10, required: false
             input "hubVar_FreezerDoorThreshold", "number", title: "Freezer Door Left Open Alert", description: "Alert after freezer door left open this long (minutes). Sets FreezerDoorThreshold hub variable.", defaultValue: 2, required: false
@@ -142,29 +211,29 @@ def initialize() {
     logInfo "Initializing Door Window Monitor"
     
     // Subscribe to all doors and windows
-    if (frontDoor) subscribe(frontDoor, "contact", handleContact)
-    if (diningRoomDoor) subscribe(diningRoomDoor, "contact", handleContact)
-    if (frenchDoors) subscribe(frenchDoors, "contact", handleContact)
-    if (backdoor) subscribe(backdoor, "contact", handleContact)
-    if (birdHouseDoor) subscribe(birdHouseDoor, "contact", handleContact)
-    if (birdHouseScreen) subscribe(birdHouseScreen, "contact", handleContact)
-    if (concreteShedDoor) subscribe(concreteShedDoor, "contact", handleContact)
-    if (woodshedDoor) subscribe(woodshedDoor, "contact", handleContact)
+    if (settings.useFrontDoor && frontDoor) subscribe(frontDoor, "contact", handleContact)
+    if (settings.useDiningRoomDoor && diningRoomDoor) subscribe(diningRoomDoor, "contact", handleContact)
+    if (settings.useFrenchDoors && frenchDoors) subscribe(frenchDoors, "contact", handleContact)
+    if (settings.useBackdoor && backdoor) subscribe(backdoor, "contact", handleContact)
+    if (settings.useBirdHouseDoor && birdHouseDoor) subscribe(birdHouseDoor, "contact", handleContact)
+    if (settings.useBirdHouseScreen && birdHouseScreen) subscribe(birdHouseScreen, "contact", handleContact)
+    if (settings.useConcreteShedDoor && concreteShedDoor) subscribe(concreteShedDoor, "contact", handleContact)
+    if (settings.useWoodshedDoor && woodshedDoor) subscribe(woodshedDoor, "contact", handleContact)
     if (freezerDoors) freezerDoors.each { subscribe(it, "contact", handleContact) }
-    if (safeDoor) subscribe(safeDoor, "contact", handleContact)
-    if (officeDoor) subscribe(officeDoor, "contact", handleContact)
-    if (lrWindow1) subscribe(lrWindow1, "contact", handleContact)
-    if (lrWindow2) subscribe(lrWindow2, "contact", handleContact)
-    if (lrWindow3) subscribe(lrWindow3, "contact", handleContact)
-    if (lrWindow4) subscribe(lrWindow4, "contact", handleContact)
+    if (settings.useSafeDoor && safeDoor) subscribe(safeDoor, "contact", handleContact)
+    if (settings.useOfficeDoor && officeDoor) subscribe(officeDoor, "contact", handleContact)
+    if (settings.useLrWindow1 && lrWindow1) subscribe(lrWindow1, "contact", handleContact)
+    if (settings.useLrWindow2 && lrWindow2) subscribe(lrWindow2, "contact", handleContact)
+    if (settings.useLrWindow3 && lrWindow3) subscribe(lrWindow3, "contact", handleContact)
+    if (settings.useLrWindow4 && lrWindow4) subscribe(lrWindow4, "contact", handleContact)
     
     // Subscribe to pause switches
-    if (pauseDRDoorAlarm) subscribe(pauseDRDoorAlarm, "switch.on", handlePauseDRDoor)
-    if (pauseBDAlarm) subscribe(pauseBDAlarm, "switch.on", handlePauseBD)
+    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm) subscribe(pauseDRDoorAlarm, "switch.on", handlePauseDRDoor)
+    if (settings.usePauseBDAlarm && pauseBDAlarm) subscribe(pauseBDAlarm, "switch.on", handlePauseBD)
     
     // Subscribe to pause motion sensors
-    if (drMotionSensor) subscribe(drMotionSensor, "motion.active", handleDRMotion)
-    if (motionSensor) subscribe(motionSensor, "motion", handleMotion)
+    if (settings.useDrMotionSensor && drMotionSensor) subscribe(drMotionSensor, "motion.active", handleDRMotion)
+    if (settings.useMotionSensor && motionSensor) subscribe(motionSensor, "motion", handleMotion)
     
     // Subscribe to mode changes to check doors when entering Night mode
     subscribe(location, "mode", handleModeChange)
@@ -191,13 +260,13 @@ def checkDoorsForNightMode() {
     def openDoors = []
     
     // Check all doors except birdhouse door and office door
-    if (frontDoor?.currentValue("contact") == "open") openDoors.add("Front door")
-    if (diningRoomDoor?.currentValue("contact") == "open") openDoors.add("Dining room door")
-    if (frenchDoors?.currentValue("contact") == "open") openDoors.add("French doors")
-    if (backdoor?.currentValue("contact") == "open") openDoors.add("Backdoor")
-    if (birdHouseScreen?.currentValue("contact") == "open") openDoors.add("Birdhouse screen door")
-    if (concreteShedDoor?.currentValue("contact") == "open") openDoors.add("Concrete shed door")
-    if (woodshedDoor?.currentValue("contact") == "open") openDoors.add("Woodshed door")
+    if (settings.useFrontDoor && frontDoor?.currentValue("contact") == "open") openDoors.add("Front door")
+    if (settings.useDiningRoomDoor && diningRoomDoor?.currentValue("contact") == "open") openDoors.add("Dining room door")
+    if (settings.useFrenchDoors && frenchDoors?.currentValue("contact") == "open") openDoors.add("French doors")
+    if (settings.useBackdoor && backdoor?.currentValue("contact") == "open") openDoors.add("Backdoor")
+    if (settings.useBirdHouseScreen && birdHouseScreen?.currentValue("contact") == "open") openDoors.add("Birdhouse screen door")
+    if (settings.useConcreteShedDoor && concreteShedDoor?.currentValue("contact") == "open") openDoors.add("Concrete shed door")
+    if (settings.useWoodshedDoor && woodshedDoor?.currentValue("contact") == "open") openDoors.add("Woodshed door")
     // Note: Excluded birdHouseDoor and officeDoor as requested
     
     if (openDoors.size() > 0) {
@@ -218,6 +287,13 @@ def handleContact(evt) {
     String deviceId = evt.deviceId
     String value = evt.value
     String mode = location.mode
+
+    // Guard against stale subscriptions — submitOnChange does not call updated(),
+    // so a toggle turned OFF may still have an active subscription until Done is saved.
+    if (!isDeviceEnabled(evt.device)) {
+        logDebug "Contact event from disabled device ${deviceName} - ignoring (toggle is OFF)"
+        return
+    }
     
     logDebug "Contact event: ${deviceName} ${value}, Mode: ${mode}"
     
@@ -232,6 +308,25 @@ def handleContact(evt) {
         // Clear open time tracking
         state.remove("${deviceId}_openTime")
     }
+}
+
+def isDeviceEnabled(device) {
+    if (device.id == frontDoor?.id)        return settings.useFrontDoor == true
+    if (device.id == diningRoomDoor?.id)   return settings.useDiningRoomDoor == true
+    if (device.id == frenchDoors?.id)      return settings.useFrenchDoors == true
+    if (device.id == backdoor?.id)         return settings.useBackdoor == true
+    if (device.id == birdHouseDoor?.id)    return settings.useBirdHouseDoor == true
+    if (device.id == birdHouseScreen?.id)  return settings.useBirdHouseScreen == true
+    if (device.id == concreteShedDoor?.id) return settings.useConcreteShedDoor == true
+    if (device.id == woodshedDoor?.id)     return settings.useWoodshedDoor == true
+    if (device.id == safeDoor?.id)         return settings.useSafeDoor == true
+    if (device.id == officeDoor?.id)       return settings.useOfficeDoor == true
+    if (device.id == lrWindow1?.id)        return settings.useLrWindow1 == true
+    if (device.id == lrWindow2?.id)        return settings.useLrWindow2 == true
+    if (device.id == lrWindow3?.id)        return settings.useLrWindow3 == true
+    if (device.id == lrWindow4?.id)        return settings.useLrWindow4 == true
+    if (freezerDoors?.find { it.id == device.id }) return true  // no per-device toggle for multi-select
+    return false
 }
 
 // ========================================
@@ -348,7 +443,7 @@ def handleSafeDoorOpen() {
     }
     
     // Check if safe door alerts are suppressed
-    if (suppressSafeDoorAlert && suppressSafeDoorAlert.currentValue("switch") == "on") {
+    if (settings.useSuppressSafeDoorAlert && suppressSafeDoorAlert && suppressSafeDoorAlert.currentValue("switch") == "on") {
         logInfo "Safe door alert suppressed - suppress switch is ON"
         return
     }
@@ -454,16 +549,22 @@ def checkLeftOpen() {
 }
 
 def findDeviceById(String deviceId) {
-    def allDevices = [
-        frontDoor, diningRoomDoor, frenchDoors, backdoor,
-        birdHouseDoor, birdHouseScreen, concreteShedDoor, woodshedDoor,
-        safeDoor, officeDoor, lrWindow1, lrWindow2, lrWindow3, lrWindow4
-    ]
-    
-    // Add all freezer doors if configured
-    if (freezerDoors) {
-        allDevices.addAll(freezerDoors)
-    }
+    def allDevices = []
+    if (settings.useFrontDoor)        allDevices.add(frontDoor)
+    if (settings.useDiningRoomDoor)   allDevices.add(diningRoomDoor)
+    if (settings.useFrenchDoors)      allDevices.add(frenchDoors)
+    if (settings.useBackdoor)         allDevices.add(backdoor)
+    if (settings.useBirdHouseDoor)    allDevices.add(birdHouseDoor)
+    if (settings.useBirdHouseScreen)  allDevices.add(birdHouseScreen)
+    if (settings.useConcreteShedDoor) allDevices.add(concreteShedDoor)
+    if (settings.useWoodshedDoor)     allDevices.add(woodshedDoor)
+    if (settings.useSafeDoor)         allDevices.add(safeDoor)
+    if (settings.useOfficeDoor)       allDevices.add(officeDoor)
+    if (settings.useLrWindow1)        allDevices.add(lrWindow1)
+    if (settings.useLrWindow2)        allDevices.add(lrWindow2)
+    if (settings.useLrWindow3)        allDevices.add(lrWindow3)
+    if (settings.useLrWindow4)        allDevices.add(lrWindow4)
+    if (freezerDoors)                 allDevices.addAll(freezerDoors)
     
     return allDevices.find { it && it.id == deviceId }
 }
@@ -550,7 +651,7 @@ def handleMotionActive() {
     }
     
     // Turn on pause switch if configured
-    if (motionPauseSwitch && motionPauseSwitch.currentValue("switch") != "on") {
+    if (settings.useMotionPauseSwitch && motionPauseSwitch && motionPauseSwitch.currentValue("switch") != "on") {
         motionPauseSwitch.on()
         logInfo "Activated pause switch: ${motionPauseSwitch.displayName}"
     }
@@ -573,7 +674,7 @@ def autoOffMotionLights() {
     }
     
     // Turn off pause switch if configured
-    if (motionPauseSwitch && motionPauseSwitch.currentValue("switch") == "on") {
+    if (settings.useMotionPauseSwitch && motionPauseSwitch && motionPauseSwitch.currentValue("switch") == "on") {
         motionPauseSwitch.off()
         logInfo "Deactivated pause switch: ${motionPauseSwitch.displayName}"
     }
@@ -596,7 +697,7 @@ def handleDRMotion(evt) {
     unschedule("autoCancelDRPause")
     
     // Activate pause switch if not already on
-    if (pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") != "on") {
+    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") != "on") {
         pauseDRDoorAlarm.on()
         logInfo "Activated DR door alarm pause switch"
     }
@@ -611,7 +712,7 @@ def autoCancelDRPause() {
     logInfo "DR pause timeout reached - deactivating pause alarm"
     
     // Turn off pause switch
-    if (pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") == "on") {
+    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") == "on") {
         pauseDRDoorAlarm.off()
         logInfo "Deactivated DR door alarm pause switch"
     }
@@ -681,7 +782,7 @@ def setHubVar(String varName, String value) {
 }
 
 def isSilentMode() {
-    if (silentSwitch && silentSwitch.currentValue("switch") == "on") {
+    if (settings.useSilentSwitch && silentSwitch && silentSwitch.currentValue("switch") == "on") {
         return true
     }
     return false
@@ -720,12 +821,12 @@ def sendLeftOpenAlert(String message) {
     log.info "${app.label}: LEFT-OPEN: ${message}"
     
     // Always notify the dedicated phone device — regardless of master switch or silent mode
-    if (leftOpenPhoneDevice) {
+    if (settings.useLeftOpenPhoneDevice && leftOpenPhoneDevice) {
         leftOpenPhoneDevice.deviceNotification(message)
     }
     
     // Only notify general notification devices if Pause Door Ajar switch is OFF
-    if (pauseDoorAjarSwitch && pauseDoorAjarSwitch.currentValue("switch") == "on") {
+    if (settings.usePauseDoorAjarSwitch && pauseDoorAjarSwitch && pauseDoorAjarSwitch.currentValue("switch") == "on") {
         logDebug "Left-open notification alerts paused by PauseDoorAjar switch - skipping notificationDevices: ${message}"
         return
     }
