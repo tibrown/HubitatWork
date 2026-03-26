@@ -159,15 +159,9 @@ def handleBackDoorMotion(evt) {
     String mode = location.mode
     logInfo "Back door motion detected in ${mode} mode"
     
-    // Check if silent backdoor switch is on
+    // SilentBackdoor controls motion at the backdoor
     if (silentBackdoorSwitch?.currentValue("switch") == "on") {
         logDebug "Back door motion ignored - silent backdoor switch is on"
-        return
-    }
-    
-    // Check if global silent mode switch is on
-    if (silentMode?.currentValue("switch") == "on") {
-        logDebug "Back door motion ignored - silent mode switch is on"
         return
     }
     
