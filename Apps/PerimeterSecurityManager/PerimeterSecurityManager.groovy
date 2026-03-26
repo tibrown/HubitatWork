@@ -533,16 +533,9 @@ def ringHandler(evt) {
         }
     }
     
-    // Special handling for garden in evening mode
-    if (evt.device == settings.ringGarden && currentMode == settings.eveningMode?.toString()) {
-        logInfo "Ring Garden person detected in evening mode"
-        sendAlert("Person detected in the garden")
-        return
-    }
-    
-    // General person detection - make location names more readable
+    // Person detection notifications are handled by RingPersonDetectionManager
     def readableLocation = getReadableRingLocation(evt.device)
-    sendAlert("Person detected ${readableLocation}")
+    logInfo "Ring person detected at ${readableLocation} - notification handled by RingPersonDetectionManager"
 }
 
 /**

@@ -41,12 +41,25 @@ def mainPage() {
             input "rpdCPen", "capability.switch", title: "RPD CPen Switch", required: false
             input "rpdRearGate", "capability.switch", title: "RPD RearGate Switch", required: false
         }
+
+        section("<b>═══════════════════════════════════════</b>\n<b>ALERT MESSAGES</b>\n<b>═══════════════════════════════════════</b>") {
+            input "backdoorPersonMessage", "text", title: "Back Door Alert Message",
+                defaultValue: "Alert, person detected at Back Door", required: false
+            input "birdhousePersonMessage", "text", title: "Bird House Alert Message",
+                defaultValue: "Person detected at Bird House", required: false
+            input "frontDoorPersonMessage", "text", title: "Front Door Alert Message",
+                defaultValue: "Person detected at Front Door", required: false
+            input "gardenPersonMessage", "text", title: "Garden Alert Message",
+                defaultValue: "Person detected at Garden", required: false
+            input "cPenPersonMessage", "text", title: "Chicken Pen Alert Message",
+                defaultValue: "Person detected at Chicken Pen", required: false
+            input "rearGatePersonMessage", "text", title: "Rear Gate Alert Message",
+                defaultValue: "Person detected at Rear Gate", required: false
+        }
         
-        section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "nightModes", "mode", title: "Night Modes", multiple: true, required: false,
-                description: "Modes for enhanced night security actions"
-            input "eveningModes", "mode", title: "Evening Modes", multiple: true, required: false,
-                description: "Modes for evening-specific actions"
+                description: "Modes for enhanced night security actions (lights, EchoMessage, whisper)"
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
@@ -60,7 +73,6 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
-            input "silentBackdoorSwitch", "capability.switch", title: "Silent Backdoor Switch", required: false
             input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
             input "rearGateActiveSwitch", "capability.switch", title: "Rear Gate Active Switch", required: false
         }
@@ -70,6 +82,8 @@ def mainPage() {
                 defaultValue: 3, range: "1..30", required: false
             input "frontDoorResetDelay", "number", title: "Front Door Reset Delay (seconds)", 
                 defaultValue: 10, range: "1..60", required: false
+            input "generalResetDelay", "number", title: "General Reset Delay (seconds, for all other RPD switches)",
+                defaultValue: 3, range: "1..30", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
@@ -104,6 +118,14 @@ def updated() {
 def initialize() {
     logInfo "Initializing Ring Person Detection Manager"
     
+    // Reset all RPD switches to off on startup
+    [rpdBackDoor, rpdBirdHouse, rpdFrontDoor, rpdGarden, rpdCPen, rpdRearGate].each { sw ->
+        if (sw && sw.currentValue("switch") == "on") {
+            sw.off()
+            logDebug "Reset ${sw.displayName} to off on init"
+        }
+    }
+    
     // Subscribe to RPD switches - react when they turn on
     if (rpdBackDoor) {
         subscribe(rpdBackDoor, "switch.on", handleRPDBackDoor)
@@ -137,123 +159,53 @@ def initialize() {
 
 def handleRPDBackDoor(evt) {
     logInfo "Person detected at BackDoor"
-    
-    // Set timestamp (from RPDBackDoor rule - but it didn't set LRP, just reset switch with delay)
     setLastPersonTime("BackDoor", "LRPBackDoor")
-    
-    // Reset switch after delay (from RPDBackDoor rule: 3 second delay)
-    def delay = backdoorResetDelay ?: 3
-    runIn(delay, "resetRPDBackDoor")
-    
-    // Notify when person detected, regardless of mode, unless silent
-    if (!isSilent() && !isSilentBackdoor()) {
-        sendNotification("Alert, person detected at Back Door")
-    }
+    runIn(backdoorResetDelay ?: 3, "resetRPDBackDoor")
+    sendNotification(backdoorPersonMessage ?: "Alert, person detected at Back Door")
 }
 
 def handleRPDBirdHouse(evt) {
     logInfo "Person detected at BirdHouse"
-    
-    // Set timestamp and reset switch (from RPDBirdHouse rule)
     setLastPersonTime("BirdHouse", "LRPBirdHouse")
-    rpdBirdHouse.off()
-    
-    // Night mode actions (from Night-RPDBirdHouse rule)
-    if (isNightMode()) {
-        sendNotification("Person detected at Bird House")
-        
-        if (!isSilent()) {
-            setGlobalVar("EchoMessage", "Person detected at Bird House")
-        }
-        
-        // Turn on lights
-        if (allLightsSwitch) {
-            allLightsSwitch.on()
-        }
-        
-        // Whisper to guest room
-        if (guestRoomEcho && !isSilent()) {
-            guestRoomEcho.deviceNotification("Person detected at Bird House")
-        }
+    runIn(generalResetDelay ?: 3, "resetRPDBirdHouse")
+    sendNotification(birdhousePersonMessage ?: "Person detected at Bird House")
+    if (isNightMode() && !isSilent()) {
+        setGlobalVar("EchoMessage", birdhousePersonMessage ?: "Person detected at Bird House")
+        if (allLightsSwitch) allLightsSwitch.on()
+        if (guestRoomEcho) guestRoomEcho.deviceNotification(birdhousePersonMessage ?: "Person detected at Bird House")
     }
 }
 
 def handleRPDFrontDoor(evt) {
     logInfo "Person detected at FrontDoor"
-    
-    // Set timestamp
     setLastPersonTime("FrontDoor", "LRPFrontDoor")
-    
-    // Reset switch after delay (from RPDFrontDoor rule: 10 second delay)
-    def delay = frontDoorResetDelay ?: 10
-    runIn(delay, "resetRPDFrontDoor")
-    
-    // Night mode actions (from Night-PersonAtFrontDoor - if it exists)
-    if (isNightMode()) {
-        sendNotification("Person detected at Front Door")
-        if (allLightsSwitch) {
-            allLightsSwitch.on()
-        }
-    }
+    runIn(frontDoorResetDelay ?: 10, "resetRPDFrontDoor")
+    sendNotification(frontDoorPersonMessage ?: "Person detected at Front Door")
+    if (isNightMode() && allLightsSwitch) allLightsSwitch.on()
 }
 
 def handleRPDGarden(evt) {
     logInfo "Person detected at Garden"
-    
-    // Set timestamp and reset switch (from RPDGarden rule)
     setLastPersonTime("Garden", "LRPGarden")
-    rpdGarden.off()
-    
-    // Night mode actions (from Night-RPDGarden rule)
-    if (isNightMode()) {
-        sendNotification("Person detected at Garden")
-        if (allLightsSwitch) {
-            allLightsSwitch.on()
-        }
-    }
-    
-    // Evening mode actions (from EveningRPDGarden rule)
-    if (isEveningMode()) {
-        sendNotification("Person detected at Garden")
-    }
+    runIn(generalResetDelay ?: 3, "resetRPDGarden")
+    sendNotification(gardenPersonMessage ?: "Person detected at Garden")
+    if (isNightMode() && allLightsSwitch) allLightsSwitch.on()
 }
 
 def handleRPDCPen(evt) {
     logInfo "Person detected at CPen"
-    
-    // Set timestamp and reset switch (from RPDCPen rule)
     setLastPersonTime("CPen", "LRPCPen")
-    rpdCPen.off()
-    
-    // Night mode actions - this location triggers Night-RPDRearGate
-    // which checks time since last detection at pen
-    if (isNightMode()) {
-        // Turn on rear gate active switch
-        if (rearGateActiveSwitch) {
-            rearGateActiveSwitch.on()
-        }
-        sendNotification("Person detected at Chicken Pen")
-    }
+    runIn(generalResetDelay ?: 3, "resetRPDCPen")
+    sendNotification(cPenPersonMessage ?: "Person detected at Chicken Pen")
+    if (isNightMode() && rearGateActiveSwitch) rearGateActiveSwitch.on()
 }
 
 def handleRPDRearGate(evt) {
     logInfo "Person detected at RearGate"
-    
-    // Set timestamp
     setLastPersonTime("RearGate", "LRPRearGate")
-    
-    // Reset switch
-    if (rpdRearGate) {
-        rpdRearGate.off()
-    }
-    
-    // Mode-based actions
-    if (isNightMode()) {
-        if (rearGateActiveSwitch) {
-            rearGateActiveSwitch.on()
-        }
-        sendNotification("Person detected at Rear Gate")
-    }
+    runIn(generalResetDelay ?: 3, "resetRPDRearGate")
+    sendNotification(rearGatePersonMessage ?: "Person detected at Rear Gate")
+    if (isNightMode() && rearGateActiveSwitch) rearGateActiveSwitch.on()
 }
 
 // ==================== Reset Methods ====================
@@ -265,10 +217,38 @@ def resetRPDBackDoor() {
     }
 }
 
+def resetRPDBirdHouse() {
+    if (rpdBirdHouse) {
+        rpdBirdHouse.off()
+        logDebug "Reset RPDBirdHouse switch"
+    }
+}
+
 def resetRPDFrontDoor() {
     if (rpdFrontDoor) {
         rpdFrontDoor.off()
         logDebug "Reset RPDFrontDoor switch"
+    }
+}
+
+def resetRPDGarden() {
+    if (rpdGarden) {
+        rpdGarden.off()
+        logDebug "Reset RPDGarden switch"
+    }
+}
+
+def resetRPDCPen() {
+    if (rpdCPen) {
+        rpdCPen.off()
+        logDebug "Reset RPDCPen switch"
+    }
+}
+
+def resetRPDRearGate() {
+    if (rpdRearGate) {
+        rpdRearGate.off()
+        logDebug "Reset RPDRearGate switch"
     }
 }
 
@@ -311,19 +291,9 @@ def isNightMode() {
     return location.mode in nightModes
 }
 
-def isEveningMode() {
-    if (!eveningModes) return false
-    return location.mode in eveningModes
-}
-
 def isSilent() {
     if (!silentSwitch) return false
     return silentSwitch.currentValue("switch") == "on"
-}
-
-def isSilentBackdoor() {
-    if (!silentBackdoorSwitch) return false
-    return silentBackdoorSwitch.currentValue("switch") == "on"
 }
 
 // ==================== Logging Methods ====================
