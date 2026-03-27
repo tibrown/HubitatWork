@@ -16,7 +16,7 @@
 
 definition(
     name: "Environmental Control Manager",
-    namespace: "tibrown",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Manages temperature control, fans, heaters, and environmental monitoring for greenhouse, office, and outdoor areas",
     category: "Convenience",
@@ -184,6 +184,121 @@ def mainPage() {
                   required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>COLD WEATHER SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "freezeTempSensors", "capability.temperatureMeasurement",
+                  title: "Cold Weather Temperature Sensors",
+                  description: "Select one or more outdoor/pen sensors for freeze alerts, heat lamp, and chicken heater control (most recent reading will be used)",
+                  multiple: true,
+                  required: false
+        }
+
+        section("<b>═══════════════════════════════════════</b>\n<b>FREEZE ALERTS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "freezeThreshold", "decimal",
+                  title: "Freeze Alert Temperature (°F)",
+                  description: "Send alert when temperature falls to or below this value",
+                  defaultValue: 32.0,
+                  required: false
+            
+            input "freezeAlertMessage", "text",
+                  title: "Freeze Alert Message",
+                  defaultValue: "Freeze Warning",
+                  required: false
+            
+            input "freezeEchoDevices", "capability.speechSynthesis",
+                  title: "Echo Devices for Freeze Announcements",
+                  multiple: true,
+                  required: false
+            
+            input "freezeEchoVolume", "number",
+                  title: "Echo Volume Level (1-100)",
+                  defaultValue: 30,
+                  range: "1..100",
+                  required: false
+            
+            input "freezeResetVolume", "number",
+                  title: "Reset Volume After Alert (1-100)",
+                  description: "Volume to restore after alert completes",
+                  defaultValue: 35,
+                  range: "1..100",
+                  required: false
+            
+            input "freezeNotificationSwitch", "capability.switch",
+                  title: "Notification Control Switch (Optional)",
+                  description: "When configured, only send freeze alerts when this switch is ON",
+                  required: false
+            
+            input "freezeCooldownMinutes", "number",
+                  title: "Alert Cooldown Period (minutes)",
+                  description: "Minimum time between repeated freeze alerts",
+                  defaultValue: 5,
+                  range: "0..60",
+                  required: false
+        }
+
+        section("<b>═══════════════════════════════════════</b>\n<b>HEAT LAMP CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
+            input "heatLampSwitch", "capability.switch",
+                  title: "Heat Lamp Switch",
+                  description: "Switch that controls the heat lamp",
+                  required: false
+            
+            input "heatLampEnabled", "capability.switch",
+                  title: "Heat Lamp Master Control Switch",
+                  description: "Master switch to enable/disable heat lamp cycling (ON = enabled)",
+                  required: false
+            
+            input "heatLampOnMinutes", "number",
+                  title: "Heat Lamp ON Duration (minutes)",
+                  description: "How long to keep heat lamp on during each cycle",
+                  defaultValue: 15,
+                  range: "1..60",
+                  required: false
+            
+            input "heatLampOffMinutes", "number",
+                  title: "Heat Lamp OFF Duration (minutes)",
+                  description: "How long to keep heat lamp off during each cycle",
+                  defaultValue: 15,
+                  range: "1..60",
+                  required: false
+            
+            input "heatLampThreshold", "decimal",
+                  title: "Heat Lamp Trigger Temperature (°F)",
+                  description: "Start heat lamp cycling when temperature falls to or below this value",
+                  defaultValue: 32.0,
+                  required: false
+            
+            input "cyclingIndicatorSwitch", "capability.switch",
+                  title: "Heat Lamp Cycling Indicator (Connector)",
+                  description: "Connector switch that shows ON when heat lamp cycling is active",
+                  required: false
+        }
+
+        section("<b>═══════════════════════════════════════</b>\n<b>CHICKEN HEATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Temperature-based hysteresis control for chicken pen heater. Uses the Cold Weather Temperature Sensors configured above."
+            
+            input "chickenHeaterSwitch", "capability.switch",
+                  title: "Chicken Heater Switch",
+                  description: "Switch that controls the chicken heater",
+                  required: false
+            
+            input "chickenHeaterModes", "mode",
+                  title: "Chicken Heater Active Modes",
+                  description: "Chicken heater will only operate when hub is in one of these modes",
+                  multiple: true,
+                  required: false
+            
+            input "chickenMinTemp", "decimal",
+                  title: "Heater ON Temperature (°F)",
+                  description: "Turn heater ON when temperature falls to or below this value",
+                  defaultValue: 46.0,
+                  required: false
+            
+            input "chickenMaxTemp", "decimal",
+                  title: "Heater OFF Temperature (°F)",
+                  description: "Turn heater OFF when temperature rises to or above this value",
+                  defaultValue: 48.0,
+                  required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification",
                   title: "Notification Devices",
@@ -231,13 +346,11 @@ def mainPage() {
             paragraph "• WaterTimeout - Water shutoff timeout"
             paragraph "• SkeeterIlluminanceThreshold - Mosquito control light threshold"
             paragraph "Hub variables are automatically synced when this app is updated."
+            paragraph "Cold weather controls (freeze alerts, heat lamp, chicken heater) use app settings directly and do not require hub variables."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool",
-                  title: "Enable Debug Logging",
-                  defaultValue: false,
-                  required: false
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info", required: false
         }
     }
 }
@@ -309,6 +422,45 @@ def initialize() {
         scheduleIlluminanceCheck()
         logInfo "Starting illuminance control in ${currentMode} mode"
     }
+    
+    // Subscribe to cold weather (freeze) sensors
+    if (settings.freezeTempSensors) {
+        settings.freezeTempSensors.each { sensor ->
+            subscribe(sensor, "temperature", freezeTempHandler)
+        }
+        def sensorNames = settings.freezeTempSensors.collect { it.displayName }.join(", ")
+        logInfo "Subscribed to ${settings.freezeTempSensors.size()} cold weather sensor(s): ${sensorNames}"
+    }
+    
+    // Subscribe to heat lamp master control switch
+    if (settings.heatLampEnabled) {
+        subscribe(settings.heatLampEnabled, "switch", heatLampEnabledHandler)
+        logInfo "Subscribed to heat lamp control switch: ${settings.heatLampEnabled.displayName}"
+        
+        // Check if we should start cycling on initialization (handles hub reboot)
+        if (settings.heatLampEnabled.currentValue("switch") == "on" && settings.freezeTempSensors && settings.heatLampSwitch) {
+            def currentTemp = getFreezeEffectiveTemperature()
+            def threshold = settings.heatLampThreshold ?: 32.0
+            if (currentTemp != null && currentTemp <= threshold && !state.heatLampCycling) {
+                logInfo "Initialization: effective temperature ${currentTemp}°F <= ${threshold}°F and heat lamp enabled - starting cycling"
+                startHeatLampCycling()
+            }
+        }
+    }
+    
+    // Initialize heat lamp state (reset cycling on re-initialization)
+    state.heatLampCycling = false
+    state.heatLampCurrentlyOn = false
+    if (cyclingIndicatorSwitch) {
+        settings.cyclingIndicatorSwitch?.off()
+    }
+    
+    // Initialize chicken heater announcement tracking
+    state.chickenHeaterAnnouncedOn = state.chickenHeaterAnnouncedOn ?: false
+    state.chickenHeaterAnnouncedOff = state.chickenHeaterAnnouncedOff ?: true
+    
+    // Check chicken heater state on startup
+    checkChickenHeaterOnStartup()
 }
 
 // ============================================================================
@@ -410,6 +562,11 @@ def modeChangeHandler(evt) {
     }
     
     handleSkeeterMode(newMode)
+    
+    // Chicken heater mode control
+    if (settings.chickenHeaterModes) {
+        chickenHeaterModeHandler(evt)
+    }
 }
 
 // ============================================================================
@@ -679,6 +836,120 @@ def getMostRecentSensorActivity(sensor) {
 }
 
 /**
+ * Get the best temperature reading from the configured freeze/cold weather sensors.
+ * If all sensors are "active" (any attribute updated within the preference window),
+ * returns the LOWEST temperature for freeze safety (coldest reading wins).
+ * Otherwise, falls back to the most recent temperature reading.
+ * @return Map with keys: temp, ageMinutes, sensorName; or null if no readings
+ */
+def getMostRecentFreezeSensorReading() {
+    if (!settings.freezeTempSensors) {
+        return null
+    }
+    
+    def nowMs = now()
+    def preferenceWindowMs = (settings.localPreferenceMinutes ?: 5) * 60000
+    def validReadings = []
+    def allWithinWindow = true
+    
+    settings.freezeTempSensors.each { sensor ->
+        def tempState = sensor.currentState("temperature")
+        if (tempState) {
+            def mostRecentActivity = getMostRecentSensorActivity(sensor)
+            def activityAgeMs = mostRecentActivity ? (nowMs - mostRecentActivity.date.time) : Long.MAX_VALUE
+            def activityAttr = mostRecentActivity?.name ?: "unknown"
+            
+            def tempAgeMs = nowMs - tempState.date.time
+            def tempAgeMinutes = tempAgeMs / 60000
+            def temp = tempState.value as BigDecimal
+            def isActive = activityAgeMs <= preferenceWindowMs
+            
+            validReadings << [
+                temp: temp,
+                ageMinutes: tempAgeMinutes,
+                ageMs: tempAgeMs,
+                activityAgeMs: activityAgeMs,
+                activityAttr: activityAttr,
+                sensorName: sensor.displayName,
+                withinWindow: isActive
+            ]
+            
+            if (!isActive) {
+                allWithinWindow = false
+                logDebug "Freeze sensor ${sensor.displayName}: temp ${tempAgeMinutes.toInteger()} min old, activity (${activityAttr}) ${(activityAgeMs/60000).toInteger()} min ago - outside window"
+            } else {
+                logDebug "Freeze sensor ${sensor.displayName}: active, temp: ${temp}°F"
+            }
+        }
+    }
+    
+    if (validReadings.isEmpty()) return null
+    
+    def bestReading = null
+    if (allWithinWindow) {
+        def sortedByTemp = validReadings.sort { it.temp }
+        bestReading = sortedByTemp.first()
+        def allTemps = validReadings.collect { "${it.sensorName}: ${it.temp}°F" }.join(", ")
+        logDebug "Freeze sensors: all active - selecting lowest temp. Sensors: [${allTemps}]"
+    } else {
+        def sortedByAge = validReadings.sort { it.ageMs }
+        bestReading = sortedByAge.first()
+        logDebug "Freeze sensors: not all active - using most recent reading from ${bestReading.sensorName}"
+    }
+    
+    return [temp: bestReading.temp, ageMinutes: bestReading.ageMinutes, sensorName: bestReading.sensorName]
+}
+
+/**
+ * Get the effective temperature for freeze/heat lamp/chicken heater decisions.
+ * Uses cold weather (freeze) sensors with NWS backup.
+ * @return The effective temperature to use, or null if unavailable
+ */
+def getFreezeEffectiveTemperature() {
+    def bestLocal = getMostRecentFreezeSensorReading()
+    if (bestLocal == null) {
+        logWarn "No cold weather temperature readings available"
+        return null
+    }
+    
+    def localTemp = bestLocal.temp
+    def localAgeMinutes = bestLocal.ageMinutes
+    def localSensorName = bestLocal.sensorName
+    
+    if (!settings.nwsTempDevice) {
+        logDebug "Freeze: Using local temperature ${localTemp}°F from ${localSensorName} (${localAgeMinutes.toInteger()} min old)"
+        return localTemp
+    }
+    
+    try {
+        def localPreferenceMinutes = settings.localPreferenceMinutes ?: 5
+        if (localAgeMinutes <= localPreferenceMinutes) {
+            logDebug "Freeze: Using local temperature ${localTemp}°F from ${localSensorName} (within ${localPreferenceMinutes} min preference)"
+            return localTemp
+        }
+        
+        if (isNwsDataStale()) {
+            logDebug "Freeze: NWS data stale - using local sensor ${localSensorName}"
+            return localTemp
+        }
+        
+        def nwsTemp = settings.nwsTempDevice.currentValue("temperature")
+        if (nwsTemp == null) {
+            logDebug "Freeze: NWS temperature unavailable - using local sensor"
+            return localTemp
+        }
+        
+        nwsTemp = nwsTemp as BigDecimal
+        logDebug "Freeze: Local reading older than preference (${localAgeMinutes.toInteger()} min) - using NWS ${nwsTemp}°F"
+        return nwsTemp
+        
+    } catch (Exception e) {
+        logWarn "Freeze: Error getting NWS temperature: ${e.message} - using local sensor"
+        return localTemp
+    }
+}
+
+/**
  * Get the best temperature reading from configured skeeter temperature sensors.
  * If all sensors are "active" (any attribute updated within the preference window),
  * returns the LOWEST temperature for cold-weather safety.
@@ -880,6 +1151,23 @@ def checkAllTemperatures() {
             controlOfficeHeater(temp)
         }
     }
+    
+    // Check freeze sensors for heat lamp and chicken heater
+    if (settings.freezeTempSensors) {
+        def temp = getFreezeEffectiveTemperature()
+        if (temp != null) {
+            checkChickenHeater(temp)
+            
+            if (settings.heatLampEnabled?.currentValue("switch") == "on" && settings.heatLampSwitch) {
+                def threshold = settings.heatLampThreshold ?: 32.0
+                if (temp <= threshold && !state.heatLampCycling) {
+                    startHeatLampCycling()
+                } else if (temp > threshold && state.heatLampCycling) {
+                    stopHeatLampCycling(false)
+                }
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -952,6 +1240,362 @@ def convertValue(value, type) {
         case "string":
         default:
             return value.toString()
+    }
+}
+
+// ============================================================================
+// FREEZE ALERT METHODS
+// ============================================================================
+
+def freezeTempHandler(evt) {
+    def freezeThresholdVal = settings.freezeThreshold ?: 32.0
+    def heatLampThresholdVal = settings.heatLampThreshold ?: 32.0
+    
+    def temp = getFreezeEffectiveTemperature()
+    if (temp == null) {
+        logWarn "Unable to get effective cold weather temperature - skipping"
+        return
+    }
+    
+    logDebug "Cold weather temperature event from ${evt.displayName}: ${evt.value}°F, Effective=${temp}°F (freeze: ${freezeThresholdVal}°F, heat lamp: ${heatLampThresholdVal}°F)"
+    
+    // Check freeze alert threshold
+    if (temp <= freezeThresholdVal) {
+        logWarn "Effective temperature ${temp}°F at or below freeze threshold ${freezeThresholdVal}°F"
+        sendFreezeAlert(temp)
+    }
+    
+    // Check heat lamp threshold
+    if (temp <= heatLampThresholdVal) {
+        if (settings.heatLampEnabled && settings.heatLampSwitch) {
+            if (settings.heatLampEnabled.currentValue("switch") == "on" && !state.heatLampCycling) {
+                logInfo "Temperature dropped to ${temp}°F - starting heat lamp cycling"
+                startHeatLampCycling()
+            }
+        }
+    } else {
+        if (state.heatLampCycling) {
+            logInfo "Temperature rose to ${temp}°F (above ${heatLampThresholdVal}°F) - stopping heat lamp cycling"
+            stopHeatLampCycling(false)
+        }
+    }
+    
+    // Check chicken heater thresholds
+    checkChickenHeater(temp)
+}
+
+def sendFreezeAlert(BigDecimal temp) {
+    if (settings.freezeNotificationSwitch && settings.freezeNotificationSwitch.currentValue("switch") != "on") {
+        logDebug "Notification switch is off - skipping freeze alert"
+        return
+    }
+    
+    Long cooldownMs = (settings.freezeCooldownMinutes ?: 5) * 60000
+    if (state.lastFreezeAlertTime && (now() - state.lastFreezeAlertTime) < cooldownMs) {
+        def elapsedMinutes = ((now() - state.lastFreezeAlertTime) / 60000).round(1)
+        logDebug "Freeze alert in cooldown (${elapsedMinutes} min elapsed) - skipping"
+        return
+    }
+    
+    state.lastFreezeAlertTime = now()
+    
+    def message = settings.freezeAlertMessage ?: "Freeze Warning"
+    def volume = settings.freezeEchoVolume ?: 30
+    
+    // Add heat lamp warning if configured but not enabled
+    if (settings.heatLampSwitch && settings.heatLampEnabled) {
+        if (settings.heatLampEnabled.currentValue("switch") != "on") {
+            message = "${message}. Warning: Heat lamp is not enabled."
+            logWarn "Heat lamp is configured but not enabled during freeze condition"
+        }
+    }
+    
+    if (settings.freezeEchoDevices) {
+        settings.freezeEchoDevices.each { device ->
+            logDebug "Sending freeze alert to ${device.displayName} at volume ${volume}: ${message}"
+            device.speak(message, volume)
+        }
+        logInfo "Freeze alert sent to ${settings.freezeEchoDevices.size()} device(s): ${message} (${temp}°F)"
+        runIn(10, 'resetFreezeEchoVolumes')
+    }
+    
+    if (settings.notificationDevices) {
+        def notificationMessage = "${message} - Temperature: ${temp}°F"
+        settings.notificationDevices.each { device ->
+            device.deviceNotification(notificationMessage)
+        }
+    }
+}
+
+def resetFreezeEchoVolumes() {
+    def resetVol = settings.freezeResetVolume ?: 35
+    settings.freezeEchoDevices?.each { device ->
+        logDebug "Resetting volume for ${device.displayName} to ${resetVol}"
+        device.setVolume(resetVol)
+    }
+}
+
+// ============================================================================
+// HEAT LAMP CONTROL METHODS
+// ============================================================================
+
+def heatLampEnabledHandler(evt) {
+    logInfo "Heat lamp master switch changed to: ${evt.value}"
+    
+    if (evt.value == "on") {
+        sendHeatLampNotification("Heat lamp control enabled")
+        
+        if (settings.freezeTempSensors && settings.heatLampSwitch) {
+            def currentTemp = getFreezeEffectiveTemperature()
+            def threshold = settings.heatLampThreshold ?: 32.0
+            if (currentTemp != null && currentTemp <= threshold) {
+                logInfo "Heat lamp enabled and temperature ${currentTemp}°F <= ${threshold}°F - starting cycling"
+                startHeatLampCycling()
+            } else if (currentTemp != null) {
+                logInfo "Heat lamp enabled but temperature ${currentTemp}°F > ${threshold}°F - not cycling yet"
+            }
+        }
+    } else {
+        stopHeatLampCycling(true)
+        sendHeatLampNotification("Heat lamp control disabled")
+    }
+}
+
+def startHeatLampCycling() {
+    if (state.heatLampCycling) {
+        logDebug "Heat lamp cycling already active - skipping start"
+        return
+    }
+    
+    if (!settings.heatLampSwitch) {
+        logWarn "No heat lamp switch configured - cannot start cycling"
+        return
+    }
+    
+    state.heatLampCycling = true
+    settings.cyclingIndicatorSwitch?.on()
+    logInfo "Starting heat lamp cycling (${settings.heatLampOnMinutes ?: 15} min on / ${settings.heatLampOffMinutes ?: 15} min off)"
+    heatLampCycleOn()
+}
+
+def stopHeatLampCycling(Boolean sendNotif = false) {
+    if (!state.heatLampCycling && !state.heatLampCurrentlyOn) {
+        logDebug "Heat lamp cycling not active - skipping stop"
+        return
+    }
+    
+    unschedule('heatLampCycleOn')
+    unschedule('heatLampCycleOff')
+    
+    if (settings.heatLampSwitch && state.heatLampCurrentlyOn) {
+        settings.heatLampSwitch.off()
+        logInfo "Heat lamp turned off"
+    }
+    
+    state.heatLampCycling = false
+    state.heatLampCurrentlyOn = false
+    settings.cyclingIndicatorSwitch?.off()
+    logInfo "Heat lamp cycling stopped"
+}
+
+def heatLampCycleOn() {
+    if (!state.heatLampCycling) {
+        logDebug "Heat lamp cycling disabled - not turning on"
+        return
+    }
+    
+    if (settings.heatLampEnabled?.currentValue("switch") != "on") {
+        logDebug "Heat lamp master switch is off - stopping cycle"
+        stopHeatLampCycling(false)
+        return
+    }
+    
+    if (settings.freezeTempSensors) {
+        def currentTemp = getFreezeEffectiveTemperature()
+        def threshold = settings.heatLampThreshold ?: 32.0
+        if (currentTemp != null && currentTemp > threshold) {
+            logInfo "Effective temperature ${currentTemp}°F now above threshold - stopping cycling"
+            stopHeatLampCycling(false)
+            return
+        }
+    }
+    
+    if (settings.heatLampSwitch) {
+        settings.heatLampSwitch.on()
+        state.heatLampCurrentlyOn = true
+        def onMinutes = settings.heatLampOnMinutes ?: 15
+        logInfo "Heat lamp turned ON - will turn off in ${onMinutes} minutes"
+        runIn(onMinutes * 60, 'heatLampCycleOff')
+    }
+}
+
+def heatLampCycleOff() {
+    if (!state.heatLampCycling) {
+        logDebug "Heat lamp cycling disabled - not scheduling next cycle"
+        if (settings.heatLampSwitch && state.heatLampCurrentlyOn) {
+            settings.heatLampSwitch.off()
+            state.heatLampCurrentlyOn = false
+        }
+        return
+    }
+    
+    if (settings.heatLampEnabled?.currentValue("switch") != "on") {
+        logDebug "Heat lamp master switch is off - stopping cycle"
+        stopHeatLampCycling(false)
+        return
+    }
+    
+    if (settings.heatLampSwitch) {
+        settings.heatLampSwitch.off()
+        state.heatLampCurrentlyOn = false
+        def offMinutes = settings.heatLampOffMinutes ?: 15
+        logInfo "Heat lamp turned OFF - will turn on in ${offMinutes} minutes"
+        runIn(offMinutes * 60, 'heatLampCycleOn')
+    }
+}
+
+def sendHeatLampNotification(String message) {
+    def volume = settings.freezeEchoVolume ?: 30
+    
+    if (settings.freezeNotificationSwitch && settings.freezeNotificationSwitch.currentValue("switch") != "on") {
+        logDebug "Notification switch is off - skipping heat lamp notification"
+        return
+    }
+    
+    if (settings.freezeEchoDevices) {
+        settings.freezeEchoDevices.each { device ->
+            device.speak(message, volume)
+        }
+        logInfo "Heat lamp notification sent: ${message}"
+        runIn(10, 'resetFreezeEchoVolumes')
+    }
+    
+    if (settings.notificationDevices) {
+        settings.notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+}
+
+// ============================================================================
+// CHICKEN HEATER CONTROL METHODS
+// ============================================================================
+
+def checkChickenHeater(BigDecimal temp) {
+    if (!settings.chickenHeaterSwitch) return
+    
+    if (!isChickenHeaterModeActive()) {
+        logDebug "Chicken heater not active in current mode (${location.mode}) - skipping"
+        return
+    }
+    
+    def minTemp = settings.chickenMinTemp ?: 46.0
+    def maxTemp = settings.chickenMaxTemp ?: 48.0
+    def currentState = settings.chickenHeaterSwitch.currentValue("switch")
+    
+    if (temp <= minTemp && currentState != "on") {
+        logInfo "Temperature ${temp}°F <= ${minTemp}°F - turning chicken heater ON"
+        settings.chickenHeaterSwitch.on()
+        if (!state.chickenHeaterAnnouncedOn) {
+            sendChickenHeaterNotification("Chicken heater turned ON. Temperature: ${temp}°F")
+            state.chickenHeaterAnnouncedOn = true
+            state.chickenHeaterAnnouncedOff = false
+        }
+    } else if (temp >= maxTemp && currentState == "on") {
+        logInfo "Temperature ${temp}°F >= ${maxTemp}°F - turning chicken heater OFF"
+        settings.chickenHeaterSwitch.off()
+        if (!state.chickenHeaterAnnouncedOff) {
+            sendChickenHeaterNotification("Chicken heater turned OFF. Temperature: ${temp}°F")
+            state.chickenHeaterAnnouncedOff = true
+            state.chickenHeaterAnnouncedOn = false
+        }
+    }
+}
+
+def chickenHeaterModeHandler(evt) {
+    if (isChickenHeaterModeActive()) {
+        logInfo "Chicken heater active in mode: ${evt.value}"
+        checkChickenHeaterOnStartup()
+    } else {
+        if (settings.chickenHeaterSwitch?.currentValue("switch") == "on") {
+            settings.chickenHeaterSwitch.off()
+            logInfo "Chicken heater turned OFF (mode ${evt.value} not in active modes)"
+            if (!state.chickenHeaterAnnouncedOff) {
+                sendChickenHeaterNotification("Chicken heater turned OFF. Mode changed to ${evt.value}")
+                state.chickenHeaterAnnouncedOff = true
+                state.chickenHeaterAnnouncedOn = false
+            }
+        }
+    }
+}
+
+def isChickenHeaterModeActive() {
+    if (!settings.chickenHeaterModes) return true
+    return settings.chickenHeaterModes.contains(location.mode)
+}
+
+def checkChickenHeaterOnStartup() {
+    if (!settings.freezeTempSensors || !settings.chickenHeaterSwitch) {
+        logDebug "Chicken heater not fully configured - skipping startup check"
+        return
+    }
+    
+    if (!isChickenHeaterModeActive()) {
+        logDebug "Chicken heater not active in current mode (${location.mode}) - skipping startup check"
+        return
+    }
+    
+    def currentTemp = getFreezeEffectiveTemperature()
+    if (currentTemp == null) {
+        logDebug "Unable to get temperature - skipping chicken heater startup check"
+        return
+    }
+    
+    def minTemp = settings.chickenMinTemp ?: 46.0
+    def maxTemp = settings.chickenMaxTemp ?: 48.0
+    def currentState = settings.chickenHeaterSwitch.currentValue("switch")
+    
+    logInfo "Chicken heater startup check: temp=${currentTemp}°F, heater=${currentState}"
+    
+    if (currentTemp <= minTemp && currentState != "on") {
+        logInfo "Startup: Temperature ${currentTemp}°F <= ${minTemp}°F - turning chicken heater ON"
+        settings.chickenHeaterSwitch.on()
+        if (!state.chickenHeaterAnnouncedOn) {
+            sendChickenHeaterNotification("Chicken heater turned ON. Temperature: ${currentTemp}°F")
+            state.chickenHeaterAnnouncedOn = true
+            state.chickenHeaterAnnouncedOff = false
+        }
+    } else if (currentTemp >= maxTemp && currentState == "on") {
+        logInfo "Startup: Temperature ${currentTemp}°F >= ${maxTemp}°F - turning chicken heater OFF"
+        settings.chickenHeaterSwitch.off()
+        if (!state.chickenHeaterAnnouncedOff) {
+            sendChickenHeaterNotification("Chicken heater turned OFF. Temperature: ${currentTemp}°F")
+            state.chickenHeaterAnnouncedOff = true
+            state.chickenHeaterAnnouncedOn = false
+        }
+    }
+}
+
+def sendChickenHeaterNotification(String message) {
+    def volume = settings.freezeEchoVolume ?: 30
+    
+    if (settings.freezeNotificationSwitch && settings.freezeNotificationSwitch.currentValue("switch") != "on") {
+        logDebug "Notification switch is off - skipping chicken heater notification"
+        return
+    }
+    
+    if (settings.freezeEchoDevices) {
+        settings.freezeEchoDevices.each { device ->
+            device.speak(message, volume)
+        }
+        logInfo "Chicken heater notification sent: ${message}"
+        runIn(10, 'resetFreezeEchoVolumes')
+    }
+    
+    if (settings.notificationDevices) {
+        settings.notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
     }
 }
 
@@ -1087,19 +1731,24 @@ def isNwsDataStale() {
     }
 }
 
+def uninstalled() {
+    logInfo "Environmental Control Manager uninstalled"
+    unschedule()
+}
+
 // ============================================================================
 // LOGGING
 // ============================================================================
 
 def logInfo(String msg) {
-    log.info "[Environmental Control Manager] ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
 
 def logDebug(String msg) {
-    if (settings.logEnable) {
-        log.debug "[Environmental Control Manager] ${msg}"
-    }
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
+
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }
 
 def logWarn(String msg) {
     log.warn "[Environmental Control Manager] ${msg}"

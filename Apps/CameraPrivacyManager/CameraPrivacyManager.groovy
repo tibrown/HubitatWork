@@ -16,7 +16,7 @@
 
 definition(
     name: "Camera Privacy Manager",
-    namespace: "tibrown",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Manages indoor camera power based on phone presence - cameras on when you leave, off when you arrive",
     category: "Security",
@@ -95,10 +95,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool",
-                  title: "Enable Debug Logging",
-                  defaultValue: false,
-                  required: false
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info", required: false
         }
     }
 }
@@ -344,14 +341,14 @@ def convertValue(value, type) {
 // ============================================================================
 
 def logInfo(String msg) {
-    log.info "[Camera Privacy Manager] ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
 
 def logDebug(String msg) {
-    if (settings.logEnable) {
-        log.debug "[Camera Privacy Manager] ${msg}"
-    }
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
+
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }
 
 def logWarn(String msg) {
     log.warn "[Camera Privacy Manager] ${msg}"

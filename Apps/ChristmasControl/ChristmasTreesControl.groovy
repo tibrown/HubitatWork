@@ -16,12 +16,13 @@
 
 definition(
     name: "Christmas Control",
-    namespace: "hubitat",
-    author: "Hubitat User",
+    namespace: "timbrown",
+    author: "Tim Brown",
     description: "Unified control for Christmas trees and lights.",
     category: "Convenience",
     iconUrl: "",
-    iconX2Url: ""
+    iconX2Url: "",
+    singleThreaded: true
 )
 
 preferences {
@@ -68,7 +69,7 @@ def mainPage() {
             input "batchDelay", "number", title: "Batch Delay (milliseconds)", description: "Delay between each device command when controlling multiple devices (prevents mesh flooding)", defaultValue: 300, required: false
             input "verificationWait", "number", title: "Verification Wait (milliseconds)", description: "Time to wait after sending commands before verifying device states", defaultValue: 3000, required: false
             input "retryDelay", "number", title: "Retry Delay (milliseconds)", description: "Time to wait before retrying failed devices", defaultValue: 2000, required: false
-            input "enableDiagnostics", "bool", title: "Enable Diagnostic Logging?", description: "Detailed logging to troubleshoot device control issues", defaultValue: true, required: false
+            input "logLevel", "enum", title: "Log Level", options: ["None", "Info", "Debug", "Trace"], defaultValue: "Info", required: false
         }
     }
 }
@@ -84,7 +85,7 @@ def updated() {
 }
 
 def initialize() {
-    log.debug "initialize called"
+    logDebug "initialize called"
     
     // Subscribe to master switch
     if (masterSwitch) subscribe(masterSwitch, "switch", switchHandler)
@@ -94,7 +95,7 @@ def initialize() {
     if (christmasLightsSwitch) subscribe(christmasLightsSwitch, "switch", lightsSwitchHandler)
     
     if (enableSchedule) {
-        log.debug "Schedule enabled. On Type: $onTimeType"
+        logDebug "Schedule enabled. On Type: $onTimeType"
         if (onTimeType == "Sunset") {
             subscribe(location, "sunset", sunsetHandler)
         } else if (onTimeType == "Mode") {
@@ -116,21 +117,21 @@ def initialize() {
         // Check if we should be on right now (Catch-up logic)
         checkIfShouldBeOn()
     } else {
-        log.debug "Schedule disabled"
+        logDebug "Schedule disabled"
     }
 }
 
 def checkIfShouldBeOn() {
-    log.debug "Checking if lights should be on now..."
+    logDebug "Checking if lights should be on now..."
     if (!checkDate()) {
-        log.debug "Date not within range."
+        logDebug "Date not within range."
         return
     }
 
     // Check Mode Logic first
     if (onTimeType == "Mode") {
         if (onMode && location.mode in onMode) {
-            log.debug "Current mode matches On Mode. Turning on."
+            logDebug "Current mode matches On Mode. Turning on."
             scheduledTurnOn()
         }
         return
@@ -139,7 +140,7 @@ def checkIfShouldBeOn() {
     // If Off is Mode, and we are in that mode, ensure off?
     if (offTimeType == "Mode") {
         if (offMode && location.mode in offMode) {
-            log.debug "Current mode matches Off Mode. Ensuring off."
+            logDebug "Current mode matches Off Mode. Ensuring off."
             scheduledTurnOff()
             return
         }
@@ -177,10 +178,10 @@ def checkIfShouldBeOn() {
         
         // Check if now is between start and end
         if (now >= startTime && now < endTime) {
-            log.debug "Current time is within schedule window. Turning on."
+            logDebug "Current time is within schedule window. Turning on."
             scheduledTurnOn()
         } else {
-            log.debug "Current time is NOT within schedule window."
+            logDebug "Current time is NOT within schedule window."
         }
     } else if (startTime && offTimeType == "Mode") {
         // Started by time, ends by mode. 
@@ -188,22 +189,22 @@ def checkIfShouldBeOn() {
         // If we are here, we are NOT in Off Mode.
         // So if we are past start time, we should probably be on?
         if (now >= startTime) {
-             log.debug "Past start time and not in Off Mode. Turning on."
+             logDebug "Past start time and not in Off Mode. Turning on."
              scheduledTurnOn()
         }
     }
 }
 
 def modeHandler(evt) {
-    log.debug "Mode changed to ${evt.value}"
+    logDebug "Mode changed to ${evt.value}"
     
     if (onTimeType == "Mode" && onMode && evt.value in onMode) {
-        log.debug "Mode matches On Mode. Turning on."
+        logDebug "Mode matches On Mode. Turning on."
         scheduledTurnOn()
     }
     
     if (offTimeType == "Mode" && offMode && evt.value in offMode) {
-        log.debug "Mode matches Off Mode. Turning off."
+        logDebug "Mode matches Off Mode. Turning off."
         scheduledTurnOff()
     }
 }
@@ -219,18 +220,18 @@ def switchHandler(evt) {
 def treeSwitchHandler(evt) {
     // Manual control of trees via virtual switch
     if (atomicState.syncingTreesSwitch) {
-        log.debug "Ignoring trees switch event caused by app sync"
+        logDebug "Ignoring trees switch event caused by app sync"
         return
     }
     
     // Prevent cascading calls
     if (atomicState.lastTreesCommand && (now() - atomicState.lastTreesCommand) < 5000) {
-        log.debug "Ignoring trees switch event - too soon after last command (debounce)"
+        logDebug "Ignoring trees switch event - too soon after last command (debounce)"
         return
     }
     atomicState.lastTreesCommand = now()
     
-    log.debug "ChristmasTrees switch manually turned ${evt.value}"
+    logDebug "ChristmasTrees switch manually turned ${evt.value}"
     if (evt.value == "on") {
         if (treeSwitches) treeSwitches.on()
     } else {
@@ -241,22 +242,22 @@ def treeSwitchHandler(evt) {
 def lightsSwitchHandler(evt) {
     // Manual control of lights via virtual switch
     if (atomicState.syncingLightsSwitch) {
-        log.debug "Ignoring lights switch event caused by app sync"
+        logDebug "Ignoring lights switch event caused by app sync"
         return
     }
     
     // Prevent cascading calls
     if (atomicState.lastLightsCommand && (now() - atomicState.lastLightsCommand) < 5000) {
-        log.debug "Ignoring lights switch event - too soon after last command (debounce)"
+        logDebug "Ignoring lights switch event - too soon after last command (debounce)"
         return
     }
     atomicState.lastLightsCommand = now()
     
-    log.debug "ChristmasLights switch manually turned ${evt.value}"
+    logDebug "ChristmasLights switch manually turned ${evt.value}"
     if (evt.value == "on") {
         // Check rain sensor before turning on outdoor lights
         if (rainSensor && rainSensor.currentValue("switch") == "on") {
-            log.debug "Rain sensor is on, not turning on outdoor lights"
+            logDebug "Rain sensor is on, not turning on outdoor lights"
             if (notificationDevices) notificationDevices.deviceNotification("Cannot turn on Christmas lights - it is raining")
             // Turn the switch back off
             atomicState.syncingLightsSwitch = true
@@ -283,49 +284,43 @@ def clearLightsSwitchSync() {
 }
 
 def sunsetHandler(evt) {
-    log.debug "Sunset event received"
+    logDebug "Sunset event received"
     scheduledTurnOn()
 }
 
 def scheduledTurnOn() {
-    log.debug "scheduledTurnOn called"
+    logDebug "scheduledTurnOn called"
     
     // Prevent cascading calls within 10 seconds
     if (atomicState.lastActivate && (now() - atomicState.lastActivate) < 10000) {
-        log.debug "Ignoring scheduledTurnOn - activation already in progress"
+        logDebug "Ignoring scheduledTurnOn - activation already in progress"
         return
     }
+    atomicState.lastActivate = now()
     
     if (checkDate()) {
-        log.debug "Date is within range, turning on"
-        atomicState.lastActivate = now()
-    if (atomicState.lastDeactivate && (now() - atomicState.lastDeactivate) < 10000) {
-        log.debug "Ignoring scheduledTurnOff - deactivation already in progress"
-        return
-    }
-    atomicState.lastDeactivate = now()
-        log.debug "Date is within range, turning on"
+        logDebug "Date is within range, turning on"
         activateChristmas()
     } else {
-        log.debug "Date is outside range, not turning on"
+        logDebug "Date is outside range, not turning on"
     }
 }
 
 def scheduledTurnOff() {
+    if (atomicState.lastDeactivate && (now() - atomicState.lastDeactivate) < 10000) {
+        logDebug "Ignoring scheduledTurnOff - deactivation already in progress"
+        return
+    }
+    atomicState.lastDeactivate = now()
     deactivateChristmas()
 }
 
 def activateChristmas() {
-    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
-    
-    if (diagnostics) {
-        log.debug "========== activateChristmas called at ${new Date()} =========="
-        // Log initial states
-        log.debug "Initial device states:"
-        logDeviceStates(treeSwitches, "Trees")
-        logDeviceStates(mainLights, "MainLights")
-        logDeviceStates(porchLights, "PorchLights")
-    }
+    logDebug "========== activateChristmas called at ${new Date()} =========="
+    logDebug "Initial device states:"
+    logDeviceStates(treeSwitches, "Trees")
+    logDeviceStates(mainLights, "MainLights")
+    logDeviceStates(porchLights, "PorchLights")
     
     // Turn on trees with verification and retry
     if (treeSwitches) {
@@ -341,7 +336,7 @@ def activateChristmas() {
     
     // Check Rain for Outdoor Lights
     if (rainSensor && rainSensor.currentValue("switch") == "on") {
-        log.debug "Rain sensor is on, skipping outdoor lights"
+        logDebug "Rain sensor is on, skipping outdoor lights"
         if (notificationDevices) notificationDevices.deviceNotification("Christmas lights not coming on because it is raining")
         // Ensure outdoor lights and virtual switch are off if it's raining
         if (mainLights) {
@@ -370,20 +365,15 @@ def activateChristmas() {
     // Handle Porch Lights
     runIn(300, turnOffPorch)
     
-    if (diagnostics) log.debug "========== activateChristmas completed =========="
+    logDebug "========== activateChristmas completed =========="
 }
 
 def deactivateChristmas() {
-    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
-    
-    if (diagnostics) {
-        log.debug "========== deactivateChristmas called at ${new Date()} =========="
-        // Log initial states
-        log.debug "Initial device states:"
-        logDeviceStates(treeSwitches, "Trees")
-        logDeviceStates(mainLights, "MainLights")
-        logDeviceStates(porchLights, "PorchLights")
-    }
+    logDebug "========== deactivateChristmas called at ${new Date()} =========="
+    logDebug "Initial device states:"
+    logDeviceStates(treeSwitches, "Trees")
+    logDeviceStates(mainLights, "MainLights")
+    logDeviceStates(porchLights, "PorchLights")
     
     // Turn off trees with verification and retry
     if (treeSwitches) {
@@ -411,11 +401,11 @@ def deactivateChristmas() {
 
     // Restore Porch Lights with verification
     if (porchLights) {
-        if (diagnostics) log.debug "Restoring porch lights"
+        logDebug "Restoring porch lights"
         turnOnDevicesWithRetry(porchLights, "PorchLights")
     }
     
-    if (diagnostics) log.debug "========== deactivateChristmas completed =========="
+    logDebug "========== deactivateChristmas completed =========="
 }
 
 def turnOffPorch() {
@@ -428,7 +418,7 @@ def logDeviceStates(devices, deviceType) {
     def deviceList = devices instanceof List ? devices : [devices]
     deviceList.each { device ->
         def state = device.currentValue("switch")
-        log.debug "${deviceType} - ${device.displayName}: ${state}"
+        logDebug "${deviceType} - ${device.displayName}: ${state}"
     }
 }
 
@@ -439,16 +429,15 @@ def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
     def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 300
     def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 3000
     def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 2000
-    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
     
-    if (diagnostics) log.debug "turnOffDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
+    logDebug "turnOffDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
     
     def deviceList = devices instanceof List ? devices : [devices]
     def failedDevices = []
     
     // Send off commands in batches to prevent mesh flooding
     deviceList.eachWithIndex { device, index ->
-        if (diagnostics) log.debug "Turning off ${deviceType}: ${device.displayName}"
+        logDebug "Turning off ${deviceType}: ${device.displayName}"
         device.off()
         // Small delay between each device to prevent mesh congestion
         if (index < deviceList.size() - 1 && deviceList.size() > 3) {
@@ -466,7 +455,7 @@ def turnOffDevicesWithRetry(devices, deviceType, retryCount = 0) {
             log.warn "${deviceType} ${device.displayName} failed to turn off (state: ${currentState})"
             failedDevices.add(device)
         } else {
-            if (diagnostics) log.debug "${deviceType} ${device.displayName} confirmed OFF"
+            logDebug "${deviceType} ${device.displayName} confirmed OFF"
         }
     }
     
@@ -487,16 +476,15 @@ def turnOnDevicesWithRetry(devices, deviceType, retryCount = 0) {
     def batchDelayMs = settings.batchDelay != null ? settings.batchDelay : 300
     def verificationWaitMs = settings.verificationWait != null ? settings.verificationWait : 3000
     def retryDelayMs = settings.retryDelay != null ? settings.retryDelay : 2000
-    def diagnostics = settings.enableDiagnostics != null ? settings.enableDiagnostics : true
     
-    if (diagnostics) log.debug "turnOnDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
+    logDebug "turnOnDevicesWithRetry called for ${deviceType}, attempt ${retryCount + 1}"
     
     def deviceList = devices instanceof List ? devices : [devices]
     def failedDevices = []
     
     // Send on commands in batches to prevent mesh flooding
     deviceList.eachWithIndex { device, index ->
-        if (diagnostics) log.debug "Turning on ${deviceType}: ${device.displayName}"
+        logDebug "Turning on ${deviceType}: ${device.displayName}"
         device.on()
         // Small delay between each device to prevent mesh congestion
         if (index < deviceList.size() - 1 && deviceList.size() > 3) {
@@ -514,7 +502,7 @@ def turnOnDevicesWithRetry(devices, deviceType, retryCount = 0) {
             log.warn "${deviceType} ${device.displayName} failed to turn on (state: ${currentState})"
             failedDevices.add(device)
         } else {
-            if (diagnostics) log.debug "${deviceType} ${device.displayName} confirmed ON"
+            logDebug "${deviceType} ${device.displayName} confirmed ON"
         }
     }
     
@@ -556,7 +544,7 @@ def checkDate() {
     def s = sMonth * 100 + sDay
     def e = eMonth * 100 + eDay
     
-    log.debug "checkDate: Current: $curr (Month: $currentMonth, Day: $currentDay), Start: $s, End: $e"
+    logDebug "checkDate: Current: $curr (Month: $currentMonth, Day: $currentDay), Start: $s, End: $e"
     
     if (s > e) { // Wraps year (e.g., Nov to Jan)
         return (curr >= s || curr <= e)
@@ -564,3 +552,11 @@ def checkDate() {
         return (curr >= s && curr <= e)
     }
 }
+
+// ========================================
+// LOGGING HELPERS
+// ========================================
+
+void logInfo(String msg)  { if (logLevel in ["Info","Debug","Trace"]) log.info  "${app.label}: ${msg}" }
+void logDebug(String msg) { if (logLevel in ["Debug","Trace"])        log.debug "${app.label}: ${msg}" }
+void logTrace(String msg) { if (logLevel == "Trace")                  log.trace "${app.label}: ${msg}" }

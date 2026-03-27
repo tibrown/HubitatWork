@@ -16,7 +16,7 @@
 
 definition(
     name: "Emergency Help Manager",
-    namespace: "hubitat",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Manages emergency help buttons and assistance requests throughout the home. Provides visual and audio alerts, repeating notifications, and location-specific help coordination.",
     category: "Safety & Security",
@@ -79,8 +79,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
-            input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info"
         }
     }
 }
@@ -399,9 +398,10 @@ def setHubVar(String varName, String value) {
 // ========================================
 
 def logDebug(msg) {
-    if (logEnable) log.debug "${app.label}: ${msg}"
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
 
 def logInfo(msg) {
-    if (infoEnable) log.info "${app.label}: ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }

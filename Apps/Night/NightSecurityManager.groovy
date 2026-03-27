@@ -16,7 +16,7 @@
 
 definition(
     name: "Night Security Manager",
-    namespace: "hubitat",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Comprehensive nighttime security monitoring and intruder detection system. Handles door/window sensors, motion detection, Ring person detection, and coordinates with alarm and lighting systems.",
     category: "Security",
@@ -56,6 +56,7 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>SWITCHES & CONTROLS</b>\n<b>═══════════════════════════════════════</b>") {
             input "traveling", "capability.switch", title: "Traveling Switch", required: true
             input "silent", "capability.switch", title: "Silent Switch", required: true
+            input "silenceOffice", "capability.switch", title: "Silence Office Switch", required: false
             input "highAlert", "capability.switch", title: "High Alert Switch", required: true
             input "alarmsEnabled", "capability.switch", title: "Alarms Enabled Switch", required: true
             input "pauseDRDoorAlarm", "capability.switch", title: "Pause DR Door Alarm", required: true
@@ -105,8 +106,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
-            input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info"
         }
     }
 }
@@ -119,6 +119,7 @@ def installed() {
 def updated() {
     logInfo "Night Security Manager updated"
     unsubscribe()
+    unschedule()
     initialize()
     syncHubVariables()
 }
@@ -193,7 +194,7 @@ def evtHandler(evt) {
 }
 
 def handleBHScreen(evt) {
-    if (evt.value == "open" && traveling.currentSwitch == "off" && silent.currentSwitch == "off") {
+    if (evt.value == "open" && traveling.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         logInfo "Birdhouse screen door opened during night mode"
         notificationDevices.each { it.deviceNotification("Birdhouse screen door is open, birdhouse screen door is open") }
     }
@@ -204,14 +205,14 @@ def handleCarportBeam(evt) {
          logBeamActivity("Carport beam broken")
          
          // Check if motion or Ring person detection is active (verification to avoid false positives from animals)
-         Boolean motionVerified = carportFrontMotion.currentMotion == "active" || rpdFrontDoor.currentSwitch == "on"
+         Boolean motionVerified = carportFrontMotion.currentValue("motion") == "active" || rpdFrontDoor.currentValue("switch") == "on"
          
          if (!motionVerified) {
              logDebug "Beam broken but no motion/person verification - skipping alert to avoid false positives"
              return
          }
          
-         if (silent.currentSwitch == "off") {
+         if (silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
              // Check cooldown to avoid repeated alerts
              if (state.lastCarportAlert && (now() - state.lastCarportAlert) < 300000) { // 5 minute cooldown
                  logDebug "Carport alert in cooldown period - skipping"
@@ -230,7 +231,7 @@ def handleCarportBeam(evt) {
 }
 
 def executeAlarmsOn() {
-    if (alarmsEnabled.currentSwitch == "on") {
+    if (alarmsEnabled.currentValue("switch") == "on") {
         logInfo "Executing alarms via cross-app communication"
         triggerAlarmExecution()
     } else {
@@ -262,7 +263,7 @@ def whisperToGuestroomNow() {
 }
 
 def handleConcreteShed(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off") {
+    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         logInfo "Intruder detected in concrete shed"
         notificationDevices.each { it.deviceNotification("Intruder in the Concrete Shed") }
         executeShedSirenOn()
@@ -271,7 +272,7 @@ def handleConcreteShed(evt) {
 }
 
 def handleDiningRoomDoor(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off" && pauseDRDoorAlarm.currentSwitch == "off") {
+    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && pauseDRDoorAlarm.currentValue("switch") == "off") {
         logInfo "Intruder detected at dining room door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
@@ -281,7 +282,7 @@ def handleDiningRoomDoor(evt) {
 }
 
 def handleLRFrenchDoors(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off") {
+    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         logInfo "Intruder detected at living room French doors"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Living Room French Doors") }
@@ -291,7 +292,7 @@ def handleLRFrenchDoors(evt) {
 }
 
 def handleFrontDoor(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentSwitch == "on" && silent.currentSwitch == "off") {
+    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         logInfo "Intruder detected at front door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Front Door") }
@@ -301,7 +302,7 @@ def handleFrontDoor(evt) {
 }
 
 def handleWoodshed(evt) {
-    if (evt.value == "open" && silent.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
+    if (evt.value == "open" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") == "on") {
         logInfo "Intruder detected in woodshed"
         notificationDevices.each { it.deviceNotification("Intruder in the Woodshed") }
         executeShedSirenOn()
@@ -310,7 +311,7 @@ def handleWoodshed(evt) {
 }
 
 def handleRPDFrontDoor(evt) {
-    if (evt.value == "on" && silent.currentSwitch == "off") {
+    if (evt.value == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         notificationDevices.each { it.deviceNotification("Person at the Front Door") }
         allLightsOn.on()
     }
@@ -319,7 +320,7 @@ def handleRPDFrontDoor(evt) {
 def handleRPDBirdHouse(evt) {
     if (evt.value == "on") {
         allLightsOn.on()
-        if (silent.currentSwitch == "off") {
+        if (silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
             notificationDevices.each { it.deviceNotification("Intruder at the Bird House") }
             setGlobalVar("EchoMessage", "Intruder at the Bird House")
             whisperToGuestroomNow()
@@ -328,14 +329,14 @@ def handleRPDBirdHouse(evt) {
 }
 
 def handleRPDGarden(evt) {
-    if (evt.value == "on" && silent.currentSwitch == "off") {
+    if (evt.value == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         notificationDevices.each { it.deviceNotification("Intruder in the Garden") }
         allLightsOn.on()
     }
 }
 
 def handleRPDBackDoor(evt) {
-    if (evt.value == "on" && silent.currentSwitch == "off") {
+    if (evt.value == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         logInfo "Person detected at Back Door (RPD)"
         notificationDevices.each { it.deviceNotification("Person detected at the Back Door") }
         allLightsOn.on()
@@ -351,7 +352,7 @@ def handleRPDRearGate(evt) {
 }
 
 def handleSheShed(evt) {
-    if (evt.value == "open" && silent.currentSwitch == "off") {
+    if (evt.value == "open" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         logInfo "Intruder detected in She Shed"
         allLightsOn.on()
         notificationDevices.each { it.deviceNotification("Intruder in the She Shed") }
@@ -361,14 +362,14 @@ def handleSheShed(evt) {
 
 def handleBackdoorMotion(evt) {
     if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
-    if (evt.value == "active" && floodSide.currentMotion == "active" && highAlert.currentSwitch == "on" && silent.currentSwitch == "off") {
+    if (evt.value == "active" && floodSide.currentValue("motion") == "active" && highAlert.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Backdoor") }
     }
 }
 
 def handleIntruderBackdoor(evt) {
-    if (evt.value == "open" && pauseBDAlarm.currentSwitch == "off" && silent.currentSwitch == "off" && alarmsEnabled.currentSwitch == "on") {
+    if (evt.value == "open" && pauseBDAlarm.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") == "on") {
         setGlobalVar("AlertMessage", "Intruder at the Backdoor")
         logInfo "Intruder detected at backdoor - triggering alarms"
         executeAlarmsOn()
@@ -556,9 +557,10 @@ Boolean isValidMotionTransition(String deviceId, String newValue) {
 // ========================================
 
 def logDebug(msg) {
-    if (logEnable) log.debug "${app.label}: ${msg}"
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
 
 def logInfo(msg) {
-    if (infoEnable) log.info "${app.label}: ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }

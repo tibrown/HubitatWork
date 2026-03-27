@@ -16,7 +16,7 @@
 
 definition(
     name: "Lights Automation Manager",
-    namespace: "hubitat",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Comprehensive lighting automation managing mode-based schedules, night mode lights, desk lighting, color strips, and master controls. Floods handle their own motion detection. v1.2.1",
     category: "Lighting",
@@ -141,8 +141,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
-            input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info"
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>ADVANCED SETTINGS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -1238,9 +1237,10 @@ def isSwitchOn(device) {
 // ========================================
 
 def logDebug(msg) {
-    if (logEnable) log.debug "${app.label}: ${msg}"
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
 
 def logInfo(msg) {
-    if (infoEnable) log.info "${app.label}: ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }

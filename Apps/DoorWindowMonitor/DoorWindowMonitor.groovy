@@ -16,7 +16,7 @@
 
 definition(
     name: "Door Window Monitor",
-    namespace: "hubitat",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Comprehensive door and window monitoring system. Alerts on door/window opens, detects left-open conditions, monitors freezer and safe, provides pause functionality, and tamper detection.",
     category: "Safety & Security",
@@ -142,6 +142,7 @@ def mainPage() {
             input "useSilentSwitch", "bool", title: "Use Silent Switch (when ON, ALL alerts are suppressed - takes precedence)?", defaultValue: false, submitOnChange: true
             if (settings.useSilentSwitch) {
                 input "silentSwitch", "capability.switch", title: "Silent Switch Device", required: true
+                input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
             }
             input "birdHouseSilentModes", "mode", title: "Modes to suppress Bird House alerts", multiple: true, required: false
             input "leftOpenSilentModes", "mode", title: "Modes to suppress left-open alerts", multiple: true, required: false
@@ -188,8 +189,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
-            input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info"
         }
     }
 }
@@ -782,9 +782,8 @@ def setHubVar(String varName, String value) {
 }
 
 def isSilentMode() {
-    if (settings.useSilentSwitch && silentSwitch && silentSwitch.currentValue("switch") == "on") {
-        return true
-    }
+    if (settings.useSilentSwitch && silentSwitch && silentSwitch.currentValue("switch") == "on") return true
+    if (settings.useSilentSwitch && silenceOfficeSwitch && silenceOfficeSwitch.currentValue("switch") == "on") return true
     return false
 }
 
@@ -879,9 +878,10 @@ def sendPauseNotification(String message) {
 // ========================================
 
 def logDebug(msg) {
-    if (logEnable) log.debug "${app.label}: ${msg}"
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
 
 def logInfo(msg) {
-    if (infoEnable) log.info "${app.label}: ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }

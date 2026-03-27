@@ -16,7 +16,7 @@
 
 definition(
     name: "Perimeter Security Manager",
-    namespace: "tibrown",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Monitors gates, fences, shock sensors, and perimeter security devices with Ring person detection",
     category: "Security",
@@ -106,6 +106,11 @@ def mainPage() {
             input "silentSwitch", "capability.switch",
                   title: "Silent Switch",
                   description: "Global silent mode suppresses alerts",
+                  required: false
+            
+            input "silenceOfficeSwitch", "capability.switch",
+                  title: "Silence Office Switch",
+                  description: "Office silent mode - suppresses alerts when on",
                   required: false
             
             input "silentCarport", "capability.switch",
@@ -289,10 +294,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool",
-                  title: "Enable Debug Logging",
-                  defaultValue: false,
-                  required: false
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info", required: false
         }
     }
 }
@@ -504,7 +506,7 @@ def ringHandler(evt) {
     def locationName = evt.displayName
     logInfo "Ring person detected: ${locationName}"
     
-    if (isSwitchOn(settings.silentSwitch)) {
+    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
         logInfo "Silent switch is ON - suppressing Ring person detection alert for ${locationName}"
         return
     }
@@ -801,7 +803,7 @@ def handleBeamAway() {
 
 def handleBeamDay() {
     // Check silent/pause switches
-    if (isSwitchOn(settings.silentSwitch)) {
+    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
         logInfo "Day mode: Silent switch is ON, skipping beam action"
         return
     }
@@ -842,7 +844,7 @@ def handleBeamDay() {
 }
 
 def handleBeamEvening() {
-    if (isSwitchOn(settings.silentSwitch)) {
+    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
         logDebug "Evening mode: Silent is on, skipping"
         return
     }
@@ -878,7 +880,7 @@ def handleBeamEvening() {
 }
 
 def handleBeamMorning() {
-    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silentCarport)) {
+    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch) || isSwitchOn(settings.silentCarport)) {
         logDebug "Morning mode: Silent is on, skipping"
         return
     }
@@ -918,7 +920,7 @@ def isSwitchOn(device) {
 // ============================================================================
 
 def sendAlert(String message) {
-    if (isSwitchOn(settings.silentSwitch)) {
+    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
         logInfo "Silent switch is ON - suppressing alert: ${message}"
         return
     }
@@ -939,14 +941,14 @@ def sendAlert(String message) {
 // ============================================================================
 
 def logInfo(String msg) {
-    log.info "[Perimeter Security Manager] ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
 
 def logDebug(String msg) {
-    if (settings.logEnable) {
-        log.debug "[Perimeter Security Manager] ${msg}"
-    }
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
+
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }
 
 def logWarn(String msg) {
     log.warn "[Perimeter Security Manager] ${msg}"

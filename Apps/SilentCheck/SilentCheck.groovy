@@ -42,6 +42,8 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>SWITCHES TO MONITOR</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false,
                 description: "Alert when this switch is ON during the check window"
+            input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false,
+                description: "Alert when this switch is ON during the check window"
             input "ringModeSwitch", "capability.switch", title: "Ring Mode Switch (RingModeOnOff)", required: false,
                 description: "Alert when this switch is OFF (Ring disarmed) during the check window"
         }
@@ -100,6 +102,11 @@ def performChecks() {
     if (silentSwitch && silentSwitch.currentValue("switch") == "on") {
         logInfo "Silent switch is ON during check window - sending alert"
         sendNotification("Warning: Silent is still engaged")
+    }
+
+    if (silenceOfficeSwitch && silenceOfficeSwitch.currentValue("switch") == "on") {
+        logInfo "Silence Office switch is ON during check window - sending alert"
+        sendNotification("Warning: Silence Office is still engaged")
     }
 
     if (ringModeSwitch && ringModeSwitch.currentValue("switch") == "off") {

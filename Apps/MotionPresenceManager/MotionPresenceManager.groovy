@@ -16,7 +16,7 @@
 
 definition(
     name: "Motion Presence Manager",
-    namespace: "hubitat",
+    namespace: "timbrown",
     author: "Tim Brown",
     description: "Comprehensive motion detection and presence management. Handles zone-based motion sensors, phone presence detection, arrival grace periods, and time-based motion responses. Consolidates motion detection and ArriveGraceTurnsOn functionality.",
     category: "Convenience",
@@ -55,6 +55,7 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "alarmsEnabled", "capability.switch", title: "Alarms Enabled Switch", required: false
             input "silentMode", "capability.switch", title: "Silent Mode Switch", required: false
+            input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
             input "silentBackdoorSwitch", "capability.switch", title: "Silent Backdoor Switch", required: false
             input "rearCarportActive", "capability.switch", title: "Rear Carport Active Switch", required: false
         }
@@ -90,8 +91,7 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
-            input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
-            input "infoEnable", "bool", title: "Enable info logging", defaultValue: true
+            input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info"
         }
     }
 }
@@ -440,7 +440,7 @@ def setHubVar(String varName, String value) {
 }
 
 def sendNotification(String message) {
-    if (silentMode?.currentValue("switch") == "on") {
+    if (silentMode?.currentValue("switch") == "on" || silenceOfficeSwitch?.currentValue("switch") == "on") {
         logDebug "Notification suppressed by silent mode: ${message}"
         return
     }
@@ -496,9 +496,10 @@ Boolean isValidMotionTransition(String deviceId, String newValue) {
 // ========================================
 
 def logDebug(msg) {
-    if (logEnable) log.debug "${app.label}: ${msg}"
+    if (logLevel in ["Debug","Trace"]) log.debug "${app.label}: ${msg}"
 }
 
 def logInfo(msg) {
-    if (infoEnable) log.info "${app.label}: ${msg}"
+    if (logLevel in ["Info","Debug","Trace"]) log.info "${app.label}: ${msg}"
 }
+void logTrace(String msg) { if (logLevel == "Trace") log.trace "${app.label}: ${msg}" }

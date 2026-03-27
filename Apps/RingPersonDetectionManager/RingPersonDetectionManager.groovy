@@ -65,14 +65,13 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", 
                 multiple: true, required: false
-            input "alexaDevice", "capability.speechSynthesis", title: "Alexa Device for Announcements", 
-                required: false
             input "guestRoomEcho", "capability.notification", title: "Guest Room Echo (for whisper)", 
                 required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
+            input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
             input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
             input "rearGateActiveSwitch", "capability.switch", title: "Rear Gate Active Switch", required: false
         }
@@ -281,9 +280,6 @@ def sendNotification(String message) {
         }
     }
     
-    if (alexaDevice) {
-        alexaDevice.speak(message)
-    }
 }
 
 def isNightMode() {
@@ -292,8 +288,9 @@ def isNightMode() {
 }
 
 def isSilent() {
-    if (!silentSwitch) return false
-    return silentSwitch.currentValue("switch") == "on"
+    if (silentSwitch?.currentValue("switch") == "on") return true
+    if (silenceOfficeSwitch?.currentValue("switch") == "on") return true
+    return false
 }
 
 // ==================== Logging Methods ====================
