@@ -18,7 +18,7 @@ definition(
     name: "Ring Person Detection Manager",
     namespace: "timbrown",
     author: "Tim Brown",
-    description: "Monitors RPD switches, sets LRP* timestamps, and takes mode-based actions for Ring person detection",
+    description: "Monitors RPD switches and takes mode-based actions for Ring person detection",
     category: "Security",
     iconUrl: "",
     iconX2Url: "",
@@ -33,28 +33,8 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Ring Person Detection Manager", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>RPD SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "Select the Ring Person Detection virtual switches."
-            input "rpdBackDoor", "capability.switch", title: "RPD BackDoor Switch", required: false
-            input "rpdBirdHouse", "capability.switch", title: "RPD BirdHouse Switch", required: false
-            input "rpdFrontDoor", "capability.switch", title: "RPD FrontDoor Switch", required: false
-            input "rpdGarden", "capability.switch", title: "RPD Garden Switch", required: false
-            input "rpdCPen", "capability.switch", title: "RPD CPen Switch", required: false
-            input "rpdRearGate", "capability.switch", title: "RPD RearGate Switch", required: false
-        }
-
-        section("<b>═══════════════════════════════════════</b>\n<b>ALERT MESSAGES</b>\n<b>═══════════════════════════════════════</b>") {
-            input "backdoorPersonMessage", "text", title: "Back Door Alert Message",
-                defaultValue: "Alert, person detected at Back Door", required: false
-            input "birdhousePersonMessage", "text", title: "Bird House Alert Message",
-                defaultValue: "Person detected at Bird House", required: false
-            input "frontDoorPersonMessage", "text", title: "Front Door Alert Message",
-                defaultValue: "Person detected at Front Door", required: false
-            input "gardenPersonMessage", "text", title: "Garden Alert Message",
-                defaultValue: "Person detected at Garden", required: false
-            input "cPenPersonMessage", "text", title: "Chicken Pen Alert Message",
-                defaultValue: "Person detected at Chicken Pen", required: false
-            input "rearGatePersonMessage", "text", title: "Rear Gate Alert Message",
-                defaultValue: "Person detected at Rear Gate", required: false
+            paragraph "Select all Ring Person Detection virtual switches. The alert message sent for each camera is the device's <b>Label</b> (set in the Device Info tab in Hubitat)."
+            input "rpdSwitches", "capability.switch", title: "RPD Switches", multiple: true, required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
@@ -65,34 +45,17 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification", title: "Notification Devices", 
                 multiple: true, required: false
-            input "guestRoomEcho", "capability.notification", title: "Guest Room Echo (for whisper)", 
-                required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
             input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
             input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
-            input "rearGateActiveSwitch", "capability.switch", title: "Rear Gate Active Switch", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>TIMING CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "backdoorResetDelay", "number", title: "Backdoor Reset Delay (seconds)", 
-                defaultValue: 3, range: "1..30", required: false
-            input "frontDoorResetDelay", "number", title: "Front Door Reset Delay (seconds)", 
-                defaultValue: 10, range: "1..60", required: false
-            input "generalResetDelay", "number", title: "General Reset Delay (seconds, for all other RPD switches)",
-                defaultValue: 3, range: "1..30", required: false
-        }
-        
-        section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "The following hub variables will be set when person detection occurs:"
-            paragraph "• <b>LRPBackDoor</b> - Last Ring Person BackDoor timestamp\n" +
-                      "• <b>LRPBirdHouse</b> - Last Ring Person BirdHouse timestamp\n" +
-                      "• <b>LRPFrontDoor</b> - Last Ring Person FrontDoor timestamp\n" +
-                      "• <b>LRPGarden</b> - Last Ring Person Garden timestamp\n" +
-                      "• <b>LRPCPen</b> - Last Ring Person CPen timestamp\n" +
-                      "• <b>LRPRearGate</b> - Last Ring Person RearGate timestamp"
+            input "generalResetDelay", "number", title: "Reset Delay (seconds)",
+                defaultValue: 3, range: "1..60", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -118,150 +81,45 @@ def initialize() {
     logInfo "Initializing Ring Person Detection Manager"
     
     // Reset all RPD switches to off on startup
-    [rpdBackDoor, rpdBirdHouse, rpdFrontDoor, rpdGarden, rpdCPen, rpdRearGate].each { sw ->
-        if (sw && sw.currentValue("switch") == "on") {
+    rpdSwitches?.each { sw ->
+        if (sw.currentValue("switch") == "on") {
             sw.off()
             logDebug "Reset ${sw.displayName} to off on init"
         }
     }
     
-    // Subscribe to RPD switches - react when they turn on
-    if (rpdBackDoor) {
-        subscribe(rpdBackDoor, "switch.on", handleRPDBackDoor)
-        logDebug "Subscribed to RPDBackDoor"
-    }
-    if (rpdBirdHouse) {
-        subscribe(rpdBirdHouse, "switch.on", handleRPDBirdHouse)
-        logDebug "Subscribed to RPDBirdHouse"
-    }
-    if (rpdFrontDoor) {
-        subscribe(rpdFrontDoor, "switch.on", handleRPDFrontDoor)
-        logDebug "Subscribed to RPDFrontDoor"
-    }
-    if (rpdGarden) {
-        subscribe(rpdGarden, "switch.on", handleRPDGarden)
-        logDebug "Subscribed to RPDGarden"
-    }
-    if (rpdCPen) {
-        subscribe(rpdCPen, "switch.on", handleRPDCPen)
-        logDebug "Subscribed to RPDCPen"
-    }
-    if (rpdRearGate) {
-        subscribe(rpdRearGate, "switch.on", handleRPDRearGate)
-        logDebug "Subscribed to RPDRearGate"
+    // Subscribe to each RPD switch - react when they turn on
+    rpdSwitches?.each { sw ->
+        subscribe(sw, "switch.on", handleRPD)
+        logDebug "Subscribed to ${sw.displayName}"
     }
     
     logInfo "Subscriptions complete"
 }
 
-// ==================== RPD Switch Handlers ====================
+// ==================== RPD Switch Handler ====================
 
-def handleRPDBackDoor(evt) {
-    logInfo "Person detected at BackDoor"
-    setLastPersonTime("BackDoor", "LRPBackDoor")
-    runIn(backdoorResetDelay ?: 3, "resetRPDBackDoor")
-    sendNotification(backdoorPersonMessage ?: "Alert, person detected at Back Door")
-}
+def handleRPD(evt) {
+    def device = evt.device
+    def message = device.label
 
-def handleRPDBirdHouse(evt) {
-    logInfo "Person detected at BirdHouse"
-    setLastPersonTime("BirdHouse", "LRPBirdHouse")
-    runIn(generalResetDelay ?: 3, "resetRPDBirdHouse")
-    sendNotification(birdhousePersonMessage ?: "Person detected at Bird House")
-    if (isNightMode() && !isSilent()) {
-        setGlobalVar("EchoMessage", birdhousePersonMessage ?: "Person detected at Bird House")
-        if (allLightsSwitch) allLightsSwitch.on()
-        if (guestRoomEcho) guestRoomEcho.deviceNotification(birdhousePersonMessage ?: "Person detected at Bird House")
-    }
-}
-
-def handleRPDFrontDoor(evt) {
-    logInfo "Person detected at FrontDoor"
-    setLastPersonTime("FrontDoor", "LRPFrontDoor")
-    runIn(frontDoorResetDelay ?: 10, "resetRPDFrontDoor")
-    sendNotification(frontDoorPersonMessage ?: "Person detected at Front Door")
+    logInfo "Person detected: ${message}"
+    runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    sendNotification(message)
     if (isNightMode() && allLightsSwitch) allLightsSwitch.on()
 }
 
-def handleRPDGarden(evt) {
-    logInfo "Person detected at Garden"
-    setLastPersonTime("Garden", "LRPGarden")
-    runIn(generalResetDelay ?: 3, "resetRPDGarden")
-    sendNotification(gardenPersonMessage ?: "Person detected at Garden")
-    if (isNightMode() && allLightsSwitch) allLightsSwitch.on()
-}
+// ==================== Reset Method ====================
 
-def handleRPDCPen(evt) {
-    logInfo "Person detected at CPen"
-    setLastPersonTime("CPen", "LRPCPen")
-    runIn(generalResetDelay ?: 3, "resetRPDCPen")
-    sendNotification(cPenPersonMessage ?: "Person detected at Chicken Pen")
-    if (isNightMode() && rearGateActiveSwitch) rearGateActiveSwitch.on()
-}
-
-def handleRPDRearGate(evt) {
-    logInfo "Person detected at RearGate"
-    setLastPersonTime("RearGate", "LRPRearGate")
-    runIn(generalResetDelay ?: 3, "resetRPDRearGate")
-    sendNotification(rearGatePersonMessage ?: "Person detected at Rear Gate")
-    if (isNightMode() && rearGateActiveSwitch) rearGateActiveSwitch.on()
-}
-
-// ==================== Reset Methods ====================
-
-def resetRPDBackDoor() {
-    if (rpdBackDoor) {
-        rpdBackDoor.off()
-        logDebug "Reset RPDBackDoor switch"
-    }
-}
-
-def resetRPDBirdHouse() {
-    if (rpdBirdHouse) {
-        rpdBirdHouse.off()
-        logDebug "Reset RPDBirdHouse switch"
-    }
-}
-
-def resetRPDFrontDoor() {
-    if (rpdFrontDoor) {
-        rpdFrontDoor.off()
-        logDebug "Reset RPDFrontDoor switch"
-    }
-}
-
-def resetRPDGarden() {
-    if (rpdGarden) {
-        rpdGarden.off()
-        logDebug "Reset RPDGarden switch"
-    }
-}
-
-def resetRPDCPen() {
-    if (rpdCPen) {
-        rpdCPen.off()
-        logDebug "Reset RPDCPen switch"
-    }
-}
-
-def resetRPDRearGate() {
-    if (rpdRearGate) {
-        rpdRearGate.off()
-        logDebug "Reset RPDRearGate switch"
+def resetRPDSwitch(data) {
+    def sw = rpdSwitches?.find { it.id == data.deviceId }
+    if (sw) {
+        sw.off()
+        logDebug "Reset ${sw.displayName}"
     }
 }
 
 // ==================== Helper Methods ====================
-
-/**
- * Sets the hub variable timestamp for person detection
- */
-def setLastPersonTime(String location, String hubVarName) {
-    def timestamp = now() / 1000  // Convert to seconds for consistency with existing vars
-    
-    logInfo "Setting ${hubVarName} = ${timestamp}"
-    setGlobalVar(hubVarName, timestamp)
-}
 
 /**
  * Send notification to all configured devices
