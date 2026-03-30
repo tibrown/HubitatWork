@@ -305,16 +305,14 @@ def initialize() {
     
     // Set up schedules for each enabled transition
     // Morning, Day, and Evening always run automatically
-    setupMorningSchedule()
-    setupDaySchedule()
-    setupEveningSchedule()
+    ["morning", "day", "evening"].each { setupScheduleForMode(it) }
     
     // Night schedule only runs if auto-control is disabled (switch is OFF)
     def autoControlState = autoControlSwitch?.currentValue("switch")
     if (autoControlState == "on") {
         logInfo "Auto-control is ON - Night mode must be set manually (other modes still automatic)"
     } else {
-        setupNightSchedule()
+        setupScheduleForMode("night")
     }
     
     logInfo "Mode Manager initialization complete"
@@ -324,181 +322,56 @@ def initialize() {
 // SCHEDULE SETUP METHODS
 // ========================================
 
-def setupMorningSchedule() {
-    if (!settings.morningEnabled) {
-        logDebug "Morning transition disabled"
+def setupScheduleForMode(String mode) {
+    String capMode = mode.capitalize()
+    if (!settings."${mode}Enabled") {
+        logDebug "${capMode} transition disabled"
         return
     }
     
-    def triggerType = settings.morningTriggerType
+    def triggerType = settings."${mode}TriggerType"
+    String handlerName = "${mode}TransitionHandler"
     
     if (triggerType == "Specific Time") {
-        if (settings.morningTime) {
-            schedule(settings.morningTime, morningTransitionHandler)
-            logInfo "Scheduled Morning transition at ${settings.morningTime}"
+        if (settings."${mode}Time") {
+            schedule(settings."${mode}Time", handlerName)
+            logInfo "Scheduled ${capMode} transition at ${settings."${mode}Time"}"
         }
-    } else if (triggerType == "Sunrise") {
-        subscribe(location, "sunrise", morningTransitionHandler)
-        subscribe(location, "sunriseTime", rescheduleMorningSolar)
-        scheduleMorningSolar()
-        logInfo "Scheduled Morning transition at sunrise with offset ${settings.morningOffset ?: 0} minutes"
-    } else if (triggerType == "Sunset") {
-        subscribe(location, "sunset", morningTransitionHandler)
-        subscribe(location, "sunsetTime", rescheduleMorningSolar)
-        scheduleMorningSolar()
-        logInfo "Scheduled Morning transition at sunset with offset ${settings.morningOffset ?: 0} minutes"
+    } else if (triggerType in ["Sunrise", "Sunset"]) {
+        String evtType = triggerType.toLowerCase()
+        subscribe(location, evtType, handlerName)
+        subscribe(location, "${evtType}Time", "reschedule${capMode}Solar")
+        scheduleSolarForMode(mode)
+        logInfo "Scheduled ${capMode} transition at ${evtType} with offset ${settings."${mode}Offset" ?: 0} minutes"
     }
 }
 
-def setupDaySchedule() {
-    if (!settings.dayEnabled) {
-        logDebug "Day transition disabled"
-        return
-    }
-    
-    def triggerType = settings.dayTriggerType
-    
-    if (triggerType == "Specific Time") {
-        if (settings.dayTime) {
-            schedule(settings.dayTime, dayTransitionHandler)
-            logInfo "Scheduled Day transition at ${settings.dayTime}"
-        }
-    } else if (triggerType == "Sunrise") {
-        subscribe(location, "sunrise", dayTransitionHandler)
-        subscribe(location, "sunriseTime", rescheduleDaySolar)
-        scheduleDaySolar()
-        logInfo "Scheduled Day transition at sunrise with offset ${settings.dayOffset ?: 0} minutes"
-    } else if (triggerType == "Sunset") {
-        subscribe(location, "sunset", dayTransitionHandler)
-        subscribe(location, "sunsetTime", rescheduleDaySolar)
-        scheduleDaySolar()
-        logInfo "Scheduled Day transition at sunset with offset ${settings.dayOffset ?: 0} minutes"
-    }
-}
-
-def setupEveningSchedule() {
-    if (!settings.eveningEnabled) {
-        logDebug "Evening transition disabled"
-        return
-    }
-    
-    def triggerType = settings.eveningTriggerType
-    
-    if (triggerType == "Specific Time") {
-        if (settings.eveningTime) {
-            schedule(settings.eveningTime, eveningTransitionHandler)
-            logInfo "Scheduled Evening transition at ${settings.eveningTime}"
-        }
-    } else if (triggerType == "Sunrise") {
-        subscribe(location, "sunrise", eveningTransitionHandler)
-        subscribe(location, "sunriseTime", rescheduleEveningSolar)
-        scheduleEveningSolar()
-        logInfo "Scheduled Evening transition at sunrise with offset ${settings.eveningOffset ?: 0} minutes"
-    } else if (triggerType == "Sunset") {
-        subscribe(location, "sunset", eveningTransitionHandler)
-        subscribe(location, "sunsetTime", rescheduleEveningSolar)
-        scheduleEveningSolar()
-        logInfo "Scheduled Evening transition at sunset with offset ${settings.eveningOffset ?: 0} minutes"
-    }
-}
-
-def setupNightSchedule() {
-    if (!settings.nightEnabled) {
-        logDebug "Night transition disabled"
-        return
-    }
-    
-    def triggerType = settings.nightTriggerType
-    
-    if (triggerType == "Specific Time") {
-        if (settings.nightTime) {
-            schedule(settings.nightTime, nightTransitionHandler)
-            logInfo "Scheduled Night transition at ${settings.nightTime}"
-        }
-    } else if (triggerType == "Sunrise") {
-        subscribe(location, "sunrise", nightTransitionHandler)
-        subscribe(location, "sunriseTime", rescheduleNightSolar)
-        scheduleNightSolar()
-        logInfo "Scheduled Night transition at sunrise with offset ${settings.nightOffset ?: 0} minutes"
-    } else if (triggerType == "Sunset") {
-        subscribe(location, "sunset", nightTransitionHandler)
-        subscribe(location, "sunsetTime", rescheduleNightSolar)
-        scheduleNightSolar()
-        logInfo "Scheduled Night transition at sunset with offset ${settings.nightOffset ?: 0} minutes"
-    }
-}
+def setupMorningSchedule() { setupScheduleForMode("morning") }
+def setupDaySchedule()     { setupScheduleForMode("day") }
+def setupEveningSchedule() { setupScheduleForMode("evening") }
+def setupNightSchedule()   { setupScheduleForMode("night") }
 
 // ========================================
 // SOLAR SCHEDULING METHODS
 // ========================================
 
-def scheduleMorningSolar() {
-    def offset = settings.morningOffset ?: 0
+def scheduleSolarForMode(String mode) {
+    def offset = settings."${mode}Offset" ?: 0
     if (offset == 0) return // Let event subscription handle it
     
-    def solarTime = (settings.morningTriggerType == "Sunrise") ? location.sunrise : location.sunset
+    def triggerType = settings."${mode}TriggerType"
+    def solarTime = (triggerType == "Sunrise") ? location.sunrise : location.sunset
     if (solarTime) {
         def scheduledTime = new Date(solarTime.time + (offset * 60 * 1000))
-        runOnce(scheduledTime, morningTransitionHandler)
-        logDebug "Scheduled Morning transition for ${scheduledTime.format('HH:mm', location.timeZone)}"
+        runOnce(scheduledTime, "${mode}TransitionHandler")
+        logDebug "Scheduled ${mode.capitalize()} transition for ${scheduledTime.format('HH:mm', location.timeZone)}"
     }
 }
 
-def rescheduleMorningSolar(evt) {
-    logDebug "Solar time changed, rescheduling Morning transition"
-    scheduleMorningSolar()
-}
-
-def scheduleDaySolar() {
-    def offset = settings.dayOffset ?: 0
-    if (offset == 0) return // Let event subscription handle it
-    
-    def solarTime = (settings.dayTriggerType == "Sunrise") ? location.sunrise : location.sunset
-    if (solarTime) {
-        def scheduledTime = new Date(solarTime.time + (offset * 60 * 1000))
-        runOnce(scheduledTime, dayTransitionHandler)
-        logDebug "Scheduled Day transition for ${scheduledTime.format('HH:mm', location.timeZone)}"
-    }
-}
-
-def rescheduleDaySolar(evt) {
-    logDebug "Solar time changed, rescheduling Day transition"
-    scheduleDaySolar()
-}
-
-def scheduleEveningSolar() {
-    def offset = settings.eveningOffset ?: 0
-    if (offset == 0) return // Let event subscription handle it
-    
-    def solarTime = (settings.eveningTriggerType == "Sunrise") ? location.sunrise : location.sunset
-    if (solarTime) {
-        def scheduledTime = new Date(solarTime.time + (offset * 60 * 1000))
-        runOnce(scheduledTime, eveningTransitionHandler)
-        logDebug "Scheduled Evening transition for ${scheduledTime.format('HH:mm', location.timeZone)}"
-    }
-}
-
-def rescheduleEveningSolar(evt) {
-    logDebug "Solar time changed, rescheduling Evening transition"
-    scheduleEveningSolar()
-}
-
-def scheduleNightSolar() {
-    def offset = settings.nightOffset ?: 0
-    if (offset == 0) return // Let event subscription handle it
-    
-    def solarTime = (settings.nightTriggerType == "Sunrise") ? location.sunrise : location.sunset
-    if (solarTime) {
-        def scheduledTime = new Date(solarTime.time + (offset * 60 * 1000))
-        runOnce(scheduledTime, nightTransitionHandler)
-        logDebug "Scheduled Night transition for ${scheduledTime.format('HH:mm', location.timeZone)}"
-    }
-}
-
-def rescheduleNightSolar(evt) {
-    logDebug "Solar time changed, rescheduling Night transition"
-    scheduleNightSolar()
-}
+def rescheduleMorningSolar(evt) { scheduleSolarForMode("morning") }
+def rescheduleDaySolar(evt)     { scheduleSolarForMode("day") }
+def rescheduleEveningSolar(evt) { scheduleSolarForMode("evening") }
+def rescheduleNightSolar(evt)   { scheduleSolarForMode("night") }
 
 // ========================================
 // TRANSITION HANDLERS
@@ -609,7 +482,7 @@ def autoControlSwitchHandler(evt) {
     
     if (switchState == "off") {
         logInfo "Auto-control OFF - Night mode will change automatically"
-        setupNightSchedule()
+        setupScheduleForMode("night")
     } else {
         logInfo "Auto-control ON - Night mode must be set manually (other modes still automatic)"
         // Clear only Night-related schedules

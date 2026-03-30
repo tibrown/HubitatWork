@@ -33,21 +33,15 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Night Security Manager", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
+            input "standardIntruderSensors", "capability.contactSensor", title: "Standard Intruder Sensors (e.g. French doors, front door)", multiple: true, required: false
+            input "shedSensors", "capability.contactSensor", title: "Shed Sensors (e.g. concrete shed, woodshed, she shed)", multiple: true, required: false
+            input "standardRpdSwitches", "capability.switch", title: "Standard RPD Switches (e.g. front door, garden, back door)", multiple: true, required: false
             input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: true
             input "carportBeam", "capability.contactSensor", title: "Carport Beam (closed = beam broken)", required: true
             input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion (verification)", required: true
-            input "concreteShedZooz", "capability.contactSensor", title: "Concrete Shed Door", required: true
             input "doorDiningRoom", "capability.contactSensor", title: "Dining Room Door", required: true
-            input "doorLivingRoomFrench", "capability.contactSensor", title: "Living Room French Doors", required: true
-            input "doorFront", "capability.contactSensor", title: "Front Door", required: true
-            input "woodshedDoor", "capability.contactSensor", title: "Woodshed Door", required: true
-            input "rpdFrontDoor", "capability.switch", title: "RPD Front Door (Switch)", required: true
             input "rpdBirdHouse", "capability.switch", title: "RPD Bird House (Switch)", required: true
-            input "rpdGarden", "capability.switch", title: "RPD Garden (Switch)", required: true
-            input "rpdCPen", "capability.switch", title: "RPD Rear Gate (Switch)", required: true
-            input "rpdBackDoor", "capability.switch", title: "RPD Back Door (Switch)", required: false
             input "chickenPenOutside", "capability.motionSensor", title: "Chicken Pen Outside Motion (temperature only)", required: false
-            input "doorBirdHouse", "capability.contactSensor", title: "She Shed Door (BirdHouse)", required: true
             input "outsideBackdoor", "capability.motionSensor", title: "Outside Backdoor Motion", required: true
             input "floodSide", "capability.motionSensor", title: "Flood Side Motion", required: true
             input "doorLanai", "capability.contactSensor", title: "Lanai Door (Backdoor)", required: true
@@ -126,21 +120,15 @@ def updated() {
 
 def initialize() {
     logInfo "Initializing Night Security Manager"
-    subscribe(doorBHScreen, "contact", evtHandler)
-    subscribe(carportBeam, "contact", evtHandler)
-    subscribe(concreteShedZooz, "contact", evtHandler)
-    subscribe(doorDiningRoom, "contact", evtHandler)
-    subscribe(doorLivingRoomFrench, "contact", evtHandler)
-    subscribe(doorFront, "contact", evtHandler)
-    subscribe(woodshedDoor, "contact", evtHandler)
-    subscribe(rpdFrontDoor, "switch", evtHandler)
-    subscribe(rpdBirdHouse, "switch", evtHandler)
-    subscribe(rpdGarden, "switch", evtHandler)
-    subscribe(rpdCPen, "switch", evtHandler)
-    if (rpdBackDoor) subscribe(rpdBackDoor, "switch", evtHandler)
-    subscribe(doorBirdHouse, "contact", evtHandler)
-    subscribe(outsideBackdoor, "motion", evtHandler)
-    subscribe(doorLanai, "contact", evtHandler)
+    standardIntruderSensors?.each { subscribe(it, "contact.open", handleStandardIntruder) }
+    shedSensors?.each { subscribe(it, "contact.open", handleShedIntruder) }
+    standardRpdSwitches?.each { subscribe(it, "switch.on", handleStandardRPD) }
+    subscribe(doorBHScreen, "contact.open", handleBHScreen)
+    subscribe(carportBeam, "contact", handleCarportBeam)
+    subscribe(doorDiningRoom, "contact.open", handleDiningRoomDoor)
+    subscribe(rpdBirdHouse, "switch.on", handleRPDBirdHouse)
+    subscribe(outsideBackdoor, "motion", handleBackdoorMotion)
+    subscribe(doorLanai, "contact.open", handleIntruderBackdoor)
     subscribe(location, "mode", modeChangeHandler)
     subscribe(alarmsEnabled, "switch", handleAlarmsEnabledSwitch)
     subscribe(pauseBDAlarm, "switch", handlePauseBDAlarm)
@@ -168,44 +156,21 @@ def handleAlarmsEnabledSwitch(evt) {
     }
 }
 
-def evtHandler(evt) {
-    logDebug "Event: ${evt.name} ${evt.value} from ${evt.displayName}"
-    
-    if (restrictedModes && !restrictedModes.contains(location.mode)) {
-        logDebug "Skipping event: Mode is ${location.mode}, required: ${restrictedModes}"
-        return
-    }
-
-    if (evt.deviceId == doorBHScreen.deviceId) handleBHScreen(evt)
-    else if (evt.deviceId == carportBeam.deviceId) handleCarportBeam(evt)
-    else if (evt.deviceId == concreteShedZooz.deviceId) handleConcreteShed(evt)
-    else if (evt.deviceId == doorDiningRoom.deviceId) handleDiningRoomDoor(evt)
-    else if (evt.deviceId == doorLivingRoomFrench.deviceId) handleLRFrenchDoors(evt)
-    else if (evt.deviceId == doorFront.deviceId) handleFrontDoor(evt)
-    else if (evt.deviceId == woodshedDoor.deviceId) handleWoodshed(evt)
-    else if (evt.deviceId == rpdFrontDoor.deviceId) handleRPDFrontDoor(evt)
-    else if (evt.deviceId == rpdBirdHouse.deviceId) handleRPDBirdHouse(evt)
-    else if (evt.deviceId == rpdGarden.deviceId) handleRPDGarden(evt)
-    else if (evt.deviceId == rpdCPen.deviceId) handleRPDRearGate(evt)
-    else if (rpdBackDoor && evt.deviceId == rpdBackDoor.deviceId) handleRPDBackDoor(evt)
-    else if (evt.deviceId == doorBirdHouse.deviceId) handleSheShed(evt)
-    else if (evt.deviceId == outsideBackdoor.deviceId) handleBackdoorMotion(evt)
-    else if (evt.deviceId == doorLanai.deviceId) handleIntruderBackdoor(evt)
-}
-
 def handleBHScreen(evt) {
-    if (evt.value == "open" && traveling.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
+    if (!isActiveMode()) return
+    if (traveling.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         logInfo "Birdhouse screen door opened during night mode"
         notificationDevices.each { it.deviceNotification("Birdhouse screen door is open, birdhouse screen door is open") }
     }
 }
 
 def handleCarportBeam(evt) {
+    if (!isActiveMode()) return
     if (evt.value == "closed") { // Beam broken (infrared beam interrupted)
          logBeamActivity("Carport beam broken")
          
          // Check if motion or Ring person detection is active (verification to avoid false positives from animals)
-         Boolean motionVerified = carportFrontMotion.currentValue("motion") == "active" || rpdFrontDoor.currentValue("switch") == "on"
+         Boolean motionVerified = carportFrontMotion.currentValue("motion") == "active" || standardRpdSwitches?.any { it.currentValue("switch") == "on" }
          
          if (!motionVerified) {
              logDebug "Beam broken but no motion/person verification - skipping alert to avoid false positives"
@@ -262,17 +227,11 @@ def whisperToGuestroomNow() {
     guestRoomEcho.deviceNotification(msg)
 }
 
-def handleConcreteShed(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        logInfo "Intruder detected in concrete shed"
-        notificationDevices.each { it.deviceNotification("Intruder in the Concrete Shed") }
-        executeShedSirenOn()
-        turnAllLightsOnNow()
-    }
-}
+def handleConcreteShed(evt) { }
 
 def handleDiningRoomDoor(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && pauseDRDoorAlarm.currentValue("switch") == "off") {
+    if (!isActiveMode()) return
+    if (alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && pauseDRDoorAlarm.currentValue("switch") == "off") {
         logInfo "Intruder detected at dining room door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
@@ -281,86 +240,62 @@ def handleDiningRoomDoor(evt) {
     }
 }
 
-def handleLRFrenchDoors(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        logInfo "Intruder detected at living room French doors"
-        turnAllLightsOnNow()
-        notificationDevices.each { it.deviceNotification("Intruder at the Living Room French Doors") }
-        Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
-        runIn(delay, executeAlarmsOn)
-    }
+def handleLRFrenchDoors(evt) { }
+
+def handleFrontDoor(evt) { }
+
+def handleWoodshed(evt) { }
+
+def handleStandardIntruder(evt) {
+    if (!isActiveMode()) return
+    if (alarmsEnabled.currentValue("switch") != "on" || silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") return
+    def message = evt.device.label
+    logInfo "Intruder detected: ${message}"
+    turnAllLightsOnNow()
+    notificationDevices.each { it.deviceNotification(message) }
+    Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
+    runIn(delay, executeAlarmsOn)
 }
 
-def handleFrontDoor(evt) {
-    if (evt.value == "open" && alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        logInfo "Intruder detected at front door"
-        turnAllLightsOnNow()
-        notificationDevices.each { it.deviceNotification("Intruder at the Front Door") }
-        Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
-        runIn(delay, executeAlarmsOn)
-    }
+def handleShedIntruder(evt) {
+    if (!isActiveMode()) return
+    if (alarmsEnabled.currentValue("switch") != "on" || silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") return
+    def message = evt.device.label
+    logInfo "Shed intruder detected: ${message}"
+    notificationDevices.each { it.deviceNotification(message) }
+    executeShedSirenOn()
+    turnAllLightsOnNow()
 }
 
-def handleWoodshed(evt) {
-    if (evt.value == "open" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") == "on") {
-        logInfo "Intruder detected in woodshed"
-        notificationDevices.each { it.deviceNotification("Intruder in the Woodshed") }
-        executeShedSirenOn()
-        turnAllLightsOnNow()
-    }
+def handleStandardRPD(evt) {
+    if (!isActiveMode()) return
+    if (silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") return
+    def message = evt.device.label
+    logInfo "Person detected: ${message}"
+    notificationDevices.each { it.deviceNotification(message) }
+    allLightsOn.on()
 }
 
-def handleRPDFrontDoor(evt) {
-    if (evt.value == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        notificationDevices.each { it.deviceNotification("Person at the Front Door") }
-        allLightsOn.on()
-    }
-}
+def handleRPDFrontDoor(evt) { }
 
 def handleRPDBirdHouse(evt) {
-    if (evt.value == "on") {
-        allLightsOn.on()
-        if (silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-            notificationDevices.each { it.deviceNotification("Intruder at the Bird House") }
-            setGlobalVar("EchoMessage", "Intruder at the Bird House")
-            whisperToGuestroomNow()
-        }
+    if (!isActiveMode()) return
+    allLightsOn.on()
+    if (silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
+        notificationDevices.each { it.deviceNotification(evt.device.label) }
+        setGlobalVar("EchoMessage", evt.device.label)
+        whisperToGuestroomNow()
     }
 }
 
-def handleRPDGarden(evt) {
-    if (evt.value == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        notificationDevices.each { it.deviceNotification("Intruder in the Garden") }
-        allLightsOn.on()
-    }
-}
+def handleRPDGarden(evt) { }
 
-def handleRPDBackDoor(evt) {
-    if (evt.value == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        logInfo "Person detected at Back Door (RPD)"
-        notificationDevices.each { it.deviceNotification("Person detected at the Back Door") }
-        allLightsOn.on()
-    }
-}
+def handleRPDBackDoor(evt) { }
 
-def handleRPDRearGate(evt) {
-    // NOTE: Shock correlation is handled by PerimeterSecurityManager
-    // This handler is just for logging during night mode
-    if (evt.value == "on") {
-        logDebug "Person detected at CPen/Rear Gate - PerimeterSecurityManager handles shock correlation"
-    }
-}
-
-def handleSheShed(evt) {
-    if (evt.value == "open" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        logInfo "Intruder detected in She Shed"
-        allLightsOn.on()
-        notificationDevices.each { it.deviceNotification("Intruder in the She Shed") }
-        executeShedSirenOn()
-    }
-}
+def handleSheShed(evt) { }
 
 def handleBackdoorMotion(evt) {
+    if (!isActiveMode()) return
     if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     if (evt.value == "active" && floodSide.currentValue("motion") == "active" && highAlert.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
         turnAllLightsOnNow()
@@ -369,7 +304,8 @@ def handleBackdoorMotion(evt) {
 }
 
 def handleIntruderBackdoor(evt) {
-    if (evt.value == "open" && pauseBDAlarm.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") == "on") {
+    if (!isActiveMode()) return
+    if (pauseBDAlarm.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") == "on") {
         setGlobalVar("AlertMessage", "Intruder at the Backdoor")
         logInfo "Intruder detected at backdoor - triggering alarms"
         executeAlarmsOn()
@@ -487,6 +423,12 @@ def disableNightSecurity() {
 // ========================================
 // HELPER METHODS
 // ========================================
+
+private Boolean isActiveMode() {
+    if (!restrictedModes || restrictedModes.contains(location.mode)) return true
+    logDebug "Ignoring event: mode ${location.mode} not in ${restrictedModes}"
+    return false
+}
 
 def syncHubVariables() {
     setHubVar("AlertDelay", (hubVar_AlertDelay ?: 5).toString())

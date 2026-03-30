@@ -33,10 +33,8 @@ preferences {
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Motion Presence Manager", install: true, uninstall: true) {
         section("<b>═══════════════════════════════════════</b>\n<b>MOTION SENSORS BY ZONE</b>\n<b>═══════════════════════════════════════</b>") {
-            input "carportMotion", "capability.motionSensor", title: "Carport Motion Sensor", required: false
+            input "generalMotionSensors", "capability.motionSensor", title: "General Motion Sensors (carport, side yard, RV, etc.)", multiple: true, required: false
             input "backDoorMotion", "capability.motionSensor", title: "Back Door Motion Sensor", required: false
-            input "sideYardMotion", "capability.motionSensor", title: "Side Yard Motion (AMC)", required: false
-            input "rvMotion", "capability.motionSensor", title: "RV Motion Sensor", required: false
             input "officeMotion", "capability.motionSensor", title: "Office Motion Sensor", required: false
             input "rearCarportMotion", "capability.motionSensor", title: "Rear Carport Motion Sensor", required: false
             input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion Sensor", required: false
@@ -113,10 +111,8 @@ def initialize() {
     logInfo "Initializing Motion Presence Manager"
     
     // Subscribe to motion sensors
-    if (carportMotion) subscribe(carportMotion, "motion.active", handleCarportMotion)
+    generalMotionSensors?.each { subscribe(it, "motion.active", handleGeneralMotion) }
     if (backDoorMotion) subscribe(backDoorMotion, "motion.active", handleBackDoorMotion)
-    if (sideYardMotion) subscribe(sideYardMotion, "motion.active", handleSideYardMotion)
-    if (rvMotion) subscribe(rvMotion, "motion.active", handleRVMotion)
     if (officeMotion) subscribe(officeMotion, "motion.active", handleOfficeMotion)
     if (rearCarportMotion) subscribe(rearCarportMotion, "motion.active", handleRearCarportMotion)
     if (carportFrontMotion) subscribe(carportFrontMotion, "motion.active", handleCarportFrontMotion)
@@ -141,18 +137,19 @@ def initialize() {
 // MOTION DETECTION HANDLERS
 // ========================================
 
-def handleCarportMotion(evt) {
+def handleGeneralMotion(evt) {
     if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     String mode = location.mode
-    logInfo "Carport motion detected in ${mode} mode"
-    
     if (!isGeneralMotionActiveInMode(mode)) {
         logDebug "Motion detection disabled for current mode"
         return
     }
-    
-    sendNotification("Motion detected in carport")
+    def message = evt.device.label
+    logInfo "Motion detected: ${message} in ${mode} mode"
+    sendNotification(message)
 }
+
+def handleCarportMotion(evt) { }
 
 def handleBackDoorMotion(evt) {
     if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
@@ -174,31 +171,9 @@ def handleBackDoorMotion(evt) {
     sendBackDoorNotification("Motion detected at back door")
 }
 
-def handleSideYardMotion(evt) {
-    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
-    String mode = location.mode
-    logInfo "Side yard (AMC) motion detected in ${mode} mode"
-    
-    if (!isGeneralMotionActiveInMode(mode)) {
-        logDebug "Motion detection disabled for current mode"
-        return
-    }
-    
-    sendNotification("Motion detected in side yard")
-}
+def handleSideYardMotion(evt) { }
 
-def handleRVMotion(evt) {
-    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
-    String mode = location.mode
-    logInfo "RV motion detected in ${mode} mode"
-    
-    if (!isGeneralMotionActiveInMode(mode)) {
-        logDebug "Motion detection disabled for current mode"
-        return
-    }
-    
-    sendNotification("Motion detected in RV")
-}
+def handleRVMotion(evt) { }
 
 def handleOfficeMotion(evt) {
     if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return

@@ -141,24 +141,13 @@ def mainPage() {
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>RING PERSON DETECTION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "ringFrontDoor", "capability.switch",
-                  title: "RPD Front Door Switch",
-                  required: false
-            
-            input "ringBackDoor", "capability.switch",
-                  title: "RPD Back Door Switch",
-                  required: false
-            
-            input "ringBirdHouse", "capability.switch",
-                  title: "RPD Bird House Switch",
+            input "ringPersonDetectionSwitches", "capability.switch",
+                  title: "RPD Switches (front door, back door, bird house, garden, etc.)",
+                  multiple: true,
                   required: false
             
             input "ringCPen", "capability.switch",
-                  title: "RPD Chicken Pen Switch",
-                  required: false
-            
-            input "ringGarden", "capability.switch",
-                  title: "RPD Garden Switch",
+                  title: "RPD Chicken Pen Switch (kept separate for shock correlation)",
                   required: false
             
             input "ringPersonTimeout", "number",
@@ -348,11 +337,8 @@ def initialize() {
     if (settings.carportBeam) subscribe(settings.carportBeam, "contact", carportBeamHandler)
     
     // Subscribe to Ring devices (switches that turn on when person detected)
-    if (settings.ringFrontDoor) subscribe(settings.ringFrontDoor, "switch.on", ringHandler)
-    if (settings.ringBackDoor) subscribe(settings.ringBackDoor, "switch.on", ringHandler)
-    if (settings.ringBirdHouse) subscribe(settings.ringBirdHouse, "switch.on", ringHandler)
+    settings.ringPersonDetectionSwitches?.each { subscribe(it, "switch.on", ringHandler) }
     if (settings.ringCPen) subscribe(settings.ringCPen, "switch.on", ringHandler)
-    if (settings.ringGarden) subscribe(settings.ringGarden, "switch.on", ringHandler)
     
     // Schedule perimeter checks if enabled
     schedulePerimeterChecks()
@@ -536,20 +522,7 @@ def ringHandler(evt) {
     }
     
     // Person detection notifications are handled by RingPersonDetectionManager
-    def readableLocation = getReadableRingLocation(evt.device)
-    logInfo "Ring person detected at ${readableLocation} - notification handled by RingPersonDetectionManager"
-}
-
-/**
- * Convert Ring device to readable location name
- */
-def getReadableRingLocation(device) {
-    if (device == settings.ringFrontDoor) return "at the front door"
-    if (device == settings.ringBackDoor) return "at the back door"
-    if (device == settings.ringBirdHouse) return "near the bird house"
-    if (device == settings.ringCPen) return "at the chicken pen"
-    if (device == settings.ringGarden) return "in the garden"
-    return "on the property"
+    logInfo "Ring person detected at ${evt.device.label} - notification handled by RingPersonDetectionManager"
 }
 
 // ============================================================================

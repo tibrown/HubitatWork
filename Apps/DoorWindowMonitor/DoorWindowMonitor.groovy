@@ -334,104 +334,61 @@ def isDeviceEnabled(device) {
 // ========================================
 
 def handleDoorOpen(device, String mode) {
-    String deviceName = device.displayName
-    logInfo "${deviceName} opened in ${mode} mode"
+    logInfo "${device.displayName} opened in ${mode} mode"
     
-    // Route to specific handlers based on device
     if (device.id == frontDoor?.id) {
-        handleFrontDoorOpen(mode)
-    } else if (device.id == diningRoomDoor?.id) {
-        handleDiningRoomDoorOpen(mode)
-    } else if (device.id == frenchDoors?.id) {
-        handleFrenchDoorsOpen(mode)
-    } else if (device.id == backdoor?.id) {
-        handleBackdoorOpen(mode)
-    } else if (device.id == birdHouseDoor?.id) {
-        handleBirdHouseDoorOpen(mode)
-    } else if (device.id == birdHouseScreen?.id) {
-        handleBirdHouseScreenOpen(mode)
-    } else if (device.id == concreteShedDoor?.id) {
-        handleConcreteShedOpen(mode)
-    } else if (device.id == woodshedDoor?.id) {
-        handleWoodshedOpen(mode)
-    } else if (freezerDoors && freezerDoors.find { it.id == device.id }) {
-        handleFreezerDoorOpen(device)
-    } else if (device.id == safeDoor?.id) {
+        if (mode == "Morning") sendNotification(device.label)
+        return
+    }
+    if (device.id == safeDoor?.id) {
         log.warn "Door Window Monitor: Safe door match detected - calling handler"
         handleSafeDoorOpen()
-    } else if (device.id == officeDoor?.id) {
-        handleOfficeDoorOpen()
-    } else if (device.id == lrWindow1?.id) {
-        handleLRWindowOpen(mode, 1)
-    } else if (device.id == lrWindow2?.id) {
-        handleLRWindowOpen(mode, 2)
-    } else if (device.id == lrWindow3?.id) {
-        handleLRWindowOpen(mode, 3)
-    } else if (device.id == lrWindow4?.id) {
-        handleLRWindowOpen(mode, 4)
-    }
-}
-
-def handleFrontDoorOpen(String mode) {
-    if (mode == "Morning") {
-        sendNotification("Alert, Intruder at the front door")
-    }
-    // No notification during Day mode
-}
-
-def handleDiningRoomDoorOpen(String mode) {
-    // No notification during Day mode
-    logDebug "Dining room door opened during ${mode} mode"
-}
-
-def handleFrenchDoorsOpen(String mode) {
-    // No notification during Day mode
-    logDebug "French doors opened during ${mode} mode"
-}
-
-def handleBackdoorOpen(String mode) {
-    // Backdoor alerts are typically handled by NightSecurityManager for night mode
-    // Day mode handling
-    if (mode == "Day") {
-        logDebug "Backdoor opened during day mode"
-    }
-}
-
-def handleBirdHouseDoorOpen(String mode) {
-    if (shouldSuppressBirdHouseAlert(mode)) {
-        logDebug "Bird House door alert suppressed in ${mode} mode"
         return
     }
-    sendNotification("Bird House door is open")
-}
-
-def handleBirdHouseScreenOpen(String mode) {
-    if (shouldSuppressBirdHouseAlert(mode)) {
-        logDebug "Bird House screen door alert suppressed in ${mode} mode"
+    if (device.id == lrWindow1?.id || device.id == lrWindow2?.id ||
+        device.id == lrWindow3?.id || device.id == lrWindow4?.id) {
+        if (mode in ["Evening", "Night", "Morning"]) sendNotification(device.label)
         return
     }
-    sendNotification("Bird House screen door is open")
+    if (device.id == birdHouseDoor?.id || device.id == birdHouseScreen?.id) {
+        if (!shouldSuppressBirdHouseAlert(mode)) sendNotification(device.label)
+        return
+    }
+    if (freezerDoors?.find { it.id == device.id }) {
+        logInfo "${device.displayName} OPENED - Sending immediate notification"
+        sendNotification("ALERT: ${device.label} has been opened")
+        return
+    }
+    if (device.id == concreteShedDoor?.id || device.id == woodshedDoor?.id) {
+        sendNotification(device.label)
+        return
+    }
+    // DiningRoom, FrenchDoors, Backdoor, Office: log only, no notification
+    logDebug "${device.displayName} opened, no alert configured for this device"
 }
 
-def handleConcreteShedOpen(String mode) {
-    sendNotification("Concrete shed door is open")
-}
+def handleFrontDoorOpen(String mode) { }
 
-def handleWoodshedOpen(String mode) {
-    sendNotification("Woodshed door is open")
-}
+def handleDiningRoomDoorOpen(String mode) { }
+
+def handleFrenchDoorsOpen(String mode) { }
+
+def handleBackdoorOpen(String mode) { }
+
+def handleBirdHouseDoorOpen(String mode) { }
+
+def handleBirdHouseScreenOpen(String mode) { }
+
+def handleConcreteShedOpen(String mode) { }
+
+def handleWoodshedOpen(String mode) { }
 
 def shouldSuppressBirdHouseAlert(String mode) {
     if (!birdHouseSilentModes) return false
     return birdHouseSilentModes.contains(mode)
 }
 
-def handleFreezerDoorOpen(device) {
-    String deviceName = device.displayName
-    logInfo "${deviceName} OPENED - Sending immediate notification"
-    sendNotification("ALERT: ${deviceName} has been opened")
-    // Will also alert if left open via checkLeftOpen periodic scan
-}
+def handleFreezerDoorOpen(device) { }
 
 def handleSafeDoorOpen() {
     logInfo "SAFE DOOR OPENED - Checking alert status"
@@ -462,17 +419,9 @@ def handleSafeDoorOpen() {
     log.warn "Door Window Monitor: SAFE DOOR OPENED at ${new Date()}"
 }
 
-def handleOfficeDoorOpen() {
-    logInfo "Office door opened"
-    // No notification for office door during day
-}
+def handleOfficeDoorOpen() { }
 
-def handleLRWindowOpen(String mode, Integer windowNum) {
-    if (mode == "Evening" || mode == "Night" || mode == "Morning") {
-        sendNotification("Living room window ${windowNum} is open")
-    }
-    // No notification during Day mode
-}
+def handleLRWindowOpen(String mode, Integer windowNum) { }
 
 // ========================================
 // DOOR/WINDOW CLOSED HANDLERS
