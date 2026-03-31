@@ -32,14 +32,18 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "Ring Person Detection Manager", install: true, uninstall: true) {
-        section("<b>═══════════════════════════════════════</b>\n<b>RPD SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
-            paragraph "Select all Ring Person Detection virtual switches. The alert message sent for each camera is the device's <b>Label</b> (set in the Device Info tab in Hubitat)."
-            input "rpdSwitches", "capability.switch", title: "RPD Switches", multiple: true, required: false
-        }
-        
-        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE SWITCHES / MODES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Select Ring Person Detection virtual switches that will only send notifications during Night Modes. The alert message sent for each camera is the device's <b>Label</b> (set in the Device Info tab in Hubitat)."
+            input "rpdSwitches", "capability.switch", title: "Night Mode Switches", multiple: true, required: false
             input "nightModes", "mode", title: "Night Modes", multiple: true, required: false,
                 description: "Modes for enhanced night security actions (lights, EchoMessage, whisper)"
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION ONLY SWITCHES / MODES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Select additional Ring Person Detection virtual switches and the modes during which they will send notifications. Silent switches still suppress all notifications."
+            input "notificationOnlySwitches", "capability.switch", title: "Notification Only Switches", multiple: true, required: false
+            input "notificationOnlyModes", "mode", title: "Active Modes", multiple: true, required: false,
+                description: "Modes during which these switches will send notifications"
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
@@ -87,10 +91,20 @@ def initialize() {
             logDebug "Reset ${sw.displayName} to off on init"
         }
     }
+    notificationOnlySwitches?.each { sw ->
+        if (sw.currentValue("switch") == "on") {
+            sw.off()
+            logDebug "Reset ${sw.displayName} to off on init"
+        }
+    }
     
     // Subscribe to each RPD switch - react when they turn on
     rpdSwitches?.each { sw ->
         subscribe(sw, "switch.on", handleRPD)
+        logDebug "Subscribed to ${sw.displayName}"
+    }
+    notificationOnlySwitches?.each { sw ->
+        subscribe(sw, "switch.on", handleNotificationOnlyRPD)
         logDebug "Subscribed to ${sw.displayName}"
     }
     
@@ -105,14 +119,30 @@ def handleRPD(evt) {
 
     logInfo "Person detected: ${message}"
     runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
-    sendNotification(message)
-    if (isNightMode() && allLightsSwitch) allLightsSwitch.on()
+    if (isNightMode()) {
+        sendNotification(message)
+        if (allLightsSwitch) allLightsSwitch.on()
+    }
+}
+
+// ==================== Notification Only Switch Handler ====================
+
+def handleNotificationOnlyRPD(evt) {
+    def device = evt.device
+    def message = device.label
+
+    logInfo "Person detected (notification only): ${message}"
+    runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (isNotificationOnlyMode()) {
+        sendNotification(message)
+    }
 }
 
 // ==================== Reset Method ====================
 
 def resetRPDSwitch(data) {
     def sw = rpdSwitches?.find { it.id == data.deviceId }
+    if (!sw) sw = notificationOnlySwitches?.find { it.id == data.deviceId }
     if (sw) {
         sw.off()
         logDebug "Reset ${sw.displayName}"
@@ -143,6 +173,11 @@ def sendNotification(String message) {
 def isNightMode() {
     if (!nightModes) return false
     return location.mode in nightModes
+}
+
+def isNotificationOnlyMode() {
+    if (!notificationOnlyModes) return false
+    return location.mode in notificationOnlyModes
 }
 
 def isSilent() {
