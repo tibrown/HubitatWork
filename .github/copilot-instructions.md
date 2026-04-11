@@ -1,5 +1,13 @@
 You should always analyze the .md files in this solution to understand the context and documentation of the project.
 
+## Session Initialization
+
+At the start of every new session, you MUST review the documentation in the `Docs/` and `wiki-export/` folders before taking any action. This includes:
+- `Docs/` — project documentation, device tables, hub variables, and best practices
+- `wiki-export/` — wiki pages for each app and feature area
+
+This ensures you have full context about the project before making changes or answering questions.
+
 ## Coding Standards
 
 ### Hubitat Apps
