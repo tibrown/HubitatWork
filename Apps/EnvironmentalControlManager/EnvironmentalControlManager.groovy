@@ -274,6 +274,12 @@ def mainPage() {
 
         section("<b>═══════════════════════════════════════</b>\n<b>CHICKEN HEATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "Temperature-based hysteresis control for chicken pen heater. Uses the Cold Weather Temperature Sensors configured above."
+            paragraph "When the <b>SummerTime Switch</b> is ON, chicken heater control and freeze monitoring are both disabled."
+            
+            input "summerTimeSwitch", "capability.switch",
+                  title: "SummerTime Switch",
+                  description: "When ON, disables chicken heater control and freeze monitoring",
+                  required: false
             
             input "chickenHeaterSwitch", "capability.switch",
                   title: "Chicken Heater Switch",
@@ -299,6 +305,31 @@ def mainPage() {
                   required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>SUNRISE/SUNSET TRACKING</b>\n<b>═══════════════════════════════════════</b>") {
+            input "sunTrackingEnabled", "bool",
+                  title: "Enable Sunrise/Sunset Hub Variable Tracking",
+                  description: "Each day at sunset+5 minutes, store tomorrow's sunrise and sunset times as hub variables",
+                  defaultValue: false,
+                  required: false
+
+            input "hubVar_SunriseVarName", "text",
+                  title: "Hub Variable Name for Sunrise",
+                  description: "Name of the hub variable to store the next sunrise time (e.g. Sunrise)",
+                  defaultValue: "Sunrise",
+                  required: false
+
+            input "hubVar_SunsetVarName", "text",
+                  title: "Hub Variable Name for Sunset",
+                  description: "Name of the hub variable to store the next sunset time (e.g. Sunset)",
+                  defaultValue: "Sunset",
+                  required: false
+
+            input "dashboardWebhookUrl", "text",
+                  title: "Dashboard Webhook URL (Optional)",
+                  description: "Push sun times to the Hubitat Dashboard immediately after setting them (e.g. http://192.168.1.x:3000/api/webhook). Eliminates polling delay.",
+                  required: false
+        }
+
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATIONS</b>\n<b>═══════════════════════════════════════</b>") {
             input "notificationDevices", "capability.notification",
                   title: "Notification Devices",
@@ -345,6 +376,7 @@ def mainPage() {
             paragraph "• OfficeHeaterTemp - Office heater target"
             paragraph "• WaterTimeout - Water shutoff timeout"
             paragraph "• SkeeterIlluminanceThreshold - Mosquito control light threshold"
+            paragraph "• Sunrise, Sunset (configurable names) - Next day's sunrise/sunset times, updated daily at sunset+5 min"
             paragraph "Hub variables are automatically synced when this app is updated."
             paragraph "Cold weather controls (freeze alerts, heat lamp, chicken heater) use app settings directly and do not require hub variables."
         }
@@ -432,6 +464,15 @@ def initialize() {
         logInfo "Subscribed to ${settings.freezeTempSensors.size()} cold weather sensor(s): ${sensorNames}"
     }
     
+    // Subscribe to SummerTime switch
+    if (settings.summerTimeSwitch) {
+        subscribe(settings.summerTimeSwitch, "switch", summerTimeSwitchHandler)
+        logInfo "Subscribed to SummerTime switch: ${settings.summerTimeSwitch.displayName}"
+        if (isSummerTime()) {
+            logInfo "SummerTime is ON - chicken heater control and freeze monitoring disabled"
+        }
+    }
+    
     // Subscribe to heat lamp master control switch
     if (settings.heatLampEnabled) {
         subscribe(settings.heatLampEnabled, "switch", heatLampEnabledHandler)
@@ -461,6 +502,21 @@ def initialize() {
     
     // Check chicken heater state on startup
     checkChickenHeaterOnStartup()
+    
+    // Sunrise/sunset hub variable tracking
+    if (settings.sunTrackingEnabled) {
+        unschedule("sunriseUpdateHandler")
+        scheduleSunriseUpdate()
+        // Seed today's values immediately so tiles show something right away
+        def todaySun = getSunriseAndSunset()
+        def riseVar = settings.hubVar_SunriseVarName ?: "Sunrise"
+        def setVar  = settings.hubVar_SunsetVarName  ?: "Sunset"
+        setGlobalVar(riseVar, todaySun.sunrise.format("h:mm a"))
+        setGlobalVar(setVar,  todaySun.sunset.format("h:mm a"))
+        logInfo "Seeded today's sun times: ${riseVar}=${todaySun.sunrise.format('h:mm a')}, ${setVar}=${todaySun.sunset.format('h:mm a')}"
+        pushHubVarToDashboard(riseVar, todaySun.sunrise.format("h:mm a"))
+        pushHubVarToDashboard(setVar,  todaySun.sunset.format("h:mm a"))
+    }
 }
 
 // ============================================================================
@@ -1196,6 +1252,40 @@ def announceAlexa(String message) {
 // HELPER METHODS
 // ============================================================================
 
+// ============================================================================
+// SUNRISE/SUNSET TRACKING
+// ============================================================================
+
+/**
+ * Schedule a one-time run at today's sunset + 5 minutes to update sun-time hub variables.
+ */
+def scheduleSunriseUpdate() {
+    if (!settings.sunTrackingEnabled) return
+    def todaySunset = getSunriseAndSunset().sunset
+    def runTime = new Date(todaySunset.time + (5 * 60 * 1000))
+    runOnce(runTime, "sunriseUpdateHandler")
+    logInfo "Sun-time update scheduled for ${runTime.format('h:mm a')}"
+}
+
+/**
+ * Fired daily at sunset+5 min. Writes tomorrow's sunrise and sunset to the configured
+ * hub variables, then reschedules for the next day.
+ */
+def sunriseUpdateHandler(evt = null) {
+    def tomorrow = new Date() + 1
+    def tomorrowSun = getSunriseAndSunset(date: tomorrow)
+    def sunriseStr = tomorrowSun.sunrise.format("h:mm a")
+    def sunsetStr  = tomorrowSun.sunset.format("h:mm a")
+    def riseVar = settings.hubVar_SunriseVarName ?: "Sunrise"
+    def setVar  = settings.hubVar_SunsetVarName  ?: "Sunset"
+    setGlobalVar(riseVar, sunriseStr)
+    setGlobalVar(setVar,  sunsetStr)
+    logInfo "Updated sun-time hub vars: ${riseVar}=${sunriseStr}, ${setVar}=${sunsetStr} (tomorrow's values)"
+    pushHubVarToDashboard(riseVar, sunriseStr)
+    pushHubVarToDashboard(setVar, sunsetStr)
+    scheduleSunriseUpdate()
+}
+
 def syncHubVariables() {
     setGlobalVar("GreenhouseFanOnTemp", (hubVar_GreenhouseFanOnTemp ?: 75.0).toString())
     setGlobalVar("GreenhouseFanOffTemp", (hubVar_GreenhouseFanOffTemp ?: 70.0).toString())
@@ -1206,6 +1296,24 @@ def syncHubVariables() {
     setGlobalVar("WaterTimeout", (hubVar_WaterTimeout ?: 30).toString())
     setGlobalVar("SkeeterIlluminanceThreshold", (hubVar_SkeeterIlluminanceThreshold ?: 200).toString())
     logInfo "Hub variables synced from app settings"
+}
+
+/**
+ * Push a hub variable name/value to the Hubitat Dashboard webhook so the tile
+ * updates immediately without waiting for the next poll cycle.
+ */
+def pushHubVarToDashboard(String varName, String varValue) {
+    def url = settings.dashboardWebhookUrl
+    if (!url) return
+    try {
+        httpPostJson(url.toString(), [
+            content: [deviceId: "hubvar", name: varName, value: varValue, source: "HUB_VARIABLE"]
+        ]) { resp ->
+            logDebug "Dashboard hub var push OK: ${varName}=${varValue} (${resp.status})"
+        }
+    } catch (Exception e) {
+        logWarn "Dashboard hub var push failed for ${varName}: ${e.message}"
+    }
 }
 
 /**
@@ -1258,6 +1366,11 @@ def freezeTempHandler(evt) {
     }
     
     logDebug "Cold weather temperature event from ${evt.displayName}: ${evt.value}°F, Effective=${temp}°F (freeze: ${freezeThresholdVal}°F, heat lamp: ${heatLampThresholdVal}°F)"
+    
+    if (isSummerTime()) {
+        logDebug "SummerTime is ON - skipping freeze alert and heat lamp control"
+        return
+    }
     
     // Check freeze alert threshold
     if (temp <= freezeThresholdVal) {
@@ -1484,6 +1597,11 @@ def sendHeatLampNotification(String message) {
 def checkChickenHeater(BigDecimal temp) {
     if (!settings.chickenHeaterSwitch) return
     
+    if (isSummerTime()) {
+        logDebug "SummerTime is ON - skipping chicken heater control"
+        return
+    }
+    
     if (!isChickenHeaterModeActive()) {
         logDebug "Chicken heater not active in current mode (${location.mode}) - skipping"
         return
@@ -1513,6 +1631,11 @@ def checkChickenHeater(BigDecimal temp) {
 }
 
 def chickenHeaterModeHandler(evt) {
+    if (isSummerTime()) {
+        logDebug "SummerTime is ON - skipping chicken heater mode handler"
+        return
+    }
+    
     if (isChickenHeaterModeActive()) {
         logInfo "Chicken heater active in mode: ${evt.value}"
         checkChickenHeaterOnStartup()
@@ -1534,9 +1657,31 @@ def isChickenHeaterModeActive() {
     return settings.chickenHeaterModes.contains(location.mode)
 }
 
+def isSummerTime() {
+    return settings.summerTimeSwitch?.currentValue("switch") == "on"
+}
+
+def summerTimeSwitchHandler(evt) {
+    if (evt.value == "on") {
+        logInfo "SummerTime turned ON - chicken heater and freeze monitoring will be ignored"
+        if (state.heatLampCycling) {
+            stopHeatLampCycling(false)
+            logInfo "Heat lamp cycling stopped (SummerTime enabled)"
+        }
+    } else {
+        logInfo "SummerTime turned OFF - re-enabling chicken heater and freeze monitoring"
+        checkChickenHeaterOnStartup()
+    }
+}
+
 def checkChickenHeaterOnStartup() {
     if (!settings.freezeTempSensors || !settings.chickenHeaterSwitch) {
         logDebug "Chicken heater not fully configured - skipping startup check"
+        return
+    }
+    
+    if (isSummerTime()) {
+        logInfo "SummerTime is ON - skipping chicken heater startup check"
         return
     }
     
