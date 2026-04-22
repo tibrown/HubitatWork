@@ -308,7 +308,7 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>SUNRISE/SUNSET TRACKING</b>\n<b>═══════════════════════════════════════</b>") {
             input "sunTrackingEnabled", "bool",
                   title: "Enable Sunrise/Sunset Hub Variable Tracking",
-                  description: "Each day at sunset+5 minutes, store tomorrow's sunrise and sunset times as hub variables",
+                  description: "Each day at astronomical dusk+5 minutes, store tomorrow's sunrise/sunset and dusk times as hub variables",
                   defaultValue: false,
                   required: false
 
@@ -322,6 +322,18 @@ def mainPage() {
                   title: "Hub Variable Name for Sunset",
                   description: "Name of the hub variable to store the next sunset time (e.g. Sunset)",
                   defaultValue: "Sunset",
+                  required: false
+
+            input "hubVar_CivilDuskVarName", "text",
+                  title: "Hub Variable Name for Civil Dusk",
+                  description: "Name of the hub variable to store civil dusk (sun at -6°, e.g. CivilDusk)",
+                  defaultValue: "CivilDusk",
+                  required: false
+
+            input "hubVar_AstronomicalDuskVarName", "text",
+                  title: "Hub Variable Name for Astronomical Dusk (Full Dark)",
+                  description: "Name of the hub variable to store astronomical dusk (sun at -18°, e.g. AstronomicalDusk)",
+                  defaultValue: "AstronomicalDusk",
                   required: false
 
             input "dashboardWebhookUrl", "text",
@@ -376,7 +388,7 @@ def mainPage() {
             paragraph "• OfficeHeaterTemp - Office heater target"
             paragraph "• WaterTimeout - Water shutoff timeout"
             paragraph "• SkeeterIlluminanceThreshold - Mosquito control light threshold"
-            paragraph "• Sunrise, Sunset (configurable names) - Next day's sunrise/sunset times, updated daily at sunset+5 min"
+            paragraph "• Sunrise, Sunset, CivilDusk, AstronomicalDusk (configurable names) - Next day's sun/dusk times, updated daily at astronomical dusk+5 min"
             paragraph "Hub variables are automatically synced when this app is updated."
             paragraph "Cold weather controls (freeze alerts, heat lamp, chicken heater) use app settings directly and do not require hub variables."
         }
@@ -508,14 +520,7 @@ def initialize() {
         unschedule("sunriseUpdateHandler")
         scheduleSunriseUpdate()
         // Seed today's values immediately so tiles show something right away
-        def todaySun = getSunriseAndSunset()
-        def riseVar = settings.hubVar_SunriseVarName ?: "Sunrise"
-        def setVar  = settings.hubVar_SunsetVarName  ?: "Sunset"
-        setGlobalVar(riseVar, todaySun.sunrise.format("h:mm a"))
-        setGlobalVar(setVar,  todaySun.sunset.format("h:mm a"))
-        logInfo "Seeded today's sun times: ${riseVar}=${todaySun.sunrise.format('h:mm a')}, ${setVar}=${todaySun.sunset.format('h:mm a')}"
-        pushHubVarToDashboard(riseVar, todaySun.sunrise.format("h:mm a"))
-        pushHubVarToDashboard(setVar,  todaySun.sunset.format("h:mm a"))
+        updateSunTrackingHubVarsForDate(new Date(), "today")
     }
 }
 
@@ -1257,32 +1262,170 @@ def announceAlexa(String message) {
 // ============================================================================
 
 /**
- * Schedule a one-time run at today's sunset + 5 minutes to update sun-time hub variables.
+ * Calculates dusk time for a given date at the requested solar depression angle.
+ * 6° = civil dusk, 18° = astronomical dusk.
+ */
+def calculateDuskTime(Date targetDate, BigDecimal depressionDegrees) {
+    if (!targetDate || depressionDegrees == null) return null
+
+    def lat = location?.latitude
+    def lon = location?.longitude
+    if (lat == null || lon == null) return null
+
+    def tz = location?.timeZone ?: TimeZone.getDefault()
+
+    def noonCal = Calendar.getInstance(tz)
+    noonCal.setTime(targetDate)
+    noonCal.set(Calendar.HOUR_OF_DAY, 12)
+    noonCal.set(Calendar.MINUTE, 0)
+    noonCal.set(Calendar.SECOND, 0)
+    noonCal.set(Calendar.MILLISECOND, 0)
+    int dayOfYear = noonCal.get(Calendar.DAY_OF_YEAR)
+
+    double gamma = (2.0d * Math.PI / 365.0d) * (dayOfYear - 1)
+    double eqTime = 229.18d * (
+        0.000075d +
+        0.001868d * Math.cos(gamma) -
+        0.032077d * Math.sin(gamma) -
+        0.014615d * Math.cos(2.0d * gamma) -
+        0.040849d * Math.sin(2.0d * gamma)
+    )
+    double decl = 0.006918d -
+        0.399912d * Math.cos(gamma) +
+        0.070257d * Math.sin(gamma) -
+        0.006758d * Math.cos(2.0d * gamma) +
+        0.000907d * Math.sin(2.0d * gamma) -
+        0.002697d * Math.cos(3.0d * gamma) +
+        0.00148d * Math.sin(3.0d * gamma)
+
+    double latRad = Math.toRadians((lat as BigDecimal).doubleValue())
+    double zenithRad = Math.toRadians(90.0d + depressionDegrees.doubleValue())
+    double cosH = (Math.cos(zenithRad) / (Math.cos(latRad) * Math.cos(decl))) - (Math.tan(latRad) * Math.tan(decl))
+    if (cosH < -1.0d || cosH > 1.0d) return null
+
+    double hourAngleDeg = Math.toDegrees(Math.acos(cosH))
+
+    def midnightCal = Calendar.getInstance(tz)
+    midnightCal.setTime(targetDate)
+    midnightCal.set(Calendar.HOUR_OF_DAY, 0)
+    midnightCal.set(Calendar.MINUTE, 0)
+    midnightCal.set(Calendar.SECOND, 0)
+    midnightCal.set(Calendar.MILLISECOND, 0)
+
+    int tzOffsetMinutes = (int) (tz.getOffset(midnightCal.timeInMillis) / 60000L)
+    double solarNoonMinutes = 720.0d - (4.0d * (lon as BigDecimal).doubleValue()) - eqTime + tzOffsetMinutes
+    double duskMinutes = solarNoonMinutes + (hourAngleDeg * 4.0d)
+
+    return new Date(midnightCal.timeInMillis + Math.round(duskMinutes * 60_000.0d))
+}
+
+/**
+ * Returns how many milliseconds after sunset a dusk threshold occurs for the date.
+ * This lets us anchor dusk writes to Hubitat's current sunset value while still using
+ * astronomical math for the relative offset.
+ */
+def calculateDuskOffsetMillis(Date targetDate, BigDecimal depressionDegrees) {
+    def modeledSunset = calculateDuskTime(targetDate, 0.833)
+    def modeledDusk = calculateDuskTime(targetDate, depressionDegrees)
+    if (!modeledSunset || !modeledDusk) return null
+    return (modeledDusk.time - modeledSunset.time) as Long
+}
+
+/**
+ * Writes sun tracking hub vars (sunrise/sunset + civil/astronomical dusk) for the
+ * provided date, then pushes each updated value to dashboard webhook if configured.
+ */
+def updateSunTrackingHubVarsForDate(Date targetDate, String label) {
+    if (!targetDate) return
+
+    def sunTimes = getSunriseAndSunset(date: targetDate)
+    def sunsetTime = sunTimes.sunset
+    if (!sunsetTime) {
+        logWarn "Could not determine sunset for ${label}; skipping sun-time hub var update"
+        return
+    }
+    def sunriseStr = sunTimes.sunrise.format("h:mm a")
+    def sunsetStr = sunsetTime.format("h:mm a")
+
+    def civilOffsetMs = calculateDuskOffsetMillis(targetDate, 6.0)
+    def civilDuskTime = civilOffsetMs != null ? new Date(sunsetTime.time + civilOffsetMs) : null
+    if (!civilDuskTime && sunsetTime) {
+        civilDuskTime = new Date(sunsetTime.time + (30L * 60L * 1000L))
+    }
+
+    def astronomicalOffsetMs = calculateDuskOffsetMillis(targetDate, 18.0)
+    def astronomicalDuskTime = astronomicalOffsetMs != null ? new Date(sunsetTime.time + astronomicalOffsetMs) : null
+    if (!astronomicalDuskTime && sunsetTime) {
+        // Fallback: use 1 hour after sunset if exact astronomical dusk cannot be calculated.
+        astronomicalDuskTime = new Date(sunsetTime.time + (60L * 60L * 1000L))
+    }
+
+    def civilDuskStr = civilDuskTime?.format("h:mm a")
+    def astronomicalDuskStr = astronomicalDuskTime?.format("h:mm a")
+
+    def riseVar = settings.hubVar_SunriseVarName ?: "Sunrise"
+    def setVar = settings.hubVar_SunsetVarName ?: "Sunset"
+    def civilVar = settings.hubVar_CivilDuskVarName ?: "CivilDusk"
+    def astroVar = settings.hubVar_AstronomicalDuskVarName ?: "AstronomicalDusk"
+
+    setGlobalVar(riseVar, sunriseStr)
+    setGlobalVar(setVar, sunsetStr)
+    pushHubVarToDashboard(riseVar, sunriseStr)
+    pushHubVarToDashboard(setVar, sunsetStr)
+
+    if (civilDuskStr) {
+        setGlobalVar(civilVar, civilDuskStr)
+        pushHubVarToDashboard(civilVar, civilDuskStr)
+    } else {
+        logWarn "Could not calculate civil dusk for ${label}; ${civilVar} not updated"
+    }
+
+    if (astronomicalDuskStr) {
+        setGlobalVar(astroVar, astronomicalDuskStr)
+        pushHubVarToDashboard(astroVar, astronomicalDuskStr)
+    } else {
+        logWarn "Could not calculate astronomical dusk for ${label}; ${astroVar} not updated"
+    }
+
+    logInfo "Updated sun-time hub vars (${label}): ${riseVar}=${sunriseStr}, ${setVar}=${sunsetStr}, ${civilVar}=${civilDuskStr ?: 'n/a'}, ${astroVar}=${astronomicalDuskStr ?: 'n/a'}"
+}
+
+/**
+ * Schedule a one-time run at astronomical dusk + 5 minutes to update sun-time hub variables.
  */
 def scheduleSunriseUpdate() {
     if (!settings.sunTrackingEnabled) return
-    def todaySunset = getSunriseAndSunset().sunset
-    def runTime = new Date(todaySunset.time + (5 * 60 * 1000))
+    def targetDate = new Date()
+    def astronomicalDusk = calculateDuskTime(targetDate, 18.0)
+    if (!astronomicalDusk) {
+        def fallbackSunset = getSunriseAndSunset(date: targetDate).sunset
+        astronomicalDusk = new Date(fallbackSunset.time + (60L * 60L * 1000L))
+        logWarn "Could not calculate astronomical dusk for scheduler; using sunset+60m fallback"
+    }
+
+    def runTime = new Date(astronomicalDusk.time + (5L * 60L * 1000L))
+    if (runTime.before(new Date())) {
+        targetDate = new Date() + 1
+        astronomicalDusk = calculateDuskTime(targetDate, 18.0)
+        if (!astronomicalDusk) {
+            def fallbackSunset = getSunriseAndSunset(date: targetDate).sunset
+            astronomicalDusk = new Date(fallbackSunset.time + (60L * 60L * 1000L))
+            logWarn "Could not calculate tomorrow astronomical dusk for scheduler; using sunset+60m fallback"
+        }
+        runTime = new Date(astronomicalDusk.time + (5L * 60L * 1000L))
+    }
+
     runOnce(runTime, "sunriseUpdateHandler")
     logInfo "Sun-time update scheduled for ${runTime.format('h:mm a')}"
 }
 
 /**
- * Fired daily at sunset+5 min. Writes tomorrow's sunrise and sunset to the configured
+ * Fired daily at astronomical dusk+5 min. Writes tomorrow's sunrise/sunset and dusk values to the configured
  * hub variables, then reschedules for the next day.
  */
 def sunriseUpdateHandler(evt = null) {
     def tomorrow = new Date() + 1
-    def tomorrowSun = getSunriseAndSunset(date: tomorrow)
-    def sunriseStr = tomorrowSun.sunrise.format("h:mm a")
-    def sunsetStr  = tomorrowSun.sunset.format("h:mm a")
-    def riseVar = settings.hubVar_SunriseVarName ?: "Sunrise"
-    def setVar  = settings.hubVar_SunsetVarName  ?: "Sunset"
-    setGlobalVar(riseVar, sunriseStr)
-    setGlobalVar(setVar,  sunsetStr)
-    logInfo "Updated sun-time hub vars: ${riseVar}=${sunriseStr}, ${setVar}=${sunsetStr} (tomorrow's values)"
-    pushHubVarToDashboard(riseVar, sunriseStr)
-    pushHubVarToDashboard(setVar, sunsetStr)
+    updateSunTrackingHubVarsForDate(tomorrow, "tomorrow")
     scheduleSunriseUpdate()
 }
 
