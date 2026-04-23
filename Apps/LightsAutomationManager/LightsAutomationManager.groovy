@@ -137,6 +137,7 @@ def mainPage() {
         
         section("<b>═══════════════════════════════════════</b>\n<b>MODE TIMING ADJUSTMENTS</b>\n<b>═══════════════════════════════════════</b>") {
             input "eveningModeAdvance", "number", title: "Evening Mode Advance (minutes)", description: "Turn on Evening lights this many minutes BEFORE mode changes to Evening", defaultValue: 0, range: "0..60", required: false
+            input "sunsetHubVarName", "text", title: "Sunset Hub Variable Name", description: "Hub variable written by EnvironmentalControlManager containing today's sunset time (e.g. Sunset)", defaultValue: "Sunset", required: false
             input "dayModeDelay", "number", title: "Day Mode Delay (minutes)", description: "Wait time after mode becomes Day before adjusting lights", defaultValue: 0, range: "0..60", required: false
         }
         
@@ -201,6 +202,11 @@ def initialize() {
     
     // Schedule Evening mode advance if configured
     scheduleEveningAdvance()
+    if (settings.eveningModeAdvance > 0) {
+        // Subscribe to sunsetTime so the advance reschedules itself daily when
+        // Hubitat publishes the next day's solar times (fires every evening)
+        subscribe(location, "sunsetTime", "scheduleEveningAdvanceFromEvent")
+    }
     
     // Desk controls
     if (deskMotion) subscribe(deskMotion, "motion.active", deskMotionHandler)
@@ -871,6 +877,11 @@ def turnOffPTOSundayNight() {
 // EVENING MODE ADVANCE SCHEDULING
 // ========================================
 
+def scheduleEveningAdvanceFromEvent(evt) {
+    logDebug "sunsetTime event received - rescheduling Evening advance for tomorrow"
+    scheduleEveningAdvance()
+}
+
 def scheduleEveningAdvance() {
     Integer advanceMinutes = settings.eveningModeAdvance ?: 0
     
@@ -879,21 +890,43 @@ def scheduleEveningAdvance() {
         return
     }
     
-    // Get the time when Evening mode typically starts
-    // This could be based on sunset or a fixed time depending on your mode manager
-    // For now, we'll use a reasonable assumption that Evening mode is tied to sunset
-    def sunsetTime = location.sunset
-    
-    if (sunsetTime) {
-        // Calculate the advance time
-        def advanceTime = new Date(sunsetTime.time - (advanceMinutes * 60 * 1000))
-        
-        logInfo "Scheduling Evening lights to turn on at ${advanceTime.format('HH:mm', location.timeZone)} (${advanceMinutes} min before sunset)"
-        
-        runOnce(advanceTime, "checkAndExecuteEveningAdvance")
-    } else {
-        logDebug "Unable to determine sunset time for Evening advance scheduling"
+    // Try to read sunset from hub variable written by EnvironmentalControlManager.
+    // The hub var is a String in "h:mm a" format (e.g. "7:45 PM"); timeToday() turns it
+    // into a Date for today at that time. Fall back to location.sunset if unavailable.
+    Date sunsetTime = null
+    String varName = settings.sunsetHubVarName ?: "Sunset"
+    try {
+        def sunsetStr = getGlobalVar(varName)?.value
+        if (sunsetStr) {
+            sunsetTime = timeToday(sunsetStr, location.timeZone)
+            logDebug "Evening advance: using ${varName} hub variable sunset = ${sunsetStr}"
+        }
+    } catch (e) {
+        logDebug "Evening advance: hub variable '${varName}' not available (${e.message})"
     }
+    
+    if (!sunsetTime) {
+        sunsetTime = location.sunset
+        logDebug "Evening advance: falling back to location.sunset"
+    }
+    
+    if (!sunsetTime) {
+        logDebug "Evening advance: unable to determine sunset time - skipping"
+        return
+    }
+    
+    Date advanceTime = new Date(sunsetTime.time - (advanceMinutes * 60 * 1000))
+    
+    // Guard: if the advance time has already passed today, don't schedule it —
+    // Hubitat silently ignores runOnce() with a past timestamp, causing the advance
+    // to be skipped without any error.
+    if (advanceTime <= new Date()) {
+        logInfo "Evening advance: calculated time ${advanceTime.format('HH:mm', location.timeZone)} has already passed today - skipping until tomorrow"
+        return
+    }
+    
+    logInfo "Scheduling Evening lights to turn on at ${advanceTime.format('HH:mm', location.timeZone)} (${advanceMinutes} min before sunset)"
+    runOnce(advanceTime, "checkAndExecuteEveningAdvance")
 }
 
 def checkAndExecuteEveningAdvance() {
@@ -909,8 +942,8 @@ def checkAndExecuteEveningAdvance() {
         logDebug "Skipping Evening advance - already in ${currentMode} mode"
     }
     
-    // Reschedule for tomorrow
-    runIn(300, "scheduleEveningAdvance") // Wait 5 minutes then reschedule
+    // Reschedule for tomorrow as a fallback (primary rescheduling is via sunsetTime subscription)
+    runIn(300, "scheduleEveningAdvance")
 }
 
 // ========================================

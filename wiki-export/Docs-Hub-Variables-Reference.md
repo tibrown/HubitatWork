@@ -87,6 +87,8 @@ These hub variables override default app settings and provide flexible configura
 | `FloodTimeout` | Number | 5 | Motion flood timeout (minutes) |
 | `StripColorNight` | String | "Blue" | Nighttime strip color |
 | `BeamLightDelay` | Number | 300 | Carport beam light delay (seconds) |
+| `Sunset` | String | *(written by EnvironmentalControlManager)* | Today's sunset time ("h:mm a" format) — read for Evening advance scheduling |
+| `Sunrise` | String | *(written by EnvironmentalControlManager)* | Today's sunrise time ("h:mm a" format) — available for future use |
 
 ### EnvironmentalControlManager
 | Variable Name | Type | Default | Purpose |
@@ -299,6 +301,8 @@ Go to **Devices → Add Device → Virtual** and select **Connector** type:
 | `ShockSensitivity` | Number | 5 | Shock sensitivity (1-10) | PerimeterSecurityManager |
 | `SilentModeTimeout` | Number | - | Silent mode timeout (minutes) | EmergencyHelpManager |
 | `StripColorNight` | String | "Blue" | Nighttime strip color | LightsAutomationManager |
+| `Sunrise` | String | *(written by EnvironmentalControlManager)* | Today's sunrise time ("h:mm a" format) | EnvironmentalControlManager → LightsAutomationManager |
+| `Sunset` | String | *(written by EnvironmentalControlManager)* | Today's sunset time ("h:mm a" format) — used for Evening advance scheduling | EnvironmentalControlManager → LightsAutomationManager |
 | `TamperAlertEnabled` | Boolean | true | Enable/disable tamper detection | DoorWindowMonitor |
 | `VisualOnlyMode` | Boolean | false | Enable visual-only alerts | EmergencyHelpManager |
 | `WaterTimeout` | Number | 30 | Water shutoff timeout (minutes) | EnvironmentalControlManager |
