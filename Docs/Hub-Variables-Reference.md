@@ -100,6 +100,7 @@ These hub variables override default app settings and provide flexible configura
 | `FreezeAlertThreshold` | Decimal | 32.0 | Freeze warning temperature (°F) |
 | `OfficeHeaterTemp` | Decimal | 68.0 | Office heater temperature (°F) |
 | `WaterTimeout` | Number | 30 | Water shutoff timeout (minutes) |
+| `WeatherReport` | String | *(written by app)* | Today's NWS forecast summary — updated daily at 4:00 AM. Create as String type in Settings → Hub Variables. |
 
 ### NWS Weather Integration
 | Variable Name | Type | Default | Purpose |
@@ -208,6 +209,9 @@ Go to **Settings → Hub Variables** and create these variables:
 #### Message Variables
 - [ ] `EchoMessage` (String) - Default: ""
 - [ ] `AlertMessage` (String) - Default: ""
+
+#### Weather Report Variable (if using Daily Weather Report)
+- [ ] `WeatherReport` (String) - Default: "" — Written by EnvironmentalControlManager daily at 4:00 AM
 
 ### Step 2: Create Connector Switches
 Go to **Devices → Add Device → Virtual** and select **Connector** type:

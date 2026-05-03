@@ -8,9 +8,10 @@ Environmental Control Manager automates temperature control, fans, heaters, and 
 - Freeze protection alerts for greenhouse
 - Office climate management
 - Mode-based mosquito killer control
-- Water valve auto-shutoff safety8984
+- Water valve auto-shutoff safety
 - Alexa voice control integration
 - Hub variable support for dynamic configuration
+- Daily NWS weather report written to hub variable at 4:00 AM
 
 ## Rules Consolidated
 This app replaces the following Rule Machine rules:
@@ -52,8 +53,7 @@ The app supports these hub variables for dynamic configuration:
 - `officeHeaterTemp` - Override office heater temperature (°F)
 - `skeeterIlluminanceThreshold` - Override illuminance threshold for Day mode skeeter control (lux)
 - `waterTimeout` - Override water shutoff timeout (minutes)
-
-If hub variables are not set, the app uses the configured settings as defaults.
+- `WeatherReport` *(written by app)* - Today's NWS forecast summary, updated daily at 4:00 AM
 
 ## Installation
 
@@ -106,7 +106,29 @@ Initial Value: 30
 5. Configure settings (see Configuration Guide below)
 6. Click "Done"
 
-## Configuration Guide
+### Configuration Guide
+
+#### Daily Weather Report
+- **Enable Daily Weather Report**: Enable/disable the feature
+- **Latitude**: Decimal latitude for NWS forecast (e.g. `28.929`)
+- **Longitude**: Decimal longitude for NWS forecast (e.g. `-81.680`)
+- **User-Agent Contact (Email)**: Contact email for NWS API identification (required by NWS API)
+- **Hub Variable Name**: Name of the String hub variable to write the report to (default: `WeatherReport`)
+
+**Setup**:
+1. Create a **String** hub variable in Settings → Hub Variables (name it `WeatherReport` or your chosen name)
+2. Enable the feature and enter your latitude, longitude, and email
+3. The report is written immediately and refreshed every day at 4:00 AM
+
+**Report format** (two lines):
+```
+Today: Partly Cloudy. High 85°F. SE wind 10 mph. Rain 20%.
+Tonight: Mostly Clear. Low 72°F.
+```
+
+The labels (e.g. "Today", "Tonight") come directly from the NWS API, so they are always accurate regardless of when the report runs. If precipitation probability is zero or unavailable it is omitted from the line.
+
+### Configuration Guide
 
 ### Greenhouse Controls
 - **Greenhouse Temperature Sensor**: Main temperature sensor

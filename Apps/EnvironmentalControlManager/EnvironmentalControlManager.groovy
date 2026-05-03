@@ -380,6 +380,33 @@ def mainPage() {
                   required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>DAILY WEATHER REPORT</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Fetches today's NWS forecast each day at 4:00 AM and writes a formatted summary to a hub variable. " +
+                     "Requires creating a <b>String</b> hub variable (e.g. <i>WeatherReport</i>) in Settings → Hub Variables before enabling."
+            input "weatherReportEnabled", "bool",
+                  title: "Enable Daily Weather Report",
+                  description: "Fetch NWS forecast at 4:00 AM and write to hub variable",
+                  defaultValue: false,
+                  required: false
+            input "weatherReportLat", "text",
+                  title: "Latitude",
+                  description: "Decimal latitude for NWS forecast (e.g. 28.929)",
+                  required: false
+            input "weatherReportLon", "text",
+                  title: "Longitude",
+                  description: "Decimal longitude for NWS forecast (e.g. -81.680)",
+                  required: false
+            input "weatherReportUserAgent", "text",
+                  title: "User-Agent Contact (Email)",
+                  description: "NWS API requires a contact email (e.g. me@example.com)",
+                  required: false
+            input "weatherReportHubVarName", "text",
+                  title: "Hub Variable Name",
+                  description: "Name of the String hub variable to write the report to",
+                  defaultValue: "WeatherReport",
+                  required: false
+        }
+
         section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "Configuration values above are stored as hub variables for cross-app sharing:"
             paragraph "• GreenhouseFanOnTemp, GreenhouseFanOffTemp - Greenhouse fan control"
@@ -389,6 +416,7 @@ def mainPage() {
             paragraph "• WaterTimeout - Water shutoff timeout"
             paragraph "• SkeeterIlluminanceThreshold - Mosquito control light threshold"
             paragraph "• Sunrise, Sunset, CivilDusk, AstronomicalDusk (configurable names) - Next day's sun/dusk times, updated daily at astronomical dusk+5 min"
+            paragraph "• WeatherReport (configurable name) - Today's NWS forecast summary, updated daily at 4:00 AM"
             paragraph "Hub variables are automatically synced when this app is updated."
             paragraph "Cold weather controls (freeze alerts, heat lamp, chicken heater) use app settings directly and do not require hub variables."
         }
@@ -521,6 +549,18 @@ def initialize() {
         scheduleSunriseUpdate()
         // Seed today's values immediately so tiles show something right away
         updateSunTrackingHubVarsForDate(new Date(), "today")
+    }
+
+    // Daily weather report
+    if (settings.weatherReportEnabled) {
+        if (settings.weatherReportLat && settings.weatherReportLon) {
+            schedule("0 0 4 * * ?", "dailyWeatherReportHandler")
+            logInfo "Daily weather report scheduled at 4:00 AM"
+            // Refresh immediately on Done/initialize so the variable is always current
+            dailyWeatherReportHandler()
+        } else {
+            logWarn "Daily weather report enabled but latitude/longitude not configured — skipping schedule"
+        }
     }
 }
 
@@ -1446,12 +1486,13 @@ def syncHubVariables() {
  * updates immediately without waiting for the next poll cycle.
  */
 def pushHubVarToDashboard(String varName, String varValue) {
-    def url = settings.dashboardWebhookUrl
+    // Strip any invisible/non-printable characters that can sneak in from copy-paste
+    def url = settings.dashboardWebhookUrl?.replaceAll(/[^\x20-\x7E]/, '')?.trim()
     if (!url) return
     try {
-        httpPostJson(url.toString(), [
+        httpPostJson([uri: url.toString(), timeout: 5, body: [
             content: [deviceId: "hubvar", name: varName, value: varValue, source: "HUB_VARIABLE"]
-        ]) { resp ->
+        ]]) { resp ->
             logDebug "Dashboard hub var push OK: ${varName}=${varValue} (${resp.status})"
         }
     } catch (Exception e) {
@@ -2022,6 +2063,151 @@ def isNwsDataStale() {
 def uninstalled() {
     logInfo "Environmental Control Manager uninstalled"
     unschedule()
+}
+
+// ============================================================================
+// DAILY WEATHER REPORT
+// ============================================================================
+
+/**
+ * Scheduled handler fired daily at 4:00 AM. Fetches the NWS forecast and writes
+ * a formatted summary to the configured hub variable.
+ */
+def dailyWeatherReportHandler(evt = null) {
+    def lat = settings.weatherReportLat?.trim()
+    def lon = settings.weatherReportLon?.trim()
+    if (!lat || !lon) {
+        logWarn "Daily weather report: latitude or longitude not configured"
+        return
+    }
+
+    def varName = (settings.weatherReportHubVarName?.trim()) ?: "WeatherReport"
+    def periods = fetchNWSForecast(lat, lon)
+    if (periods == null) {
+        logWarn "Daily weather report: NWS forecast unavailable — preserving last value in ${varName}"
+        return
+    }
+
+    def report = formatWeatherReport(periods)
+    if (!report) {
+        logWarn "Daily weather report: could not format forecast — preserving last value in ${varName}"
+        return
+    }
+
+    setGlobalVar(varName, report)
+    pushHubVarToDashboard(varName, report)
+    logInfo "Daily weather report written to ${varName}: ${report}"
+}
+
+/**
+ * Safely parses an NWS API response body into a Map.
+ * Hubitat may return application/geo+json as a ByteArrayInputStream rather than
+ * a pre-parsed Map. We read the stream text ONCE and parse it with JsonSlurper.
+ * If the body is already a Map (pre-parsed), we use it directly.
+ */
+def parseNWSResponse(data, String context) {
+    if (data == null) return null
+    // Try to read as a text stream first; if getText() isn't available, data is already parsed
+    String text = null
+    try { text = data.getText() } catch (Exception ignored) {}
+    if (text) {
+        try {
+            return new groovy.json.JsonSlurper().parseText(text)
+        } catch (Exception e) {
+            logWarn "NWS ${context}: JSON parse failed: ${e.message}"
+            return null
+        }
+    }
+    // data is already a parsed Map/object
+    return data
+}
+
+/**
+ * Calls the NWS Points API and then the gridpoint forecast API.
+ * Returns the list of forecast periods, or null on any failure.
+ */
+def fetchNWSForecast(String lat, String lon) {
+    def ua = (settings.weatherReportUserAgent?.trim()) ?: "HubitatHub (hubitat@example.com)"
+    def headers = ["User-Agent": ua, "Accept": "application/geo+json"]
+
+    // Step 1: resolve grid forecast URL from lat/lon
+    def pointsUrl = "https://api.weather.gov/points/${lat},${lon}"
+    def forecastUrl = null
+    try {
+        httpGet([uri: pointsUrl, headers: headers, timeout: 30]) { resp ->
+            if (resp.status == 200 && resp.data) {
+                def parsed = parseNWSResponse(resp.data, "points")
+                forecastUrl = parsed?.properties?.forecast
+                if (!forecastUrl) logWarn "NWS points API: no forecast URL in response"
+            } else {
+                logWarn "NWS points API returned status ${resp.status} for ${pointsUrl}"
+            }
+        }
+    } catch (Exception e) {
+        logWarn "NWS points API call failed: ${e.message}"
+        return null
+    }
+
+    if (!forecastUrl) {
+        logWarn "NWS points API did not return a forecast URL"
+        return null
+    }
+
+    // Step 2: fetch forecast periods
+    def periods = null
+    try {
+        httpGet([uri: forecastUrl.toString(), headers: headers, timeout: 30]) { resp ->
+            if (resp.status == 200 && resp.data) {
+                def parsed = parseNWSResponse(resp.data, "forecast")
+                periods = parsed?.properties?.periods
+                if (!periods) logWarn "NWS forecast API: no periods in response"
+            } else {
+                logWarn "NWS forecast API returned status ${resp.status}"
+            }
+        }
+    } catch (Exception e) {
+        logWarn "NWS forecast API call failed: ${e.message}"
+        return null
+    }
+
+    return periods
+}
+
+/**
+ * Formats a human-readable weather report from NWS forecast periods.
+ * Finds the first daytime period and the first nighttime period after it.
+ * Uses NWS-provided period names (e.g. "Today", "Tonight") for labels.
+ */
+def formatWeatherReport(List periods) {
+    if (!periods) return null
+
+    // Find first daytime period and first nighttime period after it
+    def dayPeriod = periods.find { it.isDaytime == true }
+    def dayIndex = dayPeriod ? periods.indexOf(dayPeriod) : -1
+    def nightPeriod = dayIndex >= 0 ? periods.drop(dayIndex + 1).find { it.isDaytime == false } : null
+
+    def lines = []
+
+    if (dayPeriod) {
+        def parts = ["${dayPeriod.name}:"]
+        if (dayPeriod.shortForecast) parts << "${dayPeriod.shortForecast}."
+        if (dayPeriod.temperature != null) parts << "High ${dayPeriod.temperature}°${dayPeriod.temperatureUnit ?: 'F'}."
+        if (dayPeriod.windDirection && dayPeriod.windSpeed) parts << "${dayPeriod.windDirection} wind ${dayPeriod.windSpeed}."
+        def pop = dayPeriod.probabilityOfPrecipitation?.value
+        if (pop != null && pop > 0) parts << "Rain ${pop.toInteger()}%."
+        lines << parts.join(" ")
+    }
+
+    if (nightPeriod) {
+        def parts = ["${nightPeriod.name}:"]
+        if (nightPeriod.shortForecast) parts << "${nightPeriod.shortForecast}."
+        if (nightPeriod.temperature != null) parts << "Low ${nightPeriod.temperature}°${nightPeriod.temperatureUnit ?: 'F'}."
+        def pop = nightPeriod.probabilityOfPrecipitation?.value
+        if (pop != null && pop > 0) parts << "Rain ${pop.toInteger()}%."
+        lines << parts.join(" ")
+    }
+
+    return lines ? lines.join("\n") : null
 }
 
 // ============================================================================
