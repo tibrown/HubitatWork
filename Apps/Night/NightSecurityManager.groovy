@@ -413,6 +413,12 @@ def disableNightSecurity() {
     rearGateActive?.off()
     allLightsOn?.off()
     
+    // If pause backdoor alarm was active, turn it off so Ring Mode is restored
+    if (pauseBDAlarm.currentValue("switch") == "on") {
+        logInfo "Clearing pause backdoor alarm state - restoring Ring Mode ON"
+        pauseBDAlarm.off()
+    }
+    
     // Cancel any pending alarm executions
     unschedule(executeAlarmsOn)
     unschedule(executeShedSirenOn)
