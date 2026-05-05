@@ -485,6 +485,12 @@ def initialize() {
         logInfo "Subscribed to illuminance sensor for modes: ${settings.skeeterIlluminanceModes}"
     }
     
+    // Subscribe to rain switch to turn skeeters off when rain starts
+    if (settings.skeeterRainSwitch && settings.skeeterKiller) {
+        subscribe(settings.skeeterRainSwitch, "switch.on", rainNowOnHandler)
+        logInfo "Subscribed to rain switch: ${settings.skeeterRainSwitch.displayName}"
+    }
+    
     // Subscribe to mode changes for mosquito control
     subscribe(location, "mode", modeChangeHandler)
     
@@ -1234,6 +1240,17 @@ def isRainingNow() {
     if (!settings.skeeterRainSwitch) return false
     def rainState = settings.skeeterRainSwitch.currentValue("switch")
     return rainState == "on"
+}
+
+def rainNowOnHandler(evt) {
+    if (!settings.skeeterKiller) return
+    logInfo "RainingNow turned ON — turning mosquito killers OFF"
+    settings.skeeterKiller.each { device ->
+        if (device.currentValue("switch") != "off") {
+            logDebug "Turning OFF ${device.displayName} (rain)"
+            device.off()
+        }
+    }
 }
 
 // ============================================================================
