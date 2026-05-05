@@ -164,6 +164,11 @@ def mainPage() {
                   defaultValue: 5,
                   range: "1..60",
                   required: false
+
+            input "skeeterRainSwitch", "capability.switch",
+                  title: "Rain Sensor Switch (Optional)",
+                  description: "When ON, mosquito killers will not turn on (e.g. RainingNow switch)",
+                  required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>WATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
@@ -795,6 +800,10 @@ def handleSkeeterMode(String mode) {
             logInfo "Mode ${mode} would trigger mosquito killer ON, but temperature is too low"
             return
         }
+        if (isRainingNow()) {
+            logInfo "Mode ${mode} would trigger mosquito killer ON, but RainingNow is active"
+            return
+        }
         
         logInfo "Mode ${mode} triggers mosquito killer ON (mode-based rule)"
         settings.skeeterKiller?.each { device ->
@@ -887,6 +896,10 @@ def checkIlluminance() {
         // Check temperature before turning on
         if (!isSkeeterTempOk()) {
             logInfo "Illuminance ${illuminance} lux < ${threshold} lux would trigger skeeter ON, but temperature is too low"
+            return
+        }
+        if (isRainingNow()) {
+            logInfo "Illuminance ${illuminance} lux < ${threshold} lux would trigger skeeter ON, but RainingNow is active"
             return
         }
         
@@ -1211,6 +1224,16 @@ def isSkeeterTempOk() {
     }
     
     return tempOk
+}
+
+/**
+ * Check if rain switch indicates it is currently raining
+ * @return true if raining (skeeter should stay off), false otherwise
+ */
+def isRainingNow() {
+    if (!settings.skeeterRainSwitch) return false
+    def rainState = settings.skeeterRainSwitch.currentValue("switch")
+    return rainState == "on"
 }
 
 // ============================================================================

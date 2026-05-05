@@ -153,6 +153,7 @@ The labels (e.g. "Today", "Tonight") come directly from the NWS API, so they are
 - **Modes to Turn Skeeter OFF**: Hub modes that deactivate mosquito killer
 - **Illuminance Sensor**: Optional sensor for Day mode light-based control
 - **Illuminance Threshold**: Light level in lux - skeeter turns ON when below threshold (Day mode only, default: 500 lux)
+- **Rain Sensor Switch**: Optional switch (e.g. RainingNow) — when ON, mosquito killers will not turn on
 
 ### Water Control
 - **Water Control Valve**: Water valve switch
