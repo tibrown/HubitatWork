@@ -799,15 +799,7 @@ def handleSkeeterMode(String mode) {
         return
     }
     
-    // Check if this mode uses illuminance-based control
-    // If so, illuminance control takes priority over mode-based rules
-    if (mode in (settings.skeeterIlluminanceModes ?: []) && settings.skeeterIlluminanceSensor) {
-        logDebug "${mode} mode: using illuminance-based skeeter control (overrides mode On/Off rules)"
-        checkIlluminance()
-        return
-    }
-    
-    // For modes NOT using illuminance control, use mode-based On/Off rules
+    // Mode-based On rules take priority over illuminance control
     if (settings.skeeterOnModes?.contains(mode)) {
         // Check temperature before turning on
         if (!isSkeeterTempOk()) {
@@ -826,6 +818,11 @@ def handleSkeeterMode(String mode) {
                 device.on()
             }
         }
+    } else if (mode in (settings.skeeterIlluminanceModes ?: []) && settings.skeeterIlluminanceSensor) {
+        // Illuminance control applies only when mode is NOT in skeeterOnModes
+        logDebug "${mode} mode: using illuminance-based skeeter control"
+        checkIlluminance()
+        return
     } else if (settings.skeeterOffModes?.contains(mode)) {
         logInfo "Mode ${mode} triggers mosquito killer OFF (mode-based rule)"
         settings.skeeterKiller?.each { device ->
