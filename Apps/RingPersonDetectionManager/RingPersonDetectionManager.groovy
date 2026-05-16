@@ -39,6 +39,12 @@ def mainPage() {
                 description: "Modes for enhanced night security actions (lights, EchoMessage, whisper)"
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE SOFT SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Select Ring Person Detection virtual switches that will send notifications to their own notification devices during Night Modes, without triggering lights."
+            input "nightModeSoftSwitches", "capability.switch", title: "Night Mode Soft Switches", multiple: true, required: false
+            input "nightModeSoftNotificationDevices", "capability.notification", title: "Night Mode Soft Notification Devices", multiple: true, required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION ONLY SWITCHES / MODES</b>\n<b>═══════════════════════════════════════</b>") {
             paragraph "Select additional Ring Person Detection virtual switches and the modes during which they will send notifications. Silent switches still suppress all notifications."
             input "notificationOnlySwitches", "capability.switch", title: "Notification Only Switches", multiple: true, required: false
@@ -97,6 +103,12 @@ def initialize() {
             logDebug "Reset ${sw.displayName} to off on init"
         }
     }
+    nightModeSoftSwitches?.each { sw ->
+        if (sw.currentValue("switch") == "on") {
+            sw.off()
+            logDebug "Reset ${sw.displayName} to off on init"
+        }
+    }
     
     // Subscribe to each RPD switch - react when they turn on
     rpdSwitches?.each { sw ->
@@ -105,6 +117,10 @@ def initialize() {
     }
     notificationOnlySwitches?.each { sw ->
         subscribe(sw, "switch.on", handleNotificationOnlyRPD)
+        logDebug "Subscribed to ${sw.displayName}"
+    }
+    nightModeSoftSwitches?.each { sw ->
+        subscribe(sw, "switch.on", handleNightModeSoftRPD)
         logDebug "Subscribed to ${sw.displayName}"
     }
     
@@ -122,6 +138,19 @@ def handleRPD(evt) {
     if (isNightMode()) {
         sendNotification(message)
         if (allLightsSwitch) allLightsSwitch.on()
+    }
+}
+
+// ==================== Night Mode Soft Switch Handler ====================
+
+def handleNightModeSoftRPD(evt) {
+    def device = evt.device
+    def message = device.label
+
+    logInfo "Person detected (night mode soft): ${message}"
+    runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (isNightMode()) {
+        sendSoftNotification(message)
     }
 }
 
@@ -143,6 +172,7 @@ def handleNotificationOnlyRPD(evt) {
 def resetRPDSwitch(data) {
     def sw = rpdSwitches?.find { it.id == data.deviceId }
     if (!sw) sw = notificationOnlySwitches?.find { it.id == data.deviceId }
+    if (!sw) sw = nightModeSoftSwitches?.find { it.id == data.deviceId }
     if (sw) {
         sw.off()
         logDebug "Reset ${sw.displayName}"
@@ -164,6 +194,25 @@ def sendNotification(String message) {
     
     if (notificationDevices) {
         notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+    
+}
+
+/**
+ * Send notification to Night Mode Soft notification devices
+ */
+def sendSoftNotification(String message) {
+    if (isSilent()) {
+        logInfo "Silent switch is ON - suppressing soft notification: ${message}"
+        return
+    }
+    
+    logInfo "Sending soft notification: ${message}"
+    
+    if (nightModeSoftNotificationDevices) {
+        nightModeSoftNotificationDevices.each { device ->
             device.deviceNotification(message)
         }
     }

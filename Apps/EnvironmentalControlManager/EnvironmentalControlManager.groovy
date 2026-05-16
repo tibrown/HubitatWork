@@ -626,6 +626,14 @@ def skeeterTempHandler(evt) {
                 }
             }
         }
+    } else {
+        // Temp has risen above threshold — re-evaluate whether skeeter should be on
+        // (handles case where skeeter was blocked from turning on by a prior cold reading)
+        def anyOff = settings.skeeterKiller?.any { it.currentValue("switch") == "off" }
+        if (anyOff) {
+            logInfo "Temperature ${temp}°F > ${threshold}°F, re-evaluating skeeter state"
+            handleCurrentMode()
+        }
     }
 }
 
