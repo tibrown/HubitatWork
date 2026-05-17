@@ -551,6 +551,9 @@ def initialize() {
     state.chickenHeaterAnnouncedOn = state.chickenHeaterAnnouncedOn ?: false
     state.chickenHeaterAnnouncedOff = state.chickenHeaterAnnouncedOff ?: true
     
+    // Initialize previous mode tracking for illuminance schedule management
+    state.previousMode = location.currentMode.toString()
+    
     // Check chicken heater state on startup
     checkChickenHeaterOnStartup()
     
@@ -667,8 +670,9 @@ def modeChangeHandler(evt) {
     logInfo "Mode changed to: ${evt.value}"
     
     // Cancel periodic checks when leaving an illuminance-controlled mode
-    def oldMode = evt.oldValue ?: ""
+    def oldMode = state.previousMode ?: ""
     def newMode = evt.value
+    state.previousMode = newMode
     
     if (oldMode in (settings.skeeterIlluminanceModes ?: []) && !(newMode in (settings.skeeterIlluminanceModes ?: []))) {
         unschedule(periodicIlluminanceCheck)
