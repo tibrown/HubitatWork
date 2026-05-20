@@ -38,8 +38,12 @@ def mainPage() {
         }
 
         section("<b>TIMING SETTINGS</b>") {
-            input "initialDelay", "number", title: "Initial Delay Before First Notification (minutes)",
-                defaultValue: 30, range: "1..240", required: true
+            input "hubVar_WaterTimeout", "number",
+                title: "Water Auto-Off Timeout",
+                description: "Automatically shut off water after this duration (minutes). Sets WaterTimeout hub variable.",
+                defaultValue: 30,
+                range: "1..180",
+                required: false
             input "repeatInterval", "number", title: "Repeat Notification Interval (minutes)",
                 defaultValue: 15, range: "1..120", required: true
         }
@@ -80,10 +84,11 @@ def updated() {
 
 def initialize() {
     logInfo "Initializing Water Is On Monitor"
+    setGlobalVar("WaterTimeout", (settings.hubVar_WaterTimeout ?: 30).toString())
     if (waterIsOnSwitch) {
         subscribe(waterIsOnSwitch, "switch", waterSwitchHandler)
         logInfo "Subscribed to switch events from ${waterIsOnSwitch.displayName}"
-        logDebug "Initial delay: ${settings.initialDelay ?: 30} min, repeat interval: ${settings.repeatInterval ?: 15} min"
+        logDebug "WaterTimeout: ${settings.hubVar_WaterTimeout ?: 30} min, repeat interval: ${settings.repeatInterval ?: 15} min"
     } else {
         logInfo "No water switch configured – nothing to monitor"
     }
@@ -99,10 +104,11 @@ def waterSwitchHandler(evt) {
     logInfo "WATER SWITCH EVENT: '${switchState}'"
 
     if (switchState == "on") {
-        logInfo "Water turned ON – scheduling notification in ${settings.initialDelay ?: 30} minute(s)"
+        Integer waterTimeoutMinutes = (getGlobalVar("WaterTimeout")?.value as Integer) ?: (settings.hubVar_WaterTimeout ?: 30)
+        logInfo "Water turned ON – scheduling notification in ${waterTimeoutMinutes} minute(s) from WaterTimeout"
         unschedule(handleWaterTimerExpired)
         unschedule(sendWaterRepeatReminder)
-        Integer delaySecs = (settings.initialDelay ?: 30) * 60
+        Integer delaySecs = ((getGlobalVar("WaterTimeout")?.value as Integer) ?: (settings.hubVar_WaterTimeout ?: 30)) * 60
         runIn(delaySecs, handleWaterTimerExpired)
     } else if (switchState == "off") {
         logInfo "Water turned OFF – cancelling all pending reminders"
