@@ -124,7 +124,39 @@ def initialize() {
         logDebug "Subscribed to ${sw.displayName}"
     }
     
+    // Subscribe to hub variable set by the Android app
+    subscribe(location, "variable:RingPersonDetected", handleRingPersonDetected)
+    logDebug "Subscribed to hub variable RingPersonDetected"
+    
     logInfo "Subscriptions complete"
+}
+
+// ==================== Hub Variable Handler ====================
+
+def handleRingPersonDetected(evt) {
+    def notificationText = evt.value
+    logInfo "RingPersonDetected variable set: \"${notificationText}\""
+
+    // Extract location from Ring message: "There is a person at your <location>"
+    def searchText = notificationText
+    def matcher = notificationText =~ /(?i)at your\s+(.+)/
+    if (matcher) {
+        searchText = matcher[0][1].trim()
+        logDebug "Extracted location: \"${searchText}\""
+    }
+
+    def allSwitches = (rpdSwitches ?: []) + (notificationOnlySwitches ?: []) + (nightModeSoftSwitches ?: [])
+    def matched = allSwitches.find { sw ->
+        def label = sw.label?.toLowerCase()
+        label && label.contains(searchText.toLowerCase())
+    }
+
+    if (matched) {
+        logInfo "Matched switch \"${matched.label}\" — turning on"
+        matched.on()
+    } else {
+        logInfo "No configured switch matched for location: \"${searchText}\""
+    }
 }
 
 // ==================== RPD Switch Handler ====================
