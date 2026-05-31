@@ -169,6 +169,11 @@ def mainPage() {
                   title: "Rain Sensor Switch (Optional)",
                   description: "When ON, mosquito killers will not turn on (e.g. RainingNow switch)",
                   required: false
+
+            input "skeeterIllumOverride", "capability.switch",
+                  title: "Illuminance Override Switch (Optional)",
+                  description: "When ON, illuminance-based control is bypassed — you can turn skeeters on/off manually",
+                  required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>WATER CONTROL</b>\n<b>═══════════════════════════════════════</b>") {
@@ -489,6 +494,12 @@ def initialize() {
     if (settings.skeeterRainSwitch && settings.skeeterKiller) {
         subscribe(settings.skeeterRainSwitch, "switch.on", rainNowOnHandler)
         logInfo "Subscribed to rain switch: ${settings.skeeterRainSwitch.displayName}"
+    }
+    
+    // Subscribe to illuminance override switch
+    if (settings.skeeterIllumOverride && settings.skeeterKiller) {
+        subscribe(settings.skeeterIllumOverride, "switch", illumOverrideHandler)
+        logInfo "Subscribed to illuminance override switch: ${settings.skeeterIllumOverride.displayName}"
     }
     
     // Subscribe to mode changes for mosquito control
@@ -896,6 +907,12 @@ def checkIlluminance() {
         return
     }
     
+    // If illuminance override switch is ON, skip automatic illuminance control
+    if (settings.skeeterIllumOverride?.currentValue("switch") == "on") {
+        logDebug "Illuminance check skipped — IllumOverride is ON (manual control active)"
+        return
+    }
+    
     def currentMode = location.currentMode.toString()
     if (!(currentMode in (settings.skeeterIlluminanceModes ?: []))) {
         logDebug "Not in an illuminance-controlled mode, skipping illuminance check"
@@ -933,6 +950,15 @@ def checkIlluminance() {
                 device.off()
             }
         }
+    }
+}
+
+def illumOverrideHandler(evt) {
+    if (evt.value == "on") {
+        logInfo "IllumOverride turned ON — illuminance-based skeeter control suspended (manual control active)"
+    } else {
+        logInfo "IllumOverride turned OFF — resuming illuminance-based skeeter control"
+        checkIlluminance()
     }
 }
 

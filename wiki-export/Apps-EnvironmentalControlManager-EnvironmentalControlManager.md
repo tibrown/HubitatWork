@@ -37,6 +37,7 @@ This app replaces the following Rule Machine rules:
 - **Freeze Protection**: Alerts when temperature drops dangerously low
 - **Office Heating**: Maintains comfortable office temperature
 - **Mosquito Control**: Mode-based scheduling and Day mode illuminance-based control
+- **Illuminance Override**: Manual skeeter control bypass when automatic illuminance control should be suspended
 - **Water Safety**: Auto-shutoff prevents flooding
 - **Alexa Integration**: Voice control for greenhouse systems
 - **Temperature Monitoring**: Real-time sensor tracking
@@ -131,6 +132,7 @@ Initial Value: 30
 - **Modes to Turn Skeeter OFF**: Hub modes that deactivate mosquito killer
 - **Illuminance Sensor**: Optional sensor for Day mode light-based control
 - **Illuminance Threshold**: Light level in lux - skeeter turns ON when below threshold (Day mode only, default: 500 lux)
+- **Illuminance Override Switch**: Optional Hub Connector switch — when ON, illuminance-based control is suspended and the skeeter killer can be controlled manually
 
 ### Water Control
 - **Water Control Valve**: Water valve switch
@@ -201,6 +203,20 @@ Initial Value: 30
 2. **Day mode only** - Illuminance rises above 500 lux → Mosquito killer turns OFF
 3. Other modes use mode-based control instead
 4. Useful for cloudy/overcast days when it gets dark before mode change
+
+### Example 5: Illuminance Override for Manual Control
+**Scenario**: It's daytime but you want to run the skeeters even though illuminance is above the threshold
+
+**Configuration**:
+- Mosquito killer device configured
+- Illuminance sensor and threshold configured (e.g. 200 lux)
+- Hub Connector switch named `IllumOverride` configured as the Illuminance Override Switch
+
+**Behavior**:
+1. Turn ON `IllumOverride` switch → app ignores illuminance readings; you can manually turn skeeters on/off
+2. Skeeters stay in whatever state you leave them
+3. Turn OFF `IllumOverride` switch → app immediately re-checks illuminance and resumes automatic control
+4. Temperature and rain guards still apply at all times
 
 ### Example 5: Water Safety Auto-Shutoff
 **Scenario**: Prevent water valve from being left on
