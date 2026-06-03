@@ -18,7 +18,7 @@ definition(
     name: "Night Security Manager",
     namespace: "timbrown",
     author: "Tim Brown",
-    description: "Comprehensive nighttime security monitoring and intruder detection system. Handles door/window sensors, motion detection, Ring person detection, and coordinates with alarm and lighting systems.",
+    description: "Comprehensive nighttime security monitoring and intruder detection system. Handles door/window sensors, motion detection, and coordinates with alarm and lighting systems.",
     category: "Security",
     iconUrl: "",
     iconX2Url: "",
@@ -35,12 +35,10 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "standardIntruderSensors", "capability.contactSensor", title: "Standard Intruder Sensors (e.g. French doors, front door)", multiple: true, required: false
             input "shedSensors", "capability.contactSensor", title: "Shed Sensors (e.g. concrete shed, woodshed, she shed)", multiple: true, required: false
-            input "standardRpdSwitches", "capability.switch", title: "Standard RPD Switches (e.g. front door, garden, back door)", multiple: true, required: false
             input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: true
             input "carportBeam", "capability.contactSensor", title: "Carport Beam (closed = beam broken)", required: true
             input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion (verification)", required: true
             input "doorDiningRoom", "capability.contactSensor", title: "Dining Room Door", required: true
-            input "rpdBirdHouse", "capability.switch", title: "RPD Bird House (Switch)", required: true
             input "chickenPenOutside", "capability.motionSensor", title: "Chicken Pen Outside Motion (temperature only)", required: false
             input "outsideBackdoor", "capability.motionSensor", title: "Outside Backdoor Motion", required: true
             input "floodSide", "capability.motionSensor", title: "Flood Side Motion", required: true
@@ -66,8 +64,6 @@ def mainPage() {
 
         section("<b>═══════════════════════════════════════</b>\n<b>ACTIONS / OUTPUTS</b>\n<b>═══════════════════════════════════════</b>") {
             input "sirens", "capability.alarm", title: "Sirens", multiple: true, required: true
-            input "allLights", "capability.switch", title: "All Lights", multiple: true, required: true
-            input "guestRoomEcho", "capability.notification", title: "Guest Room Echo", required: true
         }
 
         section("<b>═══════════════════════════════════════</b>\n<b>RESTRICTIONS</b>\n<b>═══════════════════════════════════════</b>") {
@@ -122,11 +118,9 @@ def initialize() {
     logInfo "Initializing Night Security Manager"
     standardIntruderSensors?.each { subscribe(it, "contact.open", handleStandardIntruder) }
     shedSensors?.each { subscribe(it, "contact.open", handleShedIntruder) }
-    standardRpdSwitches?.each { subscribe(it, "switch.on", handleStandardRPD) }
     subscribe(doorBHScreen, "contact.open", handleBHScreen)
     subscribe(carportBeam, "contact", handleCarportBeam)
     subscribe(doorDiningRoom, "contact.open", handleDiningRoomDoor)
-    subscribe(rpdBirdHouse, "switch.on", handleRPDBirdHouse)
     subscribe(outsideBackdoor, "motion", handleBackdoorMotion)
     subscribe(doorLanai, "contact.open", handleIntruderBackdoor)
     subscribe(location, "mode", modeChangeHandler)
@@ -170,7 +164,7 @@ def handleCarportBeam(evt) {
          logBeamActivity("Carport beam broken")
          
          // Check if motion or Ring person detection is active (verification to avoid false positives from animals)
-         Boolean motionVerified = carportFrontMotion.currentValue("motion") == "active" || standardRpdSwitches?.any { it.currentValue("switch") == "on" }
+         Boolean motionVerified = carportFrontMotion.currentValue("motion") == "active"
          
          if (!motionVerified) {
              logDebug "Beam broken but no motion/person verification - skipping alert to avoid false positives"
@@ -218,13 +212,7 @@ def stopShedSiren() {
 }
 
 def turnAllLightsOnNow() {
-    allLights.on()
     allLightsOn.on()
-}
-
-def whisperToGuestroomNow() {
-    def msg = getGlobalVar("EchoMessage").value
-    guestRoomEcho.deviceNotification(msg)
 }
 
 def handleConcreteShed(evt) { }
@@ -266,31 +254,6 @@ def handleShedIntruder(evt) {
     executeShedSirenOn()
     turnAllLightsOnNow()
 }
-
-def handleStandardRPD(evt) {
-    if (!isActiveMode()) return
-    if (silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") return
-    def message = evt.device.label
-    logInfo "Person detected: ${message}"
-    notificationDevices.each { it.deviceNotification(message) }
-    allLightsOn.on()
-}
-
-def handleRPDFrontDoor(evt) { }
-
-def handleRPDBirdHouse(evt) {
-    if (!isActiveMode()) return
-    allLightsOn.on()
-    if (silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-        notificationDevices.each { it.deviceNotification(evt.device.label) }
-        setGlobalVar("EchoMessage", evt.device.label)
-        whisperToGuestroomNow()
-    }
-}
-
-def handleRPDGarden(evt) { }
-
-def handleRPDBackDoor(evt) { }
 
 def handleSheShed(evt) { }
 

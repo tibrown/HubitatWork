@@ -5,7 +5,7 @@
 
 ## Features
 - **Consolidated Security Logic**: Replaces multiple individual Rule Machine rules with a unified app
-- **Multi-sensor Monitoring**: Monitors doors, motion sensors, contact sensors, and Ring Person Detection (RPD) devices
+- **Multi-sensor Monitoring**: Monitors doors, motion sensors, and contact sensors
 - **Intelligent Alarm Response**: 
   - Configurable siren activation with automatic shut-off
   - Differentiated responses (full alarm vs. warning blast)
@@ -13,13 +13,14 @@
 - **Automated Lighting**: Turns on all lights to deter intruders
 - **Smart Notifications**: 
   - Push notifications to mobile devices
-  - Voice alerts via Echo devices
   - Customizable messages per event
 - **Conditional Logic**:
   - Mode-based restrictions (e.g., only run in Night mode)
-  - Time-based conditions (e.g., 10:30 PM to 6:00 AM for carport)
+  - Time-based conditions (e.g., carport beam hours)
   - Travel mode support
   - Pause switches for temporary disablement
+
+> **Note**: Ring Person Detection (RPD) events are handled exclusively by **Ring Person Detection Manager**.
 
 ## Setup in Hubitat Hub
 
@@ -35,20 +36,12 @@
 ### Configuration Options
 
 #### Sensors Section
+- **Standard Intruder Sensors** (optional, multiple): Contact sensors for doors/windows (e.g. French doors, front door)
+- **Shed Sensors** (optional, multiple): Contact sensors for outbuildings (e.g. concrete shed, woodshed, she shed)
 - **BH Screen Door** (required): Contact sensor for birdhouse screen door
 - **Carport Beam** (required): Contact sensor (beam break detector)
-- **Carport Front Motion** (required): Motion sensor in carport area
-- **Concrete Shed Door** (required): Contact sensor for shed door
+- **Carport Front Motion** (required): Motion sensor in carport area (verification)
 - **Dining Room Door** (required): Contact sensor for dining room entry
-- **Living Room French Doors** (required): Contact sensor for French doors
-- **Front Door** (required): Main entry door contact sensor
-- **Woodshed Door** (required): Contact sensor for woodshed
-- **RPD Front Door** (required): Ring Person Detection switch for front door
-- **RPD Bird House** (required): Ring Person Detection switch for side yard
-- **RPD Garden** (required): Ring Person Detection switch for garden area
-- **RPD Rear Gate** (required): Ring Person Detection switch for rear gate
-- **Chicken Pen Outside Motion** (required): Motion sensor near chicken pen
-- **She Shed Door (BirdHouse)** (required): Contact sensor for she shed
 - **Outside Backdoor Motion** (required): Motion sensor at back door
 - **Flood Side Motion** (required): Motion sensor on side of house
 - **Lanai Door (Backdoor)** (required): Contact sensor for lanai/back door
@@ -69,7 +62,6 @@
 #### Actions / Outputs Section
 - **Sirens** (required, multiple): Alarm devices to activate during intrusions
 - **All Lights** (required, multiple): All light switches to turn on during alarms
-- **Guest Room Echo** (required): Echo device for voice notifications
 
 #### Restrictions Section
 - **Only run in these modes** (required, multiple): Select modes when app is active (typically "Night")
@@ -91,12 +83,11 @@ The app subscribes to all configured sensors and switches. When any sensor trigg
 - **Action**: Send notification "BH Screen Door Open"
 
 #### Carport Beam
-- **Trigger**: Beam broken (contact opens)
-- **Time Condition**: Between 10:30 PM and 6:00 AM OR High Alert is ON
-- **Additional Conditions**: Silent OFF AND Carport Front Motion active
+- **Trigger**: Beam broken (contact closes)
+- **Conditions**: Silent OFF AND Carport Front Motion active
 - **Actions**: 
   - Send notification "Alert! Intruder in the carport!"
-  - Wait 5 seconds, then activate sirens for 5 minutes
+  - Wait configured delay, then activate sirens for alarm duration
 
 #### Concrete Shed Door
 - **Trigger**: Door opens
@@ -138,34 +129,6 @@ The app subscribes to all configured sensors and switches. When any sensor trigg
   - Activate siren warning blast (4 seconds)
   - Turn on all lights
 
-#### RPD Front Door
-- **Trigger**: Person detected (switch turns ON)
-- **Actions**:
-  - Send notification "Person at the Front Door"
-  - Turn on All Lights ON switch
-
-#### RPD Bird House
-- **Trigger**: Person detected (switch turns ON)
-- **Actions**:
-  - Send notification "Intruder at the Bird House"
-  - Turn on All Lights ON switch
-  - Set global variable "EchoMessage" to alert text
-  - Send voice alert to Guest Room Echo
-
-#### RPD Garden
-- **Trigger**: Person detected (switch turns ON)
-- **Actions**:
-  - Send notification "Intruder in the Garden"
-  - Turn on All Lights ON switch
-
-#### RPD Rear Gate
-- **Trigger**: Person detected (switch turns ON)
-- **Additional Condition**: Chicken Pen Outside Motion is active
-- **Time Condition**: Between 8:00 PM and 6:00 AM
-- **Actions**:
-  - Set Rear Gate Active switch to ON
-  - Send notification "Intruder at the Rear Gate"
-
 #### She Shed Door
 - **Trigger**: Door opens
 - **Condition**: Silent OFF
@@ -203,12 +166,7 @@ The app subscribes to all configured sensors and switches. When any sensor trigg
 - Turns on all lights in the All Lights group
 - Turns on the All Lights ON master switch
 
-#### whisperToGuestroomNow()
-- Reads the "EchoMessage" global variable
-- Sends the message to Guest Room Echo for voice notification
-
 ## Global Variables Used
-- **EchoMessage**: Stores message for Echo voice alerts
 - **AlertMessage**: Stores general alert messages
 
 ## Troubleshooting
