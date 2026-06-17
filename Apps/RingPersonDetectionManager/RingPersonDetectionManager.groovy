@@ -26,31 +26,28 @@ class RingPersonDetectionManager {
         }
     }
 
-    def eventHandler(event) {
-        def deviceName = event.deviceName
-        
-        // Check if the device is in the night mode list
-        if (nightModeDevices.contains(deviceName)) {
-            handleNightModeEvent(event)
-        }
-        
-        // Check if the device is in the notification only list
-        if (notificationOnlyDevices.contains(deviceName)) {
-            handleNotificationOnlyEvent(event)
-        }
-    }
+    def eventHandler(evt) {
+        log.debug "eventHandler: $evt"
 
-    def handleNightModeEvent(event) {
-        // Custom logic for handling night mode events
-        log.debug("Handling night mode event for device: ${event.deviceName}")
-        
-        // Send notifications, etc.
-    }
+        if (isNightMode()) {
+            def nightModeDevices = getNightModeDevices()
+            if (nightModeDevices.contains(deviceToCheck)) {
+                takeAction(nightModeDevices, evt)
+            }
+        }
 
-    def handleNotificationOnlyEvent(event) {
-        // Custom logic for handling notification only events
-        log.debug("Handling notification only event for device: ${event.deviceName}")
-        
-        // Send notifications, etc.
+        if (isNotificationOnlyMode()) {
+            def notificationOnlyDevices = getNotificationOnlyDevices() 
+            if (notificationOnlyDevices.contains(deviceToCheck)) {
+                sendNotification(notificationOnlyDevices, evt)
+            }
+        }
+
+        def allDevices = getAllDevices()
+        if (allDevices.contains(deviceToCheck)) {
+            takeAction(allDevices, evt)
+        } else {
+            log.warn "Device ${deviceToCheck} not found in any lists"
+        }
     }
 }
