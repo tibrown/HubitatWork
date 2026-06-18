@@ -163,30 +163,37 @@ def handleRingPersonDetected(evt) {
         def label = sw.label?.toLowerCase()
         label && label.contains(searchLower)
     }
+    
+    boolean actionTaken = false
 
-    if (matchedRpd) {
-        if (isNightMode()) {
-            logInfo "Matched night mode switch \"${matchedRpd.label}\" — turning on"
-            matchedRpd.on()
+    // 1. Check Night Mode
+    if (matchedRpd && isNightMode()) {
+        logInfo "Matched night mode switch \"${matchedRpd.label}\" — turning on"
+        matchedRpd.on()
+        actionTaken = true
+    } 
+    
+    // 2. Check Night Soft Mode (if Night Mode didn't trigger)
+    if (!actionTaken && matchedNightSoft && isNightMode()) {
+        logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" — turning on"
+        matchedNightSoft.on()
+        actionTaken = true
+    }
+    
+    // 3. Check Notification Only Mode (if neither Night Mode triggered)
+    if (!actionTaken && matchedNotifOnly && isNotificationOnlyMode()) {
+        logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" — turning on"
+        matchedNotifOnly.on()
+        actionTaken = true
+    }
+
+    // 4. Catch-all for logging
+    if (!actionTaken) {
+        if (matchedRpd || matchedNightSoft || matchedNotifOnly) {
+            logInfo "Device matched a list, but current mode (${location.mode}) does not allow activation — skipping."
         } else {
-            logInfo "Matched night mode switch \"${matchedRpd.label}\" but current mode (${location.mode}) is not a night mode — skipping"
+            logInfo "No configured switch matched for location: \"${searchText}\""
         }
-    } else if (matchedNightSoft) {
-        if (isNightMode()) {
-            logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" — turning on"
-            matchedNightSoft.on()
-        } else {
-            logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" but current mode (${location.mode}) is not a night mode — skipping"
-        }
-    } else if (matchedNotifOnly) {
-        if (isNotificationOnlyMode()) {
-            logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" — turning on"
-            matchedNotifOnly.on()
-        } else {
-            logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" but current mode (${location.mode}) is not an active notification mode — skipping"
-        }
-    } else {
-        logInfo "No configured switch matched for location: \"${searchText}\""
     }
 }
 
