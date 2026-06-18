@@ -1,53 +1,319 @@
-import groovy.json.JsonSlurper
+/**
+ *  Ring Person Detection Manager
+ *
+ *  Copyright 2025 Tim Brown
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ */
 
-class RingPersonDetectionManager {
-    def config = [:]
-    def nightModeDevices = []
-    def notificationOnlyDevices = []
+definition(
+    name: "Ring Person Detection Manager",
+    namespace: "timbrown",
+    author: "Tim Brown",
+    description: "Monitors RPD switches and takes mode-based actions for Ring person detection",
+    category: "Security",
+    iconUrl: "",
+    iconX2Url: "",
+    iconX3Url: "",
+    singleThreaded: true
+)
 
-    RingPersonDetectionManager(context) {
-        this.context = context
+preferences {
+    page(name: "mainPage")
+}
+
+def mainPage() {
+    dynamicPage(name: "mainPage", title: "Ring Person Detection Manager", install: true, uninstall: true) {
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE SWITCHES / MODES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Select Ring Person Detection virtual switches that will only send notifications during Night Modes. The alert message sent for each camera is the device's <b>Label</b> (set in the Device Info tab in Hubitat)."
+            input "rpdSwitches", "capability.switch", title: "Night Mode Switches", multiple: true, required: false
+            input "nightModes", "mode", title: "Night Modes", multiple: true, required: false,
+                description: "Modes for enhanced night security actions (lights, EchoMessage, whisper)"
+        }
         
-        // Load configuration
-        loadConfig()
-    }
-
-    def loadConfig() {
-        def jsonSlurper = new JsonSlurper()
-        def configFile = new File("config/ring-person-detection-config.json")
-        if (configFile.exists()) {
-            config = jsonSlurper.parse(configFile)
-            
-            // Load night mode devices
-            nightModeDevices = config.nightModeDevices
-            
-            // Load notification only devices
-            notificationOnlyDevices = config.notificationOnlyDevices
+        section("<b>═══════════════════════════════════════</b>\n<b>NIGHT MODE SOFT SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Select Ring Person Detection virtual switches that will send notifications to their own notification devices during Night Modes, without triggering lights."
+            input "nightModeSoftSwitches", "capability.switch", title: "Night Mode Soft Switches", multiple: true, required: false
+            input "nightModeSoftNotificationDevices", "capability.notification", title: "Night Mode Soft Notification Devices", multiple: true, required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION ONLY SWITCHES / MODES</b>\n<b>═══════════════════════════════════════</b>") {
+            paragraph "Select additional Ring Person Detection virtual switches and the modes during which they will send notifications. Silent switches still suppress all notifications."
+            input "notificationOnlySwitches", "capability.switch", title: "Notification Only Switches", multiple: true, required: false
+            input "notificationOnlyModes", "mode", title: "Active Modes", multiple: true, required: false,
+                description: "Modes during which these switches will send notifications"
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>NOTIFICATION DEVICES</b>\n<b>═══════════════════════════════════════</b>") {
+            input "notificationDevices", "capability.notification", title: "Notification Devices", 
+                multiple: true, required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
+            input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
+            input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
+            input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>TIMING CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
+            input "generalResetDelay", "number", title: "Reset Delay (seconds)",
+                defaultValue: 3, range: "1..60", required: false
+        }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
+            input "logLevel", "enum", title: "Logging Level", 
+                options: ["None", "Info", "Debug", "Trace"], 
+                defaultValue: "Info", required: true
         }
     }
+}
 
-    def eventHandler(evt) {
-        log.debug "eventHandler: $evt"
+def installed() {
+    logInfo "Ring Person Detection Manager installed"
+    initialize()
+}
 
+def updated() {
+    logInfo "Ring Person Detection Manager updated"
+    unsubscribe()
+    initialize()
+}
+
+def initialize() {
+    logInfo "Initializing Ring Person Detection Manager"
+    
+    // Reset all RPD switches to off on startup
+    rpdSwitches?.each { sw ->
+        if (sw.currentValue("switch") == "on") {
+            sw.off()
+            logDebug "Reset ${sw.displayName} to off on init"
+        }
+    }
+    notificationOnlySwitches?.each { sw ->
+        if (sw.currentValue("switch") == "on") {
+            sw.off()
+            logDebug "Reset ${sw.displayName} to off on init"
+        }
+    }
+    nightModeSoftSwitches?.each { sw ->
+        if (sw.currentValue("switch") == "on") {
+            sw.off()
+            logDebug "Reset ${sw.displayName} to off on init"
+        }
+    }
+    
+    // Subscribe to each RPD switch - react when they turn on
+    rpdSwitches?.each { sw ->
+        subscribe(sw, "switch.on", handleRPD)
+        logDebug "Subscribed to ${sw.displayName}"
+    }
+    notificationOnlySwitches?.each { sw ->
+        subscribe(sw, "switch.on", handleNotificationOnlyRPD)
+        logDebug "Subscribed to ${sw.displayName}"
+    }
+    nightModeSoftSwitches?.each { sw ->
+        subscribe(sw, "switch.on", handleNightModeSoftRPD)
+        logDebug "Subscribed to ${sw.displayName}"
+    }
+    
+    // Subscribe to hub variable set by the Android app
+    subscribe(location, "variable:RingPersonDetected", handleRingPersonDetected)
+    logDebug "Subscribed to hub variable RingPersonDetected"
+    
+    logInfo "Subscriptions complete"
+}
+
+// ==================== Hub Variable Handler ====================
+
+def handleRingPersonDetected(evt) {
+    def notificationText = evt.value
+    logInfo "RingPersonDetected variable set: \"${notificationText}\""
+
+    // Strip trailing timestamp (e.g., "[1717603200]") appended by Ring app to avoid duplicate-value suppression
+    notificationText = notificationText.replaceAll(/\s*\[\d+\]\s*$/, '').trim()
+    logDebug "After stripping timestamp: \"${notificationText}\""
+
+    // Extract location from Ring message: "There is a person at your <location>"
+    def searchText = notificationText
+    def matcher = notificationText =~ /(?i)at your\s+(.+)/
+    if (matcher) {
+        searchText = matcher[0][1].trim()
+        logDebug "Extracted location: \"${searchText}\""
+    }
+
+    def searchLower = searchText.toLowerCase()
+
+    def matchedRpd = rpdSwitches?.find { sw ->
+        def label = sw.label?.toLowerCase()
+        label && label.contains(searchLower)
+    }
+    def matchedNightSoft = nightModeSoftSwitches?.find { sw ->
+        def label = sw.label?.toLowerCase()
+        label && label.contains(searchLower)
+    }
+    def matchedNotifOnly = notificationOnlySwitches?.find { sw ->
+        def label = sw.label?.toLowerCase()
+        label && label.contains(searchLower)
+    }
+
+    if (matchedRpd) {
         if (isNightMode()) {
-            def nightModeDevices = getNightModeDevices()
-            if (nightModeDevices.contains(deviceToCheck)) {
-                takeAction(nightModeDevices, evt)
-            }
-        }
-
-        if (isNotificationOnlyMode()) {
-            def notificationOnlyDevices = getNotificationOnlyDevices() 
-            if (notificationOnlyDevices.contains(deviceToCheck)) {
-                sendNotification(notificationOnlyDevices, evt)
-            }
-        }
-
-        def allDevices = getAllDevices()
-        if (allDevices.contains(deviceToCheck)) {
-            takeAction(allDevices, evt)
+            logInfo "Matched night mode switch \"${matchedRpd.label}\" — turning on"
+            matchedRpd.on()
         } else {
-            log.warn "Device ${deviceToCheck} not found in any lists"
+            logInfo "Matched night mode switch \"${matchedRpd.label}\" but current mode (${location.mode}) is not a night mode — skipping"
         }
+    } else if (matchedNightSoft) {
+        if (isNightMode()) {
+            logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" — turning on"
+            matchedNightSoft.on()
+        } else {
+            logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" but current mode (${location.mode}) is not a night mode — skipping"
+        }
+    } else if (matchedNotifOnly) {
+        if (isNotificationOnlyMode()) {
+            logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" — turning on"
+            matchedNotifOnly.on()
+        } else {
+            logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" but current mode (${location.mode}) is not an active notification mode — skipping"
+        }
+    } else {
+        logInfo "No configured switch matched for location: \"${searchText}\""
+    }
+}
+
+// ==================== RPD Switch Handler ====================
+
+def handleRPD(evt) {
+    def device = evt.device
+    def message = device.label
+
+    logInfo "Person detected: ${message}"
+    runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (isNightMode()) {
+        sendNotification(message)
+        if (allLightsSwitch) allLightsSwitch.on()
+    }
+}
+
+// ==================== Night Mode Soft Switch Handler ====================
+
+def handleNightModeSoftRPD(evt) {
+    def device = evt.device
+    def message = device.label
+
+    logInfo "Person detected (night mode soft): ${message}"
+    runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (isNightMode()) {
+        sendSoftNotification(message)
+    }
+}
+
+// ==================== Notification Only Switch Handler ====================
+
+def handleNotificationOnlyRPD(evt) {
+    def device = evt.device
+    def message = device.label
+
+    logInfo "Person detected (notification only): ${message}"
+    runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (isNotificationOnlyMode()) {
+        sendNotification(message)
+    }
+}
+
+// ==================== Reset Method ====================
+
+def resetRPDSwitch(data) {
+    def sw = rpdSwitches?.find { it.id == data.deviceId }
+    if (!sw) sw = notificationOnlySwitches?.find { it.id == data.deviceId }
+    if (!sw) sw = nightModeSoftSwitches?.find { it.id == data.deviceId }
+    if (sw) {
+        sw.off()
+        logDebug "Reset ${sw.displayName}"
+    }
+}
+
+// ==================== Helper Methods ====================
+
+/**
+ * Send notification to all configured devices
+ */
+def sendNotification(String message) {
+    if (isSilent()) {
+        logInfo "Silent switch is ON - suppressing notification: ${message}"
+        return
+    }
+    
+    logInfo "Sending notification: ${message}"
+    
+    if (notificationDevices) {
+        notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+    
+}
+
+/**
+ * Send notification to Night Mode Soft notification devices
+ */
+def sendSoftNotification(String message) {
+    if (isSilent()) {
+        logInfo "Silent switch is ON - suppressing soft notification: ${message}"
+        return
+    }
+    
+    logInfo "Sending soft notification: ${message}"
+    
+    if (nightModeSoftNotificationDevices) {
+        nightModeSoftNotificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+    
+}
+
+def isNightMode() {
+    if (!nightModes) return false
+    return location.mode in nightModes
+}
+
+def isNotificationOnlyMode() {
+    if (!notificationOnlyModes) return false
+    return location.mode in notificationOnlyModes
+}
+
+def isSilent() {
+    if (silentSwitch?.currentValue("switch") == "on") return true
+    if (silenceOfficeSwitch?.currentValue("switch") == "on") return true
+    return false
+}
+
+// ==================== Logging Methods ====================
+
+def logInfo(String msg) {
+    if (logLevel in ["Info", "Debug", "Trace"]) {
+        log.info msg
+    }
+}
+
+def logDebug(String msg) {
+    if (logLevel in ["Debug", "Trace"]) {
+        log.debug msg
+    }
+}
+
+def logTrace(String msg) {
+    if (logLevel == "Trace") {
+        log.trace msg
     }
 }
