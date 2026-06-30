@@ -104,8 +104,8 @@ Select the RPD virtual switches triggered by Ring person detection.
 - **Rear Gate Active Switch**: Turned on for rear gate/pen detections
 
 ### Timing Configuration
-- **Backdoor Reset Delay**: Seconds before resetting backdoor switch (default: 3)
-- **Front Door Reset Delay**: Seconds before resetting front door switch (default: 10)
+- **Reset Delay (seconds)**: Seconds before auto-resetting RPD switches (default: 3)
+- **Notification Cooldown (seconds)**: Minimum time between repeated notifications for the same camera. Prevents duplicate alerts when Ring fires multiple events for one person during a single detection. Cooldown window starts when the switch resets (default: 60, range: 5-90)
 
 ## Integration Points
 
@@ -123,13 +123,17 @@ Select the RPD virtual switches triggered by Ring person detection.
 ## Code Structure
 
 ### Key Methods
-- `handleRPD[Location](evt)`: Handler for each RPD switch
-- `setLastPersonTime(location, hubVarName)`: Sets hub variable timestamp
+- `handleRPD(evt)`: Handler for Night Mode RPD switches
+- `handleNightModeSoftRPD(evt)`: Handler for Night Mode Soft switches
+- `handleNotificationOnlyRPD(evt)`: Handler for Notification Only switches
+- `handleRingPersonDetected(evt)`: Handler for hub variable from Android app
+- `shouldSendNotification(deviceId)`: Debounce check — enforces cooldown between repeat notifications
 - `sendNotification(message)`: Sends to all notification devices
+- `sendSoftNotification(message)`: Sends to Night Mode Soft notification devices
 - `isNightMode()`: Checks if current mode is night
-- `isEveningMode()`: Checks if current mode is evening
+- `isNotificationOnlyMode()`: Checks if current mode allows notification-only
 - `isSilent()`: Checks silent switch state
-- `resetRPD[Location]()`: Delayed switch reset methods
+- `resetRPDSwitch(data)`: Delayed switch reset + cooldown start
 
 ## Installation
 

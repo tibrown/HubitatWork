@@ -66,6 +66,10 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>TIMING CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "generalResetDelay", "number", title: "Reset Delay (seconds)",
                 defaultValue: 3, range: "1..60", required: false
+            input "notificationCooldownSeconds", "enum", title: "Notification Cooldown (seconds)",
+                description: "Minimum time between repeated notifications for the same camera. Prevents duplicate alerts when Ring fires multiple events for one person.",
+                options: ["5", "10", "15", "20", "30", "45", "60", "90"],
+                defaultValue: "60", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -89,6 +93,10 @@ def updated() {
 
 def initialize() {
     logInfo "Initializing Ring Person Detection Manager"
+    
+    if (!state.hubHandledDeviceIds) {
+        state.hubHandledDeviceIds = [] as Set
+    }
     
     // Reset all RPD switches to off on startup
     rpdSwitches?.each { sw ->
@@ -149,18 +157,18 @@ def handleRingPersonDetected(evt) {
         logDebug "Extracted location: \"${searchText}\""
     }
 
-    def searchLower = searchText.toLowerCase()
+    def searchLower = searchText.toLowerCase().replaceAll(/\s+/, '')
 
     def matchedRpd = rpdSwitches?.find { sw ->
-        def label = sw.label?.toLowerCase()
+        def label = sw.label?.toLowerCase()?.replaceAll(/\s+/, '')
         label && label.contains(searchLower)
     }
     def matchedNightSoft = nightModeSoftSwitches?.find { sw ->
-        def label = sw.label?.toLowerCase()
+        def label = sw.label?.toLowerCase()?.replaceAll(/\s+/, '')
         label && label.contains(searchLower)
     }
     def matchedNotifOnly = notificationOnlySwitches?.find { sw ->
-        def label = sw.label?.toLowerCase()
+        def label = sw.label?.toLowerCase()?.replaceAll(/\s+/, '')
         label && label.contains(searchLower)
     }
     
@@ -169,21 +177,28 @@ def handleRingPersonDetected(evt) {
     // 1. Check Night Mode
     if (matchedRpd && isNightMode()) {
         logInfo "Matched night mode switch \"${matchedRpd.label}\" — turning on"
+        state.hubHandledDeviceIds.add(matchedRpd.id)
         matchedRpd.on()
+        sendNotification(matchedRpd.label)
+        if (allLightsSwitch) allLightsSwitch.on()
         actionTaken = true
-    } 
-    
+    }
+
     // 2. Check Night Soft Mode (if Night Mode didn't trigger)
     if (!actionTaken && matchedNightSoft && isNightMode()) {
         logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" — turning on"
+        state.hubHandledDeviceIds.add(matchedNightSoft.id)
         matchedNightSoft.on()
+        sendSoftNotification(matchedNightSoft.label)
         actionTaken = true
     }
-    
+
     // 3. Check Notification Only Mode (if neither Night Mode triggered)
     if (!actionTaken && matchedNotifOnly && isNotificationOnlyMode()) {
         logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" — turning on"
+        state.hubHandledDeviceIds.add(matchedNotifOnly.id)
         matchedNotifOnly.on()
+        sendNotification(matchedNotifOnly.label)
         actionTaken = true
     }
 
@@ -205,6 +220,11 @@ def handleRPD(evt) {
 
     logInfo "Person detected: ${message}"
     runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (state.hubHandledDeviceIds?.contains(device.id)) {
+        logDebug "Hub variable handler already sent notification for ${message} — skipping duplicate"
+        return
+    }
+    if (!shouldSendNotification(device.id)) return
     if (isNightMode()) {
         sendNotification(message)
         if (allLightsSwitch) allLightsSwitch.on()
@@ -219,6 +239,11 @@ def handleNightModeSoftRPD(evt) {
 
     logInfo "Person detected (night mode soft): ${message}"
     runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (state.hubHandledDeviceIds?.contains(device.id)) {
+        logDebug "Hub variable handler already sent notification for ${message} — skipping duplicate"
+        return
+    }
+    if (!shouldSendNotification(device.id)) return
     if (isNightMode()) {
         sendSoftNotification(message)
     }
@@ -232,6 +257,11 @@ def handleNotificationOnlyRPD(evt) {
 
     logInfo "Person detected (notification only): ${message}"
     runIn(generalResetDelay ?: 3, "resetRPDSwitch", [data: [deviceId: device.id]])
+    if (state.hubHandledDeviceIds?.contains(device.id)) {
+        logDebug "Hub variable handler already sent notification for ${message} — skipping duplicate"
+        return
+    }
+    if (!shouldSendNotification(device.id)) return
     if (isNotificationOnlyMode()) {
         sendNotification(message)
     }
@@ -245,11 +275,33 @@ def resetRPDSwitch(data) {
     if (!sw) sw = nightModeSoftSwitches?.find { it.id == data.deviceId }
     if (sw) {
         sw.off()
-        logDebug "Reset ${sw.displayName}"
+        state.hubHandledDeviceIds.remove(data.deviceId)
+        state["notifCooldown_${data.deviceId}"] = now()
+        logDebug "Reset ${sw.displayName} — cooldown started"
     }
 }
 
 // ==================== Helper Methods ====================
+
+/**
+ * Debounce check — returns false if notification should be skipped.
+ * Cooldown period starts from the last reset (switch turned off).
+ */
+Boolean shouldSendNotification(String deviceId) {
+    Integer cooldownSecs = (notificationCooldownSeconds ?: 60) as Integer
+    Long cooldownMs = cooldownSecs * 1000L
+    String cooldownKey = "notifCooldown_${deviceId}"
+
+    if (state[cooldownKey]) {
+        Long elapsed = now() - state[cooldownKey]
+        if (elapsed < cooldownMs) {
+            logDebug "Notification for device ${deviceId} in cooldown — ${elapsed}ms since reset (min ${cooldownMs}ms)"
+            return false
+        }
+    }
+
+    return true
+}
 
 /**
  * Send notification to all configured devices
