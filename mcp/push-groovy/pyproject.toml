@@ -1,0 +1,14 @@
+[project]
+name = "push-groovy-mcp"
+version = "0.1.0"
+description = "MCP server that pushes Groovy source code to a Hubitat hub via the AppLoader REST endpoint"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.0",
+    "requests>=2.31",
+]
+
+[project.scripts]
+push-groovy-mcp = "server:main"

@@ -1,0 +1,8 @@
+pyproject.toml
+server.py
+push_groovy_mcp.egg-info/PKG-INFO
+push_groovy_mcp.egg-info/SOURCES.txt
+push_groovy_mcp.egg-info/dependency_links.txt
+push_groovy_mcp.egg-info/entry_points.txt
+push_groovy_mcp.egg-info/requires.txt
+push_groovy_mcp.egg-info/top_level.txt
