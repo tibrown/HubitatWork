@@ -176,30 +176,39 @@ def handleRingPersonDetected(evt) {
 
     // 1. Check Night Mode
     if (matchedRpd && isNightMode()) {
-        logInfo "Matched night mode switch \"${matchedRpd.label}\" — turning on"
-        state.hubHandledDeviceIds.add(matchedRpd.id)
-        matchedRpd.on()
-        sendNotification(matchedRpd.label)
-        if (allLightsSwitch) allLightsSwitch.on()
         actionTaken = true
+        if (!isEventDuplicate(matchedRpd)) {
+            logInfo "Matched night mode switch \"${matchedRpd.label}\" — turning on"
+            state.hubHandledDeviceIds.add(matchedRpd.id)
+            state["notifCooldown_${matchedRpd.id}"] = now()
+            matchedRpd.on()
+            sendNotification(matchedRpd.label)
+            if (allLightsSwitch) allLightsSwitch.on()
+        }
     }
 
     // 2. Check Night Soft Mode (if Night Mode didn't trigger)
     if (!actionTaken && matchedNightSoft && isNightMode()) {
-        logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" — turning on"
-        state.hubHandledDeviceIds.add(matchedNightSoft.id)
-        matchedNightSoft.on()
-        sendSoftNotification(matchedNightSoft.label)
         actionTaken = true
+        if (!isEventDuplicate(matchedNightSoft)) {
+            logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" — turning on"
+            state.hubHandledDeviceIds.add(matchedNightSoft.id)
+            state["notifCooldown_${matchedNightSoft.id}"] = now()
+            matchedNightSoft.on()
+            sendSoftNotification(matchedNightSoft.label)
+        }
     }
 
     // 3. Check Notification Only Mode (if neither Night Mode triggered)
     if (!actionTaken && matchedNotifOnly && isNotificationOnlyMode()) {
-        logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" — turning on"
-        state.hubHandledDeviceIds.add(matchedNotifOnly.id)
-        matchedNotifOnly.on()
-        sendNotification(matchedNotifOnly.label)
         actionTaken = true
+        if (!isEventDuplicate(matchedNotifOnly)) {
+            logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" — turning on"
+            state.hubHandledDeviceIds.add(matchedNotifOnly.id)
+            state["notifCooldown_${matchedNotifOnly.id}"] = now()
+            matchedNotifOnly.on()
+            sendNotification(matchedNotifOnly.label)
+        }
     }
 
     // 4. Catch-all for logging
@@ -282,6 +291,27 @@ def resetRPDSwitch(data) {
 }
 
 // ==================== Helper Methods ====================
+
+/**
+ * Duplicate check for hub-variable-driven events (Ring, via the Android app).
+ * Ring/the Android listener often posts several notifications for one real-world
+ * detection (skeleton + updated text, group-summary replays on reconnect, etc.),
+ * each written to the RingPersonDetected hub variable with a unique trailing
+ * timestamp specifically to defeat Hubitat's built-in same-value suppression.
+ * Returns true (duplicate — caller should skip) if the switch is already active
+ * for an in-progress event, or if we're still within the notification cooldown.
+ */
+Boolean isEventDuplicate(sw) {
+    if (sw.currentValue("switch") == "on") {
+        logDebug "${sw.label} already active — treating as duplicate of in-progress event"
+        return true
+    }
+    if (!shouldSendNotification(sw.id)) {
+        logDebug "${sw.label} in cooldown — treating as duplicate"
+        return true
+    }
+    return false
+}
 
 /**
  * Debounce check — returns false if notification should be skipped.

@@ -227,9 +227,15 @@ def initialize() {
     if (settings.useLrWindow3 && lrWindow3) subscribe(lrWindow3, "contact", handleContact)
     if (settings.useLrWindow4 && lrWindow4) subscribe(lrWindow4, "contact", handleContact)
     
-    // Subscribe to pause switches
-    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm) subscribe(pauseDRDoorAlarm, "switch.on", handlePauseDRDoor)
-    if (settings.usePauseBDAlarm && pauseBDAlarm) subscribe(pauseBDAlarm, "switch.on", handlePauseBD)
+    // Subscribe to pause switches (on = start pause, off = cancel pending timers)
+    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm) {
+        subscribe(pauseDRDoorAlarm, "switch.on", handlePauseDRDoor)
+        subscribe(pauseDRDoorAlarm, "switch.off", handleUnpauseDRDoor)
+    }
+    if (settings.usePauseBDAlarm && pauseBDAlarm) {
+        subscribe(pauseBDAlarm, "switch.on", handlePauseBD)
+        subscribe(pauseBDAlarm, "switch.off", handleUnpauseBD)
+    }
     
     // Subscribe to pause motion sensors
     if (settings.useDrMotionSensor && drMotionSensor) subscribe(drMotionSensor, "motion.active", handleDRMotion)
@@ -549,9 +555,21 @@ def unpauseDRDoor() {
     pauseDRDoorAlarm?.off()
 }
 
+def handleUnpauseDRDoor(evt) {
+    logInfo "Dining room alarm resumed – cancelling pending auto-unpause timer"
+    unschedule(unpauseDRDoor)
+}
+
 def unpauseBD() {
     logInfo "Auto-unpausing backdoor alarm"
     pauseBDAlarm?.off()
+}
+
+def handleUnpauseBD(evt) {
+    logInfo "Backdoor alarm resumed – cancelling timer and running cleanup"
+    unschedule(unpauseBD)
+    // Run autoOffMotionLights immediately so lights/switches turn off right now
+    autoOffMotionLights()
 }
 
 // ========================================
