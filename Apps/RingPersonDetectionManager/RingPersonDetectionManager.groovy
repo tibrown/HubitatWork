@@ -98,25 +98,18 @@ def initialize() {
         state.hubHandledDeviceIds = [] as Set
     }
     
-    // Reset all RPD switches to off on startup
-    rpdSwitches?.each { sw ->
+    // Reset all RPD switches to off on startup and clear stale state timestamps
+    def resetOnStartup = { sw ->
         if (sw.currentValue("switch") == "on") {
             sw.off()
             logDebug "Reset ${sw.displayName} to off on init"
         }
+        // Clear the turn-on timestamp so a new event won't be rejected as duplicate
+        state["rpdTurnedOn_${sw.id}"] = null
     }
-    notificationOnlySwitches?.each { sw ->
-        if (sw.currentValue("switch") == "on") {
-            sw.off()
-            logDebug "Reset ${sw.displayName} to off on init"
-        }
-    }
-    nightModeSoftSwitches?.each { sw ->
-        if (sw.currentValue("switch") == "on") {
-            sw.off()
-            logDebug "Reset ${sw.displayName} to off on init"
-        }
-    }
+    rpdSwitches?.each resetOnStartup
+    notificationOnlySwitches?.each resetOnStartup
+    nightModeSoftSwitches?.each resetOnStartup
     
     // Subscribe to each RPD switch - react when they turn on
     rpdSwitches?.each { sw ->
@@ -180,6 +173,7 @@ def handleRingPersonDetected(evt) {
         if (!isEventDuplicate(matchedRpd)) {
             logInfo "Matched night mode switch \"${matchedRpd.label}\" — turning on"
             state.hubHandledDeviceIds.add(matchedRpd.id)
+            state["rpdTurnedOn_${matchedRpd.id}"] = now()
             state["notifCooldown_${matchedRpd.id}"] = now()
             matchedRpd.on()
             sendNotification(matchedRpd.label)
@@ -193,6 +187,7 @@ def handleRingPersonDetected(evt) {
         if (!isEventDuplicate(matchedNightSoft)) {
             logInfo "Matched night mode soft switch \"${matchedNightSoft.label}\" — turning on"
             state.hubHandledDeviceIds.add(matchedNightSoft.id)
+            state["rpdTurnedOn_${matchedNightSoft.id}"] = now()
             state["notifCooldown_${matchedNightSoft.id}"] = now()
             matchedNightSoft.on()
             sendSoftNotification(matchedNightSoft.label)
@@ -205,6 +200,7 @@ def handleRingPersonDetected(evt) {
         if (!isEventDuplicate(matchedNotifOnly)) {
             logInfo "Matched notification only switch \"${matchedNotifOnly.label}\" — turning on"
             state.hubHandledDeviceIds.add(matchedNotifOnly.id)
+            state["rpdTurnedOn_${matchedNotifOnly.id}"] = now()
             state["notifCooldown_${matchedNotifOnly.id}"] = now()
             matchedNotifOnly.on()
             sendNotification(matchedNotifOnly.label)
@@ -285,6 +281,7 @@ def resetRPDSwitch(data) {
     if (sw) {
         sw.off()
         state.hubHandledDeviceIds.remove(data.deviceId)
+        state["rpdTurnedOn_${data.deviceId}"] = null
         state["notifCooldown_${data.deviceId}"] = now()
         logDebug "Reset ${sw.displayName} — cooldown started"
     }
@@ -300,17 +297,54 @@ def resetRPDSwitch(data) {
  * timestamp specifically to defeat Hubitat's built-in same-value suppression.
  * Returns true (duplicate — caller should skip) if the switch is already active
  * for an in-progress event, or if we're still within the notification cooldown.
+ *
+ * If the switch has been stuck on longer than (resetDelay + timeout) it means a
+ * prior reset failed (hub restart, runIn eviction, etc.) — treat as stale and
+ * let the new event through instead of blocking it forever.
  */
 Boolean isEventDuplicate(sw) {
-    if (sw.currentValue("switch") == "on") {
-        logDebug "${sw.label} already active — treating as duplicate of in-progress event"
-        return true
-    }
+    // Cooldown check first
     if (!shouldSendNotification(sw.id)) {
         logDebug "${sw.label} in cooldown — treating as duplicate"
         return true
     }
-    return false
+
+    def onState = sw.currentValue("switch")
+    if (onState != "on") {
+        return false  // Not active, not a duplicate
+    }
+
+    // Switch IS on — check how long it's been stuck
+    Long turnOnTime = state["rpdTurnedOn_${sw.id}"]
+
+    // Calculate max allowed dwell: reset delay + cooldown gives a generous window
+    Integer resetDelaySecs = generalResetDelay ?: 3
+    Integer cooldownSecs = (notificationCooldownSeconds ?: 60) as Integer
+    Integer maxDwellSeconds = resetDelaySecs + cooldownSecs + 30
+
+    // If no timestamp (hub restart, fresh install), treat "on" as stale
+    if (!turnOnTime) {
+        logDebug "${sw.label} on but no turn-on timestamp — likely stale from restart, resetting and allowing new event"
+        sw.off()
+        state.hubHandledDeviceIds.remove(sw.id)
+        state["rpdTurnedOn_${sw.id}"] = null
+        state["notifCooldown_${sw.id}"] = now()
+        return false  // Let this event through
+    }
+
+    Long elapsed = now() - turnOnTime
+    Integer maxMs = maxDwellSeconds * 1000
+    if (elapsed > maxMs) {
+        logDebug "${sw.label} on for ${Math.round(elapsed / 1000)}s (max ${maxDwellSeconds}s) — stale, resetting and allowing new event"
+        sw.off()
+        state.hubHandledDeviceIds.remove(sw.id)
+        state["rpdTurnedOn_${sw.id}"] = null
+        state["notifCooldown_${sw.id}"] = now()
+        return false  // Let this event through
+    }
+
+    logDebug "${sw.label} already active — treating as duplicate of in-progress event"
+    return true
 }
 
 /**
