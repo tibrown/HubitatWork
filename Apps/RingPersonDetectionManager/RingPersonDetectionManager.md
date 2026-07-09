@@ -104,13 +104,12 @@ Select the RPD virtual switches triggered by Ring person detection.
 - **Rear Gate Active Switch**: Turned on for rear gate/pen detections
 
 ### Timing Configuration
-- **Reset Delay (seconds)**: Seconds before auto-resetting RPD switches (default: 3)
-- **Notification Cooldown (seconds)**: Minimum time between repeated notifications for the same camera. Prevents duplicate alerts when Ring fires multiple events for one person during a single detection. Cooldown window starts when the switch resets (default: 60, range: 5-90)
+- **Notification Cooldown (seconds)**: Minimum time between repeated notifications for the same camera. Prevents duplicate alerts when Ring fires multiple events for one person during a single detection. Cooldown window starts the instant the switch's `on` event is handled (default: 60, range: 5-90)
 
 ## Integration Points
 
 ### Inbound (Triggers This App)
-- **RPD* Switches**: When any RPD switch turns on
+- **RPD* Switches**: Local MQTT-driven virtual switches that turn `on` when their Ring camera detects a person, then automatically turn themselves back `off` after ~2 seconds. This app only reacts to the `switch.on` event — it does not turn the switches off itself and has no phone/cloud/hub-variable dependency.
 
 ### Outbound (This App Controls)
 - **LRP* Hub Variables**: Timestamps for other apps to monitor
@@ -126,14 +125,12 @@ Select the RPD virtual switches triggered by Ring person detection.
 - `handleRPD(evt)`: Handler for Night Mode RPD switches
 - `handleNightModeSoftRPD(evt)`: Handler for Night Mode Soft switches
 - `handleNotificationOnlyRPD(evt)`: Handler for Notification Only switches
-- `handleRingPersonDetected(evt)`: Handler for hub variable from Android app
 - `shouldSendNotification(deviceId)`: Debounce check — enforces cooldown between repeat notifications
 - `sendNotification(message)`: Sends to all notification devices
 - `sendSoftNotification(message)`: Sends to Night Mode Soft notification devices
 - `isNightMode()`: Checks if current mode is night
 - `isNotificationOnlyMode()`: Checks if current mode allows notification-only
 - `isSilent()`: Checks silent switch state
-- `resetRPDSwitch(data)`: Delayed switch reset + cooldown start
 
 ## Installation
 
@@ -155,7 +152,7 @@ Select the RPD virtual switches triggered by Ring person detection.
    - Set Night and Evening modes
    - Configure notification devices
    - Configure control switches
-   - Set timing delays
+   - Set notification cooldown
    - Set logging level
 
 3. **Disable Old Rules**:
@@ -170,12 +167,11 @@ Select the RPD virtual switches triggered by Ring person detection.
    - Disable EveningRPDGarden (1702)
 
 4. **Test**:
-   - Turn on each RPD switch manually
-   - Verify LRP* hub variables update
+   - Turn on each RPD switch manually (or trigger via MQTT) and confirm it self-resets to off
    - Test in Night mode - verify notifications and lights
    - Test in Evening mode
    - Verify silent switches work
-   - Check that switch resets happen
+   - Confirm notification cooldown suppresses rapid repeat events
 
 ## Testing Checklist
 
@@ -195,10 +191,9 @@ Select the RPD virtual switches triggered by Ring person detection.
 - [ ] Evening mode: Evening actions work
 
 ## Troubleshooting
-- **Hub variable not updating**: Check RPD switch is configured in app
 - **No notifications**: Check notification devices configured, check silent switches
 - **Lights not turning on**: Check All Lights ON switch configured
-- **Switch not resetting**: Check timing configuration
+- **Switch stuck on**: Verify the MQTT virtual switch driver's auto-off logic is firing; this app no longer turns switches off itself
 - **Wrong mode actions**: Verify modes configured correctly
 
 ## Performance Notes

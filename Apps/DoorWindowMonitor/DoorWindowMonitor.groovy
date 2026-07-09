@@ -138,6 +138,14 @@ def mainPage() {
             paragraph "When backdoor motion is detected in active modes, the configured lights will turn ON. The pause switch and optional additional pause switch will also be turned ON. After the delay period, lights and switches will automatically turn OFF."
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>RING MODE RESTORATION</b>\n<b>═══════════════════════════════════════</b>") {
+            input "useRingModeOnOff", "bool", title: "Restore Ring Mode when pauseBDAlarm turns OFF?", defaultValue: false, submitOnChange: true
+            if (settings.useRingModeOnOff) {
+                input "ringModeOnOff", "capability.switch", title: "Ring Mode On/Off Switch", required: true
+            }
+            paragraph "When pauseBDAlarm is deactivated (manually or by auto-timer), the Ring Mode switch will be turned back ON."
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "useSilentSwitch", "bool", title: "Use Silent Switch (when ON, ALL alerts are suppressed - takes precedence)?", defaultValue: false, submitOnChange: true
             if (settings.useSilentSwitch) {
@@ -570,6 +578,16 @@ def handleUnpauseBD(evt) {
     unschedule(unpauseBD)
     // Run autoOffMotionLights immediately so lights/switches turn off right now
     autoOffMotionLights()
+    // Re-enable Ring Mode if configured
+    if (settings.useRingModeOnOff && ringModeOnOff) {
+        String current = ringModeOnOff.currentValue("switch") ?: "unknown"
+        if (current != "on") {
+            ringModeOnOff.on()
+            logInfo "Restored Ring Mode to ON"
+        } else {
+            logDebug "Ring Mode already ON, no action needed"
+        }
+    }
 }
 
 // ========================================
