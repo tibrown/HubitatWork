@@ -122,6 +122,11 @@ def mainPage() {
                   title: "Pause Carport Beam Switch",
                   description: "Temporarily disable beam alerts",
                   required: false
+            
+            input "highAlert", "capability.switch",
+                  title: "High Alert Override Switch",
+                  description: "When ON, bypasses ALL silent blockers and forces notifications through",
+                  required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>CARPORT BEAM TIMING</b>\n<b>═══════════════════════════════════════</b>") {
@@ -492,7 +497,7 @@ def ringHandler(evt) {
     def locationName = evt.displayName
     logInfo "Ring person detected: ${locationName}"
     
-    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
+    if (!isHighAlertEnabled() && (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch))) {
         logInfo "Silent switch is ON - suppressing Ring person detection alert for ${locationName}"
         return
     }
@@ -582,8 +587,8 @@ def checkPerimeterIfInTimeRange() {
  * Scheduled perimeter check that respects mode restrictions
  */
 def checkPerimeterScheduled() {
-    // Check if mode-based checking is enabled
-    if (settings.enableModeBasedChecks && settings.perimeterCheckModes) {
+    // Check if mode-based checking is enabled (High Alert bypasses this mode gate)
+    if (!isHighAlertEnabled() && settings.enableModeBasedChecks && settings.perimeterCheckModes) {
         def currentMode = location.currentMode.toString()
         if (!settings.perimeterCheckModes.contains(currentMode)) {
             logDebug "Skipping perimeter check - current mode (${currentMode}) not in active modes"
@@ -776,11 +781,11 @@ def handleBeamAway() {
 
 def handleBeamDay() {
     // Check silent/pause switches
-    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
+    if (!isHighAlertEnabled() && (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch))) {
         logInfo "Day mode: Silent switch is ON, skipping beam action"
         return
     }
-    if (isSwitchOn(settings.silentCarport)) {
+    if (!isHighAlertEnabled() && isSwitchOn(settings.silentCarport)) {
         logInfo "Day mode: Silent carport switch is ON, skipping beam action"
         return
     }
@@ -817,7 +822,7 @@ def handleBeamDay() {
 }
 
 def handleBeamEvening() {
-    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
+    if (!isHighAlertEnabled() && (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch))) {
         logDebug "Evening mode: Silent is on, skipping"
         return
     }
@@ -853,7 +858,7 @@ def handleBeamEvening() {
 }
 
 def handleBeamMorning() {
-    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch) || isSwitchOn(settings.silentCarport)) {
+    if (!isHighAlertEnabled() && (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch) || isSwitchOn(settings.silentCarport))) {
         logDebug "Morning mode: Silent is on, skipping"
         return
     }
@@ -888,12 +893,21 @@ def isSwitchOn(device) {
     return device?.currentValue("switch") == "on"
 }
 
+/**
+ * Check if High Alert override is active.
+ * When ON, all silent/mode blockers are bypassed and notifications fire through.
+ * Returns false if not configured (normal behavior).
+ */
+def isHighAlertEnabled() {
+    return settings?.highAlert?.currentValue("switch") == "on"
+}
+
 // ============================================================================
 // NOTIFICATION METHODS
 // ============================================================================
 
 def sendAlert(String message) {
-    if (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch)) {
+    if (!isHighAlertEnabled() && (isSwitchOn(settings.silentSwitch) || isSwitchOn(settings.silenceOfficeSwitch))) {
         logInfo "Silent switch is ON - suppressing alert: ${message}"
         return
     }

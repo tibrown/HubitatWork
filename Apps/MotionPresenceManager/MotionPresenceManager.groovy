@@ -54,6 +54,8 @@ def mainPage() {
             input "alarmsEnabled", "capability.switch", title: "Alarms Enabled Switch", required: false
             input "silentMode", "capability.switch", title: "Silent Mode Switch", required: false
             input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
+            input "highAlert", "capability.switch", title: "High Alert Override Switch", required: false,
+                description: "When ON, bypasses silent mode and forces all notifications through"
             input "silentBackdoorSwitch", "capability.switch", title: "Silent Backdoor Switch", required: false
             input "rearCarportActive", "capability.switch", title: "Rear Carport Active Switch", required: false
         }
@@ -157,7 +159,7 @@ def handleBackDoorMotion(evt) {
     logInfo "Back door motion detected in ${mode} mode"
     
     // SilentBackdoor controls motion at the backdoor
-    if (silentBackdoorSwitch?.currentValue("switch") == "on") {
+    if (highAlert?.currentValue("switch") != "on" && silentBackdoorSwitch?.currentValue("switch") == "on") {
         logDebug "Back door motion ignored - silent backdoor switch is on"
         return
     }
@@ -228,6 +230,7 @@ def resetRearCarportActive() {
 }
 
 def shouldProcessMotion(String mode) {
+    if (highAlert?.currentValue("switch") == "on") return true
     Boolean dayMotionEnabled = getConfigValue("enableDayMotion", "EnableDayMotion") as Boolean
     Boolean nightMotionEnabled = getConfigValue("enableNightMotion", "EnableNightMotion") as Boolean
     
@@ -241,6 +244,7 @@ def shouldProcessMotion(String mode) {
 }
 
 def isGeneralMotionActiveInMode(String mode) {
+    if (highAlert?.currentValue("switch") == "on") return true
     // If generalMotionModes is configured, use it
     if (generalMotionModes) {
         return generalMotionModes.contains(mode)
@@ -251,6 +255,7 @@ def isGeneralMotionActiveInMode(String mode) {
 }
 
 def isBackDoorMotionActiveInMode(String mode) {
+    if (highAlert?.currentValue("switch") == "on") return true
     // If backDoorMotionModes is configured, use it
     if (backDoorMotionModes) {
         return backDoorMotionModes.contains(mode)
@@ -415,7 +420,8 @@ def setHubVar(String varName, String value) {
 }
 
 def sendNotification(String message) {
-    if (silentMode?.currentValue("switch") == "on" || silenceOfficeSwitch?.currentValue("switch") == "on") {
+    if (highAlert?.currentValue("switch") == "on") { /* bypass */ }
+    else if (silentMode?.currentValue("switch") == "on" || silenceOfficeSwitch?.currentValue("switch") == "on") {
         logDebug "Notification suppressed by silent mode: ${message}"
         return
     }

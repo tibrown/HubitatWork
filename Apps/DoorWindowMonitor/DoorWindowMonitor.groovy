@@ -146,6 +146,11 @@ def mainPage() {
             paragraph "When pauseBDAlarm is deactivated (manually or by auto-timer), the Ring Mode switch will be turned back ON."
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>HIGH ALERT OVERRIDE</b>\n<b>═══════════════════════════════════════</b>") {
+            input "highAlert", "capability.switch", title: "High Alert Override Switch", required: false,
+                description: "When ON, bypasses ALL silent/mode blockers and forces notifications through"
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>MODE CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
             input "useSilentSwitch", "bool", title: "Use Silent Switch (when ON, ALL alerts are suppressed - takes precedence)?", defaultValue: false, submitOnChange: true
             if (settings.useSilentSwitch) {
@@ -398,6 +403,7 @@ def handleConcreteShedOpen(String mode) { }
 def handleWoodshedOpen(String mode) { }
 
 def shouldSuppressBirdHouseAlert(String mode) {
+    if (isHighAlertEnabled()) return false
     if (!birdHouseSilentModes) return false
     return birdHouseSilentModes.contains(mode)
 }
@@ -414,7 +420,7 @@ def handleSafeDoorOpen() {
     }
     
     // Check if safe door alerts are suppressed
-    if (settings.useSuppressSafeDoorAlert && suppressSafeDoorAlert && suppressSafeDoorAlert.currentValue("switch") == "on") {
+    if (!isHighAlertEnabled() && settings.useSuppressSafeDoorAlert && suppressSafeDoorAlert && suppressSafeDoorAlert.currentValue("switch") == "on") {
         logInfo "Safe door alert suppressed - suppress switch is ON"
         return
     }
@@ -458,7 +464,7 @@ def checkLeftOpen() {
     
     // Check if current mode suppresses left-open alerts
     String currentMode = location.mode
-    Boolean suppressNonCritical = leftOpenSilentModes && leftOpenSilentModes.contains(currentMode)
+    Boolean suppressNonCritical = !isHighAlertEnabled() && leftOpenSilentModes && leftOpenSilentModes.contains(currentMode)
     
     if (suppressNonCritical) {
         logDebug "Left-open alerts suppressed in ${currentMode} mode (except freezer)"
@@ -766,7 +772,16 @@ def setHubVar(String varName, String value) {
     }
 }
 
+/**
+ * Check if High Alert override is active.
+ * When ON, all silent/mode blockers are bypassed and notifications fire through.
+ */
+Boolean isHighAlertEnabled() {
+    return highAlert?.currentValue("switch") == "on"
+}
+
 def isSilentMode() {
+    if (isHighAlertEnabled()) return false
     if (settings.useSilentSwitch && silentSwitch && silentSwitch.currentValue("switch") == "on") return true
     if (settings.useSilentSwitch && silenceOfficeSwitch && silenceOfficeSwitch.currentValue("switch") == "on") return true
     return false
@@ -810,7 +825,7 @@ def sendLeftOpenAlert(String message) {
     }
     
     // Only notify general notification devices if Pause Door Ajar switch is OFF
-    if (settings.usePauseDoorAjarSwitch && pauseDoorAjarSwitch && pauseDoorAjarSwitch.currentValue("switch") == "on") {
+    if (!isHighAlertEnabled() && settings.usePauseDoorAjarSwitch && pauseDoorAjarSwitch && pauseDoorAjarSwitch.currentValue("switch") == "on") {
         logDebug "Left-open notification alerts paused by PauseDoorAjar switch - skipping notificationDevices: ${message}"
         return
     }

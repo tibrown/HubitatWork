@@ -60,6 +60,8 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
             input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
+            input "highAlert", "capability.switch", title: "High Alert Override Switch", required: false,
+                description: "When ON, bypasses silent mode and forces all notifications through"
             input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
         }
         
@@ -129,8 +131,8 @@ def handleRPD(evt) {
 
     logInfo "Person detected: ${message}"
     if (!shouldSendNotification(device.id)) return
-    state["notifCooldown_${device.id}"] = now()
-    if (isNightMode()) {
+    if (isHighAlertEnabled() || isNightMode()) {
+        state["notifCooldown_${device.id}"] = now()
         sendNotification(message)
         if (allLightsSwitch) allLightsSwitch.on()
     }
@@ -144,8 +146,8 @@ def handleNightModeSoftRPD(evt) {
 
     logInfo "Person detected (night mode soft): ${message}"
     if (!shouldSendNotification(device.id)) return
-    state["notifCooldown_${device.id}"] = now()
-    if (isNightMode()) {
+    if (isHighAlertEnabled() || isNightMode()) {
+        state["notifCooldown_${device.id}"] = now()
         sendSoftNotification(message)
     }
 }
@@ -158,8 +160,8 @@ def handleNotificationOnlyRPD(evt) {
 
     logInfo "Person detected (notification only): ${message}"
     if (!shouldSendNotification(device.id)) return
-    state["notifCooldown_${device.id}"] = now()
-    if (isNotificationOnlyMode()) {
+    if (isHighAlertEnabled() || isNotificationOnlyMode()) {
+        state["notifCooldown_${device.id}"] = now()
         sendNotification(message)
     }
 }
@@ -234,7 +236,16 @@ def isNotificationOnlyMode() {
     return location.mode in notificationOnlyModes
 }
 
+/**
+ * Check if High Alert override is active.
+ * When ON, all silent/mode blockers are bypassed and notifications fire through.
+ */
+Boolean isHighAlertEnabled() {
+    return highAlert?.currentValue("switch") == "on"
+}
+
 def isSilent() {
+    if (isHighAlertEnabled()) return false
     if (silentSwitch?.currentValue("switch") == "on") return true
     if (silenceOfficeSwitch?.currentValue("switch") == "on") return true
     return false

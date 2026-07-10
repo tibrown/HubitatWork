@@ -4,6 +4,7 @@ Tool: push_hubitat_code  -- sends compiled Groovy source to the AppLoader
 receiver endpoint on the hub and returns compilation status.
 """
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -24,6 +25,7 @@ CONFIG = {
     "HUB_IP": os.environ.get("HUB_IP", "192.168.0.142"),
     "APPLOADER_APP_ID": os.environ.get("APPLOADER_APP_ID", ""),
     "OAUTH_ACCESS_TOKEN": os.environ.get("OAUTH_ACCESS_TOKEN", ""),
+    "SANDBOX_CODE_ID": os.environ.get("SANDBOX_CODE_ID", ""),
 }
 
 REQUEST_TIMEOUT = 30  # seconds
@@ -45,79 +47,116 @@ def _build_create_url() -> str:
     return f"http://{hub}/apps/api/{app_id}/createApp?access_token={token}"
 
 
+def _get_current_version(code_id: str, access_token: str) -> int | None:
+    """Fetch the current version integer of a Code ID via Hubitat's internal API.
+
+    This is required for optimistic concurrency when posting back to
+    /app/ajax/update (Monaco editor locks on version mismatch).
+
+    Returns the version integer or None on failure so callers can fall
+    back to the simpler /app/ajax/save endpoint without versioning.
+    """
+    hub = CONFIG["HUB_IP"].rstrip("/")
+    url = f"http://{hub}/app/ajax/code?id={code_id}&access_token={access_token}"
+    try:
+        resp = requests.get(url, timeout=REQUEST_TIMEOUT)
+        data = resp.json()
+        if resp.status_code == 200 and isinstance(data, dict):
+            version = data.get("version")
+            if version is not None:
+                return int(version)
+    except Exception:
+        pass
+    return None
+
+
 mcp = FastMCP("push-groovy")
 
 
 @mcp.tool()
-def push_hubitat_code(target_app_id: int, groovy_source: str) -> str:
-    """Push compiled Groovy source code to a Hubitat hub via the AppLoader REST endpoint.
-
-    This tool sends Groovy source to an already-installed AppLoader receiver app
-    on the hub, which forwards it to Hubitat's internal save endpoint for the
-    target app code ID. Use this to deploy or update Developer Apps from your
-    local machine without opening the Hubitat UI.
-
-    Args:
-        target_app_id: The Hubitat installed-app ID of the Developer App whose
-                       source code you want to replace/update (integer).
-        groovy_source: The complete Groovy source code string to push to the hub.
-
-    Returns:
-        A plain-text summary containing the HTTP status code and response body
-        from the hub. On success you will see HTTP 200 with a 'success' status
-        message. On failure the response includes the error detail so you can
-        diagnose compilation errors or connection problems.
+def push_hubitat_local_file(target_app_id: int, file_path: str) -> str:
+    """Push Groovy code to Hubitat by reading it directly from a local file.
+    Use this instead of passing raw code strings.
     """
-    # --- Guard: config must be set ---
-    missing = [k for k in ("APPLOADER_APP_ID", "OAUTH_ACCESS_TOKEN") if not CONFIG[k]]
-    if missing:
-        return (
-            f"CONFIGURATION ERROR — the following are required but empty: "
-            f"{', '.join(missing)}\n"
-            f"Set them as environment variables or edit CONFIG in server.py:\n"
-            f"  APPLOADER_APP_ID  = installed ID of your AppLoader receiver app\n"
-            f"  OAUTH_ACCESS_TOKEN = access token shown on that app's config page"
-        )
-
-    url = _build_push_url()
-    payload = {"appId": target_app_id, "source": groovy_source}
-
+    if not os.path.exists(file_path):
+        return f"FAILED: The file {file_path} does not exist on the local disk."
+        
     try:
-        resp = requests.post(url, json=payload, timeout=REQUEST_TIMEOUT)
-    except requests.ConnectionError:
-        return (
-            f"CONNECTION FAILED — could not reach Hubitat hub at {url}\n"
-            f"Check that HUB_IP ({CONFIG['HUB_IP']}) is correct and the hub is online."
-        )
-    except requests.Timeout:
-        return (
-            f"REQUEST TIMEOUT — hub did not respond within {REQUEST_TIMEOUT}s.\n"
-            f"URL: {url}"
-        )
+        with open(file_path, 'r', encoding='utf-8') as f:
+            groovy_source = f.read()
     except Exception as exc:
-        return f"UNEXPECTED ERROR during HTTP POST: {exc}"
+        return f"FAILED to read local file: {exc}"
 
-    # --- Parse response body for a readable summary ---
-    body = None
+    hub_ip = CONFIG['HUB_IP']
+    
+    # Step 1: Fetch the current version integer
+    get_url = f"http://{hub_ip}/app/ajax/code?id={target_app_id}"
     try:
-        body = resp.json()
-        body_str = str(body)
-    except ValueError:
-        body_str = repr(resp.text[:500])
+        get_resp = requests.get(get_url, timeout=REQUEST_TIMEOUT)
+        get_resp.raise_for_status()
+        data = get_resp.json()
+        version = data.get('version')
+        if version is None:
+            return f"FAILED: Could not extract version for app {target_app_id}."
+    except Exception as exc:
+        return f"FAILED to fetch current app version: {exc}"
+        
+    # Step 2: Push the update directly
+    post_url = f"http://{hub_ip}/app/ajax/update"
+    payload = {
+        "id": target_app_id,
+        "version": version,
+        "source": groovy_source
+    }
+    
+    try:
+        post_resp = requests.post(post_url, data=payload, timeout=REQUEST_TIMEOUT)
+        post_resp.raise_for_status()
+        result = post_resp.json()
+        
+        if result.get('status') == 'success':
+            return f"✅ SUCCESS: App {target_app_id} updated to version {result.get('version')} from {file_path}!"
+        else:
+            return f"❌ COMPILE ERROR:\n{result.get('errorMessage', result)}"
+    except Exception as exc:
+        return f"FAILED to push code update: {exc}"
+@mcp.tool()
+def push_hubitat_code(target_app_id: int, groovy_source: str) -> str:
+    """Push updated Groovy source code directly to Hubitat using native AJAX APIs."""
+    hub_ip = CONFIG['HUB_IP']
 
-    # Most AppLoader endpoints return {"status": "success|error", ...}
-    if resp.status_code == 200 and (body is not None and isinstance(body, dict) and body.get("status") == "success"):
-        return (
-            f"SUCCESS — HTTP {resp.status_code}\n"
-            f"App ID {target_app_id}: source code saved to hub.\n"
-            f"Response: {body_str}"
-        )
+    # Step 1: Fetch the current version integer required for optimistic locking
+    get_url = f"http://{hub_ip}/app/ajax/code?id={target_app_id}"
+    try:
+        get_resp = requests.get(get_url, timeout=REQUEST_TIMEOUT)
+        get_resp.raise_for_status()
+        data = get_resp.json()
+        version = data.get('version')
+        if version is None:
+            return f"FAILED: Could not extract version for app {target_app_id}."
+    except Exception as exc:
+        return f"FAILED to fetch current app version: {exc}"
 
-    # General result summary for any non-200-success case
-    return (
-        f"HTTP {resp.status_code} from hub at {url}\n"
-        f"Response body: {body_str}"
-    )
+    # Step 2: Push the update directly to the compiler endpoint
+    post_url = f"http://{hub_ip}/app/ajax/update"
+    payload = {
+        "id": target_app_id,
+        "version": version,
+        "source": groovy_source
+    }
+
+    try:
+        # Hubitat requires form-urlencoded data for this endpoint
+        post_resp = requests.post(post_url, data=payload, timeout=REQUEST_TIMEOUT)
+        post_resp.raise_for_status()
+        result = post_resp.json()
+
+        if result.get('status') == 'success':
+            return f"✅ SUCCESS: App {target_app_id} updated to version {result.get('version')}!"
+        else:
+            return f"❌ COMPILE ERROR:\n{result.get('errorMessage', result)}"
+    except Exception as exc:
+        return f"FAILED to push code update: {exc}"
 
 
 @mcp.tool()
@@ -197,6 +236,148 @@ def create_hubitat_app(app_source: str) -> str:
         f"HTTP {resp.status_code} from hub at {url}\n"
         f"Response body: {body_str}"
     )
+
+import os
+import requests
+
+@mcp.tool()
+def validate_groovy_syntax(file_path: str) -> str:
+    """Compile-check a local Groovy file on the Hubitat hub before deployment.
+
+    Reads the file directly from the local disk and posts the source to an empty 
+    'Compiler Sandbox' app's code endpoint so Hubitat runs its built-in Groovy compiler.
+    Returns a clear PASS/FAIL with line numbers and messages.
+
+    Args:
+        file_path: The exact path to the local Groovy file on disk.
+
+    Returns:
+        A human-readable result showing COMPILER PASS or COMPILER FAIL.
+    """
+    # --- Guard: file must exist ---
+    if not os.path.exists(file_path):
+        return f"FAILED: The file {file_path} does not exist on the local disk."
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            groovy_source = f.read()
+    except Exception as exc:
+        return f"FAILED to read local file: {exc}"
+
+    # --- Guard: config must be set ---
+    missing = [k for k in ("SANDBOX_CODE_ID", "OAUTH_ACCESS_TOKEN") if not CONFIG[k]]
+    if missing:
+        return (
+            f"CONFIGURATION ERROR — the following are required but empty: "
+            f"{', '.join(missing)}\n"
+            f"Set them as environment variables or edit CONFIG in server.py:\n"
+            f"  SANDBOX_CODE_ID    = Code ID of the 'Compiler Sandbox' app on hub\n"
+            f"  OAUTH_ACCESS_TOKEN = access token shown on the AppLoader's config page"
+        )
+
+    code_id = CONFIG["SANDBOX_CODE_ID"]
+    token = CONFIG["OAUTH_ACCESS_TOKEN"]
+    version = _get_current_version(code_id, token)
+
+    # If we couldn't get the version, try writing without it (Hubitat fallback)
+    if version is not None:
+        payload = {
+            "id": code_id,
+            "version": version,
+            "code": groovy_source,
+        }
+        url = f"http://{CONFIG['HUB_IP'].rstrip('/')}/app/ajax/update"
+        headers = {"access_token": token}
+    else:
+        payload = {
+            "id": code_id,
+            "code": groovy_source,
+        }
+        url = f"http://{CONFIG['HUB_IP'].rstrip('/')}/app/ajax/save"
+        headers = {}
+
+    try:
+        resp = requests.post(
+            url, data=payload, headers=headers, timeout=REQUEST_TIMEOUT
+        )
+    except requests.ConnectionError:
+        return (
+            f"CONNECTION FAILED — could not reach Hubitat hub at "
+            f"{CONFIG['HUB_IP']}\n"
+            f"Check that HUB_IP is correct and the hub is online."
+        )
+    except requests.Timeout:
+        return (
+            f"REQUEST TIMEOUT — hub did not respond within {REQUEST_TIMEOUT}s.\n"
+            f"URL: {url}"
+        )
+    except Exception as exc:
+        return f"UNEXPECTED ERROR during HTTP POST: {exc}"
+
+    # --- Parse compiler response ---
+    try:
+        body = resp.json()
+    except ValueError:
+        body = None
+
+    if resp.status_code != 200 or (body is not None and isinstance(body, dict) and body.get("status") != "success"):
+        # General failure — return whatever the hub gave us
+        return (
+            f"COMPILER FAIL\n"
+            f"HTTP {resp.status_code} from hub\n"
+            f"Response: {body if body is not None else repr(resp.text[:500])}"
+        )
+
+    # Check for compiler errors inside the response
+    if isinstance(body, dict) and body.get("errors"):
+        errors = body["errors"]
+        lines = []
+        if isinstance(errors, list):
+            for err in errors:
+                if isinstance(err, dict):
+                    line = err.get("line", "?")
+                    msg = err.get("message", str(err))
+                    lines.append(f"  Line {line}: {msg}")
+                else:
+                    lines.append(f"  {err}")
+        elif isinstance(errors, str):
+            for raw_line in errors.strip().splitlines():
+                lines.append(f"  {raw_line.strip()}")
+
+        return (
+            f"COMPILER FAIL — {len(lines)} error(s) found:\n"
+            + "\n".join(lines)
+        )
+
+    # No errors — clean compilation
+    return "COMPILER PASS — Groovy source compiled cleanly on the hub. Ready to deploy."
+
+@mcp.tool()
+def search_hubitat_apps(name_query: str) -> str:
+    """Search the Hubitat hub for an App Code ID by its name using the internal JSON API. 
+    Use this if you forgot the target_app_id for a deployment.
+    """
+    url = f"http://{CONFIG['HUB_IP']}/hub2/userAppTypes"
+    
+    try:
+        resp = requests.get(url, timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        return f"FAILED: Could not fetch App Code JSON from hub: {exc}"
+
+    results = []
+    for app in data:
+        app_id = app.get('id')
+        app_name = app.get('name', '')
+        
+        if name_query.lower() in app_name.lower():
+            results.append(f"ID: {app_id} | Name: {app_name}")
+            
+    if not results:
+        return f"No apps found matching '{name_query}'."
+        
+    return "✅ Found matching apps:\n" + "\n".join(results)
 
 
 def main():

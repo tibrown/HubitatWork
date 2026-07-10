@@ -152,7 +152,7 @@ def handleAlarmsEnabledSwitch(evt) {
 
 def handleBHScreen(evt) {
     if (!isActiveMode()) return
-    if (traveling.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
+    if (traveling.currentValue("switch") == "off" && !areNotificationBlockersActive()) {
         logInfo "Birdhouse screen door opened during night mode"
         notificationDevices.each { it.deviceNotification("Birdhouse screen door is open, birdhouse screen door is open") }
     }
@@ -171,8 +171,7 @@ def handleCarportBeam(evt) {
              return
          }
          
-         if (silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
-             // Check cooldown to avoid repeated alerts
+         if (!areNotificationBlockersActive()) {
              if (state.lastCarportAlert && (now() - state.lastCarportAlert) < 300000) { // 5 minute cooldown
                  logDebug "Carport alert in cooldown period - skipping"
                  return
@@ -219,7 +218,7 @@ def handleConcreteShed(evt) { }
 
 def handleDiningRoomDoor(evt) {
     if (!isActiveMode()) return
-    if (alarmsEnabled.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && pauseDRDoorAlarm.currentValue("switch") == "off") {
+    if (alarmsEnabled.currentValue("switch") == "on" && !areNotificationBlockersActive() && pauseDRDoorAlarm.currentValue("switch") == "off") {
         logInfo "Intruder detected at dining room door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
@@ -236,7 +235,9 @@ def handleWoodshed(evt) { }
 
 def handleStandardIntruder(evt) {
     if (!isActiveMode()) return
-    if (alarmsEnabled.currentValue("switch") != "on" || silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") return
+    if (highAlert?.currentValue("switch") != "on" && silent.currentValue("switch") == "on") return
+    if (highAlert?.currentValue("switch") != "on" && silenceOffice?.currentValue("switch") == "on") return
+    if (highAlert?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") != "on") return
     def message = evt.device.label
     logInfo "Intruder detected: ${message}"
     turnAllLightsOnNow()
@@ -247,11 +248,20 @@ def handleStandardIntruder(evt) {
 
 def handleShedIntruder(evt) {
     if (!isActiveMode()) return
-    if (alarmsEnabled.currentValue("switch") != "on" || silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") return
+    if (highAlert?.currentValue("switch") != "on" && silent.currentValue("switch") == "on") return
+    if (highAlert?.currentValue("switch") != "on" && silenceOffice?.currentValue("switch") == "on") return
+    if (highAlert?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") != "on") return
     def message = evt.device.label
     logInfo "Shed intruder detected: ${message}"
     notificationDevices.each { it.deviceNotification(message) }
-    executeShedSirenOn()
+    // High Alert only forces the notification through - it must not affect
+    // whether the physical siren fires. That still strictly requires alarms
+    // to be enabled, regardless of High Alert.
+    if (alarmsEnabled.currentValue("switch") == "on") {
+        executeShedSirenOn()
+    } else {
+        logDebug "Alarms not enabled - skipping shed siren"
+    }
     turnAllLightsOnNow()
 }
 
@@ -260,7 +270,14 @@ def handleSheShed(evt) { }
 def handleBackdoorMotion(evt) {
     if (!isActiveMode()) return
     if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
-    if (evt.value == "active" && floodSide.currentValue("motion") == "active" && highAlert.currentValue("switch") == "on" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on") {
+    if (evt.value == "active" && floodSide.currentValue("motion") == "active") {
+        // Backdoor motion is a critical night alert - it always notifies while
+        // active mode is on. Only the silent/silenceOffice mute switches can
+        // suppress it; High Alert is not involved.
+        if (silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") {
+            logDebug "Backdoor motion notification suppressed by silent/silenceOffice switch"
+            return
+        }
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Backdoor") }
     }
@@ -268,11 +285,16 @@ def handleBackdoorMotion(evt) {
 
 def handleIntruderBackdoor(evt) {
     if (!isActiveMode()) return
-    if (pauseBDAlarm.currentValue("switch") == "off" && silent.currentValue("switch") == "off" && silenceOffice?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") == "on") {
-        setGlobalVar("AlertMessage", "Intruder at the Backdoor")
-        logInfo "Intruder detected at backdoor - triggering alarms"
-        executeAlarmsOn()
-    }
+    // Backdoor intruder is a critical night alert - it always triggers while
+    // active mode is on, gated only by the mute switches and the dedicated
+    // arm/pause switches. High Alert is not involved.
+    if (silent.currentValue("switch") == "on") return
+    if (silenceOffice?.currentValue("switch") == "on") return
+    if (pauseBDAlarm.currentValue("switch") == "on") return
+    if (alarmsEnabled.currentValue("switch") != "on") return
+    setGlobalVar("AlertMessage", "Intruder at the Backdoor")
+    logInfo "Intruder detected at backdoor - triggering alarms"
+    executeAlarmsOn()
 }
 
 def handlePauseBDAlarm(evt) {
@@ -396,6 +418,17 @@ def disableNightSecurity() {
 private Boolean isActiveMode() {
     if (!restrictedModes || restrictedModes.contains(location.mode)) return true
     logDebug "Ignoring event: mode ${location.mode} not in ${restrictedModes}"
+    return false
+}
+
+/**
+ * Returns true when notification blockers are active (silent on, silenceOffice on, etc.)
+ * When highAlert is ON, all blockers are overridden and this returns false.
+ */
+private Boolean areNotificationBlockersActive() {
+    if (highAlert?.currentValue("switch") == "on") return false
+    if (silent?.currentValue("switch") == "on") return true
+    if (silenceOffice?.currentValue("switch") == "on") return true
     return false
 }
 
