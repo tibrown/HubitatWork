@@ -272,10 +272,15 @@ def handleBackdoorMotion(evt) {
     if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
     if (evt.value == "active" && floodSide.currentValue("motion") == "active") {
         // Backdoor motion is a critical night alert - it always notifies while
-        // active mode is on. Only the silent/silenceOffice mute switches can
-        // suppress it; High Alert is not involved.
+        // active mode is on. The silent/silenceOffice mute switches and the
+        // Pause Backdoor Alarm switch (manual "letting the dogs out" pass)
+        // can suppress it; High Alert is not involved.
         if (silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") {
             logDebug "Backdoor motion notification suppressed by silent/silenceOffice switch"
+            return
+        }
+        if (pauseBDAlarm.currentValue("switch") == "on") {
+            logDebug "Backdoor motion notification suppressed by Pause Backdoor Alarm"
             return
         }
         turnAllLightsOnNow()

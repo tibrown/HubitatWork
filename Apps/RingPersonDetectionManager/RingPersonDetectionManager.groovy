@@ -60,8 +60,6 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>CONTROL SWITCHES</b>\n<b>═══════════════════════════════════════</b>") {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
             input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
-            input "highAlert", "capability.switch", title: "High Alert Override Switch", required: false,
-                description: "When ON, bypasses silent mode and forces all notifications through"
             input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
         }
         
@@ -131,9 +129,10 @@ def handleRPD(evt) {
 
     logInfo "Person detected: ${message}"
     if (!shouldSendNotification(device.id)) return
-    if (isHighAlertEnabled() || isNightMode()) {
-        state["notifCooldown_${device.id}"] = now()
-        sendNotification(message)
+    if (isNightMode()) {
+        if (sendNotification(message)) {
+            state["notifCooldown_${device.id}"] = now()
+        }
         if (allLightsSwitch) allLightsSwitch.on()
     }
 }
@@ -146,9 +145,10 @@ def handleNightModeSoftRPD(evt) {
 
     logInfo "Person detected (night mode soft): ${message}"
     if (!shouldSendNotification(device.id)) return
-    if (isHighAlertEnabled() || isNightMode()) {
-        state["notifCooldown_${device.id}"] = now()
-        sendSoftNotification(message)
+    if (isNightMode()) {
+        if (sendSoftNotification(message)) {
+            state["notifCooldown_${device.id}"] = now()
+        }
     }
 }
 
@@ -160,9 +160,10 @@ def handleNotificationOnlyRPD(evt) {
 
     logInfo "Person detected (notification only): ${message}"
     if (!shouldSendNotification(device.id)) return
-    if (isHighAlertEnabled() || isNotificationOnlyMode()) {
-        state["notifCooldown_${device.id}"] = now()
-        sendNotification(message)
+    if (isNotificationOnlyMode()) {
+        if (sendNotification(message)) {
+            state["notifCooldown_${device.id}"] = now()
+        }
     }
 }
 
@@ -189,12 +190,13 @@ Boolean shouldSendNotification(String deviceId) {
 }
 
 /**
- * Send notification to all configured devices
+ * Send notification to all configured devices.
+ * Returns true if a notification was actually delivered, false if suppressed.
  */
-def sendNotification(String message) {
+Boolean sendNotification(String message) {
     if (isSilent()) {
         logInfo "Silent switch is ON - suppressing notification: ${message}"
-        return
+        return false
     }
     
     logInfo "Sending notification: ${message}"
@@ -204,16 +206,17 @@ def sendNotification(String message) {
             device.deviceNotification(message)
         }
     }
-    
+    return true
 }
 
 /**
- * Send notification to Night Mode Soft notification devices
+ * Send notification to Night Mode Soft notification devices.
+ * Returns true if a notification was actually delivered, false if suppressed.
  */
-def sendSoftNotification(String message) {
+Boolean sendSoftNotification(String message) {
     if (isSilent()) {
         logInfo "Silent switch is ON - suppressing soft notification: ${message}"
-        return
+        return false
     }
     
     logInfo "Sending soft notification: ${message}"
@@ -223,7 +226,7 @@ def sendSoftNotification(String message) {
             device.deviceNotification(message)
         }
     }
-    
+    return true
 }
 
 def isNightMode() {
@@ -236,16 +239,7 @@ def isNotificationOnlyMode() {
     return location.mode in notificationOnlyModes
 }
 
-/**
- * Check if High Alert override is active.
- * When ON, all silent/mode blockers are bypassed and notifications fire through.
- */
-Boolean isHighAlertEnabled() {
-    return highAlert?.currentValue("switch") == "on"
-}
-
 def isSilent() {
-    if (isHighAlertEnabled()) return false
     if (silentSwitch?.currentValue("switch") == "on") return true
     if (silenceOfficeSwitch?.currentValue("switch") == "on") return true
     return false
