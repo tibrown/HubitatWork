@@ -122,9 +122,9 @@ def mainPage() {
             if (settings.usePauseBDAlarm) {
                 input "pauseBDAlarm", "capability.switch", title: "Pause Backdoor Alarm Switch", required: true
             }
-            input "useMotionSensor", "bool", title: "Use Backdoor Motion Sensor (auto-activates pause)?", defaultValue: false, submitOnChange: true
+            input "useMotionSensor", "bool", title: "Use Backdoor Motion Sensor(s) (auto-activates pause)?", defaultValue: false, submitOnChange: true
             if (settings.useMotionSensor) {
-                input "motionSensor", "capability.motionSensor", title: "Backdoor Motion Sensor Device", required: true
+                input "motionSensor", "capability.motionSensor", title: "Backdoor Motion Sensor Devices", multiple: true, required: true
             }
             input "motionLights", "capability.switch", title: "Lights to Control (turn ON when motion detected)", multiple: true, required: false
             input "useMotionPauseSwitch", "bool", title: "Use Additional Pause Switch to Activate (optional)?", defaultValue: false, submitOnChange: true
@@ -252,7 +252,13 @@ def initialize() {
     
     // Subscribe to pause motion sensors
     if (settings.useDrMotionSensor && drMotionSensor) subscribe(drMotionSensor, "motion.active", handleDRMotion)
-    if (settings.useMotionSensor && motionSensor) subscribe(motionSensor, "motion", handleMotion)
+    if (settings.useMotionSensor && motionSensor) {
+        if (motionSensor instanceof Collection) {
+            motionSensor.each { sensor -> subscribe(sensor, "motion", handleMotion) }
+        } else {
+            subscribe(motionSensor, "motion", handleMotion)
+        }
+    }
     
     // Subscribe to mode changes to check doors when entering Night mode
     subscribe(location, "mode", handleModeChange)

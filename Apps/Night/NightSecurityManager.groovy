@@ -40,8 +40,6 @@ def mainPage() {
             input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion (verification)", required: true
             input "doorDiningRoom", "capability.contactSensor", title: "Dining Room Door", required: true
             input "chickenPenOutside", "capability.motionSensor", title: "Chicken Pen Outside Motion (temperature only)", required: false
-            input "outsideBackdoor", "capability.motionSensor", title: "Outside Backdoor Motion", required: true
-            input "floodSide", "capability.motionSensor", title: "Flood Side Motion", required: true
             input "doorLanai", "capability.contactSensor", title: "Lanai Door (Backdoor)", required: true
         }
         
@@ -80,9 +78,6 @@ def mainPage() {
             input "hubVar_AlertDelay", "number", title: "Alert Delay", description: "Wait this long before triggering security alert (seconds). Sets AlertDelay hub variable.", defaultValue: 5, required: false
             input "hubVar_AlarmDuration", "number", title: "Alarm Duration", description: "How long security alarm sounds (seconds). Sets AlarmDuration hub variable.", defaultValue: 300, required: false
             input "hubVar_BeamLogEnabled", "bool", title: "Beam Logging Enabled", description: "Enable detailed logging of beam sensor activity. Sets BeamLogEnabled hub variable.", defaultValue: true, required: false
-            input "motionDebounceSeconds", "number", title: "Minimum Motion Hold Time (seconds)",
-                description: "Minimum time a motion state must be held before acting. Filters rapid/noisy sensor transitions caused by low battery or interference.",
-                defaultValue: 3, range: "1..30", required: false
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>HUB VARIABLES</b>\n<b>═══════════════════════════════════════</b>") {
@@ -121,7 +116,6 @@ def initialize() {
     subscribe(doorBHScreen, "contact.open", handleBHScreen)
     subscribe(carportBeam, "contact", handleCarportBeam)
     subscribe(doorDiningRoom, "contact.open", handleDiningRoomDoor)
-    subscribe(outsideBackdoor, "motion", handleBackdoorMotion)
     subscribe(doorLanai, "contact.open", handleIntruderBackdoor)
     subscribe(location, "mode", modeChangeHandler)
     subscribe(alarmsEnabled, "switch", handleAlarmsEnabledSwitch)
@@ -266,27 +260,6 @@ def handleShedIntruder(evt) {
 }
 
 def handleSheShed(evt) { }
-
-def handleBackdoorMotion(evt) {
-    if (!isActiveMode()) return
-    if (!isValidMotionTransition(evt.deviceId.toString(), evt.value)) return
-    if (evt.value == "active" && floodSide.currentValue("motion") == "active") {
-        // Backdoor motion is a critical night alert - it always notifies while
-        // active mode is on. The silent/silenceOffice mute switches and the
-        // Pause Backdoor Alarm switch (manual "letting the dogs out" pass)
-        // can suppress it; High Alert is not involved.
-        if (silent.currentValue("switch") == "on" || silenceOffice?.currentValue("switch") == "on") {
-            logDebug "Backdoor motion notification suppressed by silent/silenceOffice switch"
-            return
-        }
-        if (pauseBDAlarm.currentValue("switch") == "on") {
-            logDebug "Backdoor motion notification suppressed by Pause Backdoor Alarm"
-            return
-        }
-        turnAllLightsOnNow()
-        notificationDevices.each { it.deviceNotification("Intruder at the Backdoor") }
-    }
-}
 
 def handleIntruderBackdoor(evt) {
     if (!isActiveMode()) return
@@ -475,30 +448,6 @@ def setHubVar(String varName, String value) {
         logDebug "Failed to set hub variable '${varName}': ${e.message}"
         return false
     }
-}
-
-// ========================================
-// MOTION DEBOUNCE
-// ========================================
-
-Boolean isValidMotionTransition(String deviceId, String newValue) {
-    Integer minHoldSeconds = (settings.motionDebounceSeconds ?: 3)
-    String stateKey = "motionDebounce_${deviceId}"
-    Map lastEvent = atomicState[stateKey] as Map
-
-    if (lastEvent) {
-        Long prevTime = lastEvent.timestamp as Long
-        Long elapsed = now() - prevTime
-        Long minHoldMs = minHoldSeconds * 1000L
-
-        if (elapsed < minHoldMs) {
-            logDebug "Ignoring rapid motion '${newValue}' from device ${deviceId} — only ${elapsed}ms since last event (min ${minHoldMs}ms required)"
-            return false
-        }
-    }
-
-    atomicState[stateKey] = [value: newValue, timestamp: now()]
-    return true
 }
 
 // ========================================
