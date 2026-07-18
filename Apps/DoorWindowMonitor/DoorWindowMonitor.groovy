@@ -614,8 +614,8 @@ def handleMotion(evt) {
     logDebug "Motion event: ${evt.displayName} ${motionValue}, Mode: ${currentMode}"
     
     // Check if motion control is configured
-    if (!motionLights) {
-        logDebug "No motion lights configured - skipping"
+    if (!motionLights && !settings.usePauseBDAlarm) {
+        logDebug "No motion lights or pause BD alarm configured - skipping"
         return
     }
     
@@ -647,6 +647,12 @@ def handleMotionActive() {
         }
     }
     
+    // Activate pause backdoor alarm if configured
+    if (settings.usePauseBDAlarm && pauseBDAlarm && pauseBDAlarm.currentValue("switch")?.toLowerCase() != "on") {
+        pauseBDAlarm.on()
+        logInfo "Activated pause backdoor alarm from motion"
+    }
+    
     // Turn on pause switch if configured
     if (settings.useMotionPauseSwitch && motionPauseSwitch && motionPauseSwitch.currentValue("switch")?.toLowerCase() != "on") {
         motionPauseSwitch.on()
@@ -668,6 +674,12 @@ def autoOffMotionLights() {
             light.off()
             logInfo "Turned OFF: ${light.displayName}"
         }
+    }
+    
+    // Deactivate pause backdoor alarm if configured
+    if (settings.usePauseBDAlarm && pauseBDAlarm && pauseBDAlarm.currentValue("switch")?.toLowerCase() == "on") {
+        pauseBDAlarm.off()
+        logInfo "Deactivated pause backdoor alarm from motion timeout"
     }
     
     // Turn off pause switch if configured
