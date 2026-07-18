@@ -135,7 +135,7 @@ def modeChangeHandler(evt) {
 def handleAlarmsEnabledSwitch(evt) {
     logDebug "AlarmsEnabled switch changed to: ${evt.value}"
     
-    if (evt.value == "off") {
+    if (evt.value?.toLowerCase() == "off") {
         logInfo "Alarms disabled - stopping all night security sirens"
         stopAlarms()
         // Cancel any scheduled alarm executions
@@ -146,7 +146,7 @@ def handleAlarmsEnabledSwitch(evt) {
 
 def handleBHScreen(evt) {
     if (!isActiveMode()) return
-    if (traveling.currentValue("switch") == "off" && !areNotificationBlockersActive()) {
+    if (traveling.currentValue("switch")?.toLowerCase() == "off" && !areNotificationBlockersActive()) {
         logInfo "Birdhouse screen door opened during night mode"
         notificationDevices.each { it.deviceNotification("Birdhouse screen door is open, birdhouse screen door is open") }
     }
@@ -183,7 +183,7 @@ def handleCarportBeam(evt) {
 }
 
 def executeAlarmsOn() {
-    if (alarmsEnabled.currentValue("switch") == "on") {
+    if (alarmsEnabled.currentValue("switch")?.toLowerCase() == "on") {
         logInfo "Executing alarms via cross-app communication"
         triggerAlarmExecution()
     } else {
@@ -212,7 +212,7 @@ def handleConcreteShed(evt) { }
 
 def handleDiningRoomDoor(evt) {
     if (!isActiveMode()) return
-    if (alarmsEnabled.currentValue("switch") == "on" && !areNotificationBlockersActive() && pauseDRDoorAlarm.currentValue("switch") == "off") {
+    if (alarmsEnabled.currentValue("switch")?.toLowerCase() == "on" && !areNotificationBlockersActive() && pauseDRDoorAlarm.currentValue("switch")?.toLowerCase() == "off") {
         logInfo "Intruder detected at dining room door"
         turnAllLightsOnNow()
         notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
@@ -229,9 +229,9 @@ def handleWoodshed(evt) { }
 
 def handleStandardIntruder(evt) {
     if (!isActiveMode()) return
-    if (highAlert?.currentValue("switch") != "on" && silent.currentValue("switch") == "on") return
-    if (highAlert?.currentValue("switch") != "on" && silenceOffice?.currentValue("switch") == "on") return
-    if (highAlert?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") != "on") return
+    if (highAlert?.currentValue("switch")?.toLowerCase() != "on" && silent.currentValue("switch")?.toLowerCase() == "on") return
+    if (highAlert?.currentValue("switch")?.toLowerCase() != "on" && silenceOffice?.currentValue("switch")?.toLowerCase() == "on") return
+    if (highAlert?.currentValue("switch")?.toLowerCase() != "on" && alarmsEnabled.currentValue("switch")?.toLowerCase() != "on") return
     def message = evt.device.label
     logInfo "Intruder detected: ${message}"
     turnAllLightsOnNow()
@@ -242,16 +242,16 @@ def handleStandardIntruder(evt) {
 
 def handleShedIntruder(evt) {
     if (!isActiveMode()) return
-    if (highAlert?.currentValue("switch") != "on" && silent.currentValue("switch") == "on") return
-    if (highAlert?.currentValue("switch") != "on" && silenceOffice?.currentValue("switch") == "on") return
-    if (highAlert?.currentValue("switch") != "on" && alarmsEnabled.currentValue("switch") != "on") return
+    if (highAlert?.currentValue("switch")?.toLowerCase() != "on" && silent.currentValue("switch")?.toLowerCase() == "on") return
+    if (highAlert?.currentValue("switch")?.toLowerCase() != "on" && silenceOffice?.currentValue("switch")?.toLowerCase() == "on") return
+    if (highAlert?.currentValue("switch")?.toLowerCase() != "on" && alarmsEnabled.currentValue("switch")?.toLowerCase() != "on") return
     def message = evt.device.label
     logInfo "Shed intruder detected: ${message}"
     notificationDevices.each { it.deviceNotification(message) }
     // High Alert only forces the notification through - it must not affect
     // whether the physical siren fires. That still strictly requires alarms
     // to be enabled, regardless of High Alert.
-    if (alarmsEnabled.currentValue("switch") == "on") {
+    if (alarmsEnabled.currentValue("switch")?.toLowerCase() == "on") {
         executeShedSirenOn()
     } else {
         logDebug "Alarms not enabled - skipping shed siren"
@@ -266,22 +266,26 @@ def handleIntruderBackdoor(evt) {
     // Backdoor intruder is a critical night alert - it always triggers while
     // active mode is on, gated only by the mute switches and the dedicated
     // arm/pause switches. High Alert is not involved.
-    if (silent.currentValue("switch") == "on") return
-    if (silenceOffice?.currentValue("switch") == "on") return
-    if (pauseBDAlarm.currentValue("switch") == "on") return
-    if (alarmsEnabled.currentValue("switch") != "on") return
+    if (silent.currentValue("switch")?.toLowerCase() == "on") return
+    if (silenceOffice?.currentValue("switch")?.toLowerCase() == "on") return
+    if (pauseBDAlarm.currentValue("switch")?.toLowerCase() == "on") return
+    if (alarmsEnabled.currentValue("switch")?.toLowerCase() != "on") return
     setGlobalVar("AlertMessage", "Intruder at the Backdoor")
     logInfo "Intruder detected at backdoor - triggering alarms"
     executeAlarmsOn()
 }
 
 def handlePauseBDAlarm(evt) {
-    if (evt.value == "on") {
+    def switchValue = evt.value?.toLowerCase()
+    logDebug "handlePauseBDAlarm received event: value=${evt.value}, normalized=${switchValue}"
+    if (switchValue == "on") {
         logInfo "Pause Backdoor Alarm activated - turning Ring Mode OFF"
         ringModeOnOff.off()
-    } else if (evt.value == "off") {
+    } else if (switchValue == "off") {
         logInfo "Pause Backdoor Alarm deactivated - turning Ring Mode ON"
         ringModeOnOff.on()
+    } else {
+        logWarn "handlePauseBDAlarm received unexpected switch value: ${evt.value}"
     }
 }
 
@@ -377,7 +381,7 @@ def disableNightSecurity() {
     allLightsOn?.off()
     
     // If pause backdoor alarm was active, turn it off so Ring Mode is restored
-    if (pauseBDAlarm.currentValue("switch") == "on") {
+    if (pauseBDAlarm.currentValue("switch")?.toLowerCase() == "on") {
         logInfo "Clearing pause backdoor alarm state - restoring Ring Mode ON"
         pauseBDAlarm.off()
     }
@@ -404,9 +408,9 @@ private Boolean isActiveMode() {
  * When highAlert is ON, all blockers are overridden and this returns false.
  */
 private Boolean areNotificationBlockersActive() {
-    if (highAlert?.currentValue("switch") == "on") return false
-    if (silent?.currentValue("switch") == "on") return true
-    if (silenceOffice?.currentValue("switch") == "on") return true
+    if (highAlert?.currentValue("switch")?.toLowerCase() == "on") return false
+    if (silent?.currentValue("switch")?.toLowerCase() == "on") return true
+    if (silenceOffice?.currentValue("switch")?.toLowerCase() == "on") return true
     return false
 }
 

@@ -426,7 +426,7 @@ def handleSafeDoorOpen() {
     }
     
     // Check if safe door alerts are suppressed
-    if (!isHighAlertEnabled() && settings.useSuppressSafeDoorAlert && suppressSafeDoorAlert && suppressSafeDoorAlert.currentValue("switch") == "on") {
+    if (!isHighAlertEnabled() && settings.useSuppressSafeDoorAlert && suppressSafeDoorAlert && suppressSafeDoorAlert.currentValue("switch")?.toLowerCase() == "on") {
         logInfo "Safe door alert suppressed - suppress switch is ON"
         return
     }
@@ -639,7 +639,7 @@ def handleMotionActive() {
     
     // Turn on all motion lights
     motionLights.each { light ->
-        if (light.currentValue("switch") != "on") {
+        if (light.currentValue("switch")?.toLowerCase() != "on") {
             light.on()
             logInfo "Turned ON: ${light.displayName}"
         } else {
@@ -648,7 +648,7 @@ def handleMotionActive() {
     }
     
     // Turn on pause switch if configured
-    if (settings.useMotionPauseSwitch && motionPauseSwitch && motionPauseSwitch.currentValue("switch") != "on") {
+    if (settings.useMotionPauseSwitch && motionPauseSwitch && motionPauseSwitch.currentValue("switch")?.toLowerCase() != "on") {
         motionPauseSwitch.on()
         logInfo "Activated pause switch: ${motionPauseSwitch.displayName}"
     }
@@ -664,14 +664,14 @@ def autoOffMotionLights() {
     
     // Turn off lights
     motionLights.each { light ->
-        if (light.currentValue("switch") == "on") {
+        if (light.currentValue("switch")?.toLowerCase() == "on") {
             light.off()
             logInfo "Turned OFF: ${light.displayName}"
         }
     }
     
     // Turn off pause switch if configured
-    if (settings.useMotionPauseSwitch && motionPauseSwitch && motionPauseSwitch.currentValue("switch") == "on") {
+    if (settings.useMotionPauseSwitch && motionPauseSwitch && motionPauseSwitch.currentValue("switch")?.toLowerCase() == "on") {
         motionPauseSwitch.off()
         logInfo "Deactivated pause switch: ${motionPauseSwitch.displayName}"
     }
@@ -694,7 +694,7 @@ def handleDRMotion(evt) {
     unschedule("autoCancelDRPause")
     
     // Activate pause switch if not already on
-    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") != "on") {
+    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch")?.toLowerCase() != "on") {
         pauseDRDoorAlarm.on()
         logInfo "Activated DR door alarm pause switch"
     }
@@ -709,7 +709,7 @@ def autoCancelDRPause() {
     logInfo "DR pause timeout reached - deactivating pause alarm"
     
     // Turn off pause switch
-    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch") == "on") {
+    if (settings.usePauseDRDoorAlarm && pauseDRDoorAlarm && pauseDRDoorAlarm.currentValue("switch")?.toLowerCase() == "on") {
         pauseDRDoorAlarm.off()
         logInfo "Deactivated DR door alarm pause switch"
     }
@@ -783,13 +783,13 @@ def setHubVar(String varName, String value) {
  * When ON, all silent/mode blockers are bypassed and notifications fire through.
  */
 Boolean isHighAlertEnabled() {
-    return highAlert?.currentValue("switch") == "on"
+    return highAlert?.currentValue("switch")?.toLowerCase() == "on"
 }
 
 def isSilentMode() {
     if (isHighAlertEnabled()) return false
-    if (settings.useSilentSwitch && silentSwitch && silentSwitch.currentValue("switch") == "on") return true
-    if (settings.useSilentSwitch && silenceOfficeSwitch && silenceOfficeSwitch.currentValue("switch") == "on") return true
+    if (settings.useSilentSwitch && silentSwitch && silentSwitch.currentValue("switch")?.toLowerCase() == "on") return true
+    if (settings.useSilentSwitch && silenceOfficeSwitch && silenceOfficeSwitch.currentValue("switch")?.toLowerCase() == "on") return true
     return false
 }
 
@@ -831,7 +831,7 @@ def sendLeftOpenAlert(String message) {
     }
     
     // Only notify general notification devices if Pause Door Ajar switch is OFF
-    if (!isHighAlertEnabled() && settings.usePauseDoorAjarSwitch && pauseDoorAjarSwitch && pauseDoorAjarSwitch.currentValue("switch") == "on") {
+    if (!isHighAlertEnabled() && settings.usePauseDoorAjarSwitch && pauseDoorAjarSwitch && pauseDoorAjarSwitch.currentValue("switch")?.toLowerCase() == "on") {
         logDebug "Left-open notification alerts paused by PauseDoorAjar switch - skipping notificationDevices: ${message}"
         return
     }
