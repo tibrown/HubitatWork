@@ -1,7 +1,7 @@
-"""MCP server that pushes Groovy source code to a Hubitat hub.
+"""MCP server that pushes Groovy source code to a Hubitat hub — local-file only.
 
-Tool: push_hubitat_code  -- sends compiled Groovy source to the AppLoader
-receiver endpoint on the hub and returns compilation status.
+All code-sending tools read Groovy source from local disk files, never from
+raw strings, to ensure the agent cannot fabricate or hallucinate code.
 """
 import os
 import re
@@ -23,28 +23,11 @@ load_dotenv(dotenv_path=env_path)
 # ---------------------------------------------------------------------------
 CONFIG = {
     "HUB_IP": os.environ.get("HUB_IP", "192.168.0.142"),
-    "APPLOADER_APP_ID": os.environ.get("APPLOADER_APP_ID", ""),
     "OAUTH_ACCESS_TOKEN": os.environ.get("OAUTH_ACCESS_TOKEN", ""),
     "SANDBOX_CODE_ID": os.environ.get("SANDBOX_CODE_ID", ""),
 }
 
 REQUEST_TIMEOUT = 30  # seconds
-
-
-def _build_push_url() -> str:
-    """Construct the full AppLoader pushCode endpoint URL."""
-    hub = CONFIG["HUB_IP"].rstrip("/")
-    app_id = CONFIG["APPLOADER_APP_ID"]
-    token = CONFIG["OAUTH_ACCESS_TOKEN"]
-    return f"http://{hub}/apps/api/{app_id}/pushCode?access_token={token}"
-
-
-def _build_create_url() -> str:
-    """Construct the full AppLoader createApp endpoint URL."""
-    hub = CONFIG["HUB_IP"].rstrip("/")
-    app_id = CONFIG["APPLOADER_APP_ID"]
-    token = CONFIG["OAUTH_ACCESS_TOKEN"]
-    return f"http://{hub}/apps/api/{app_id}/createApp?access_token={token}"
 
 
 def _get_current_version(code_id: str, access_token: str) -> int | None:
@@ -120,136 +103,21 @@ def push_hubitat_local_file(target_app_id: int, file_path: str) -> str:
             return f"❌ COMPILE ERROR:\n{result.get('errorMessage', result)}"
     except Exception as exc:
         return f"FAILED to push code update: {exc}"
-@mcp.tool()
-def push_hubitat_code(target_app_id: int, groovy_source: str) -> str:
-    """Push updated Groovy source code directly to Hubitat using native AJAX APIs."""
-    hub_ip = CONFIG['HUB_IP']
-
-    # Step 1: Fetch the current version integer required for optimistic locking
-    get_url = f"http://{hub_ip}/app/ajax/code?id={target_app_id}"
-    try:
-        get_resp = requests.get(get_url, timeout=REQUEST_TIMEOUT)
-        get_resp.raise_for_status()
-        data = get_resp.json()
-        version = data.get('version')
-        if version is None:
-            return f"FAILED: Could not extract version for app {target_app_id}."
-    except Exception as exc:
-        return f"FAILED to fetch current app version: {exc}"
-
-    # Step 2: Push the update directly to the compiler endpoint
-    post_url = f"http://{hub_ip}/app/ajax/update"
-    payload = {
-        "id": target_app_id,
-        "version": version,
-        "source": groovy_source
-    }
-
-    try:
-        # Hubitat requires form-urlencoded data for this endpoint
-        post_resp = requests.post(post_url, data=payload, timeout=REQUEST_TIMEOUT)
-        post_resp.raise_for_status()
-        result = post_resp.json()
-
-        if result.get('status') == 'success':
-            return f"✅ SUCCESS: App {target_app_id} updated to version {result.get('version')}!"
-        else:
-            return f"❌ COMPILE ERROR:\n{result.get('errorMessage', result)}"
-    except Exception as exc:
-        return f"FAILED to push code update: {exc}"
 
 
 @mcp.tool()
-def create_hubitat_app(app_source: str) -> str:
-    """Create a brand-new code entry on Hubitat via the AppLoader bridge.
-
-    CRITICAL SAFETY REQUIREMENT — ALWAYS VALIDATE FIRST:
-        Before calling this tool, you MUST run the Groovy source through the
-        validate_groovy_syntax tool and confirm it compiles cleanly on the hub.
-        This prevents creating junk code entries filled with syntax errors that
-        can't be easily removed. NEVER skip sandbox validation.
-
-    Unlike push_hubitat_code (which updates an existing Code ID), this creates
-    a fresh entry from scratch — equivalent to pasting Groovy into the Hubitat
-    'New App' dialog and hitting Save. Returns the new numeric Code ID on
-    success, which can later be passed to push_hubitat_code for subsequent
-        updates.
-
-    Args:
-        app_source: Complete Groovy source code string to register on hub.
-
-    Returns:
-        The new Code ID (integer) wrapped in a success message, or an error
-        description on failure."""
-    # --- Guard: config must be set ---
-    missing = [k for k in ("APPLOADER_APP_ID", "OAUTH_ACCESS_TOKEN") if not CONFIG[k]]
-    if missing:
-        return (
-            f"CONFIGURATION ERROR — the following are required but empty: "
-            f"{', '.join(missing)}\n"
-            f"Set them as environment variables or edit CONFIG in server.py:\n"
-            f"  APPLOADER_APP_ID  = installed ID of your AppLoader receiver app\n"
-            f"  OAUTH_ACCESS_TOKEN = access token shown on that app's config page"
-        )
-
-    url = _build_create_url()
-    payload = {"source": app_source}
-
-    try:
-        resp = requests.post(url, json=payload, timeout=REQUEST_TIMEOUT)
-    except requests.ConnectionError:
-        return (
-            f"CONNECTION FAILED — could not reach Hubitat hub at {url}\n"
-            f"Check that HUB_IP ({CONFIG['HUB_IP']}) is correct and the hub is online."
-        )
-    except requests.Timeout:
-        return (
-            f"REQUEST TIMEOUT — hub did not respond within {REQUEST_TIMEOUT}s.\n"
-            f"URL: {url}"
-        )
-    except Exception as exc:
-        return f"UNEXPECTED ERROR during HTTP POST: {exc}"
-
-    # --- Parse response body for a readable summary ---
-    body = None
-    try:
-        body = resp.json()
-        body_str = str(body)
-    except ValueError:
-        body_str = repr(resp.text[:500])
-
-    if (
-        resp.status_code == 200
-        and body is not None
-        and isinstance(body, dict)
-        and body.get("status") == "success"
-        and "codeId" in body
-    ):
-        return (
-            f"SUCCESS — HTTP {resp.status_code}\n"
-            f"New Code ID: {body['codeId']}\n"
-            f"You can now use push_hubitat_code(target_app_id={body['codeId']}, ...) to update this code.\n"
-            f"Response: {body_str}"
-        )
-
-    return (
-        f"HTTP {resp.status_code} from hub at {url}\n"
-        f"Response body: {body_str}"
-    )
-
-import os
-import requests
-
-@mcp.tool()
-def validate_groovy_syntax(file_path: str) -> str:
+def validate_groovy_syntax(file_path: str, sandbox_code_id: int | None = None) -> str:
     """Compile-check a local Groovy file on the Hubitat hub before deployment.
 
-    Reads the file directly from the local disk and posts the source to an empty 
-    'Compiler Sandbox' app's code endpoint so Hubitat runs its built-in Groovy compiler.
-    Returns a clear PASS/FAIL with line numbers and messages.
+    Reads the file directly from the local disk and posts the source to a
+    'Compiler Sandbox' app's code endpoint so Hubitat runs its built-in Groovy
+    compiler.  Returns a clear PASS/FAIL with line numbers and messages.
 
     Args:
         file_path: The exact path to the local Groovy file on disk.
+        sandbox_code_id: Optional override for the sandbox app Code ID.  When
+            omitted, uses SANDBOX_CODE_ID from the environment / .env file.
+            Pass this when the default sandbox is broken or nonexistent.
 
     Returns:
         A human-readable result showing COMPILER PASS or COMPILER FAIL.
@@ -264,37 +132,41 @@ def validate_groovy_syntax(file_path: str) -> str:
     except Exception as exc:
         return f"FAILED to read local file: {exc}"
 
-    # --- Guard: config must be set ---
-    missing = [k for k in ("SANDBOX_CODE_ID", "OAUTH_ACCESS_TOKEN") if not CONFIG[k]]
-    if missing:
+    # --- Determine sandbox Code ID ---
+    code_id = str(sandbox_code_id) if sandbox_code_id is not None else CONFIG.get("SANDBOX_CODE_ID", "")
+    if not code_id:
         return (
-            f"CONFIGURATION ERROR — the following are required but empty: "
-            f"{', '.join(missing)}\n"
-            f"Set them as environment variables or edit CONFIG in server.py:\n"
-            f"  SANDBOX_CODE_ID    = Code ID of the 'Compiler Sandbox' app on hub\n"
-            f"  OAUTH_ACCESS_TOKEN = access token shown on the AppLoader's config page"
+            "CONFIGURATION ERROR — no sandbox Code ID available.\n"
+            "Either set SANDBOX_CODE_ID in .env, or pass sandbox_code_id=NNN "
+            "to this tool."
         )
 
-    code_id = CONFIG["SANDBOX_CODE_ID"]
-    token = CONFIG["OAUTH_ACCESS_TOKEN"]
+    token = CONFIG.get("OAUTH_ACCESS_TOKEN", "")
+    if not token:
+        return (
+            "CONFIGURATION ERROR — OAUTH_ACCESS_TOKEN is empty.\n"
+            "Set it in .env."
+        )
+
     version = _get_current_version(code_id, token)
 
-    # If we couldn't get the version, try writing without it (Hubitat fallback)
-    if version is not None:
-        payload = {
-            "id": code_id,
-            "version": version,
-            "code": groovy_source,
-        }
-        url = f"http://{CONFIG['HUB_IP'].rstrip('/')}/app/ajax/update"
-        headers = {"access_token": token}
-    else:
-        payload = {
-            "id": code_id,
-            "code": groovy_source,
-        }
-        url = f"http://{CONFIG['HUB_IP'].rstrip('/')}/app/ajax/save"
-        headers = {}
+    # If the sandbox app returns null fields it's broken/nonexistent —
+    # surface a clear hint so the caller can try a different ID.
+    if version is None:
+        return (
+            f"SANDBOX UNAVAILABLE — App Code ID {code_id} is broken or "
+            f"doesn't exist on the hub (version is null).\n"
+            f"Try passing sandbox_code_id=<valid_id> to this tool, "
+            f"or update SANDBOX_CODE_ID in .env."
+        )
+
+    payload = {
+        "id": code_id,
+        "version": version,
+        "code": groovy_source,
+    }
+    url = f"http://{CONFIG['HUB_IP'].rstrip('/')}/app/ajax/update"
+    headers = {"access_token": token}
 
     try:
         resp = requests.post(
