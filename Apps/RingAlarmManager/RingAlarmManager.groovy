@@ -55,6 +55,8 @@ def mainPage() {
             if (settings.enableReArmOnDelay) {
                 input "reArmDelay", "number", title: "Re-arm Delay (seconds)", required: true, defaultValue: 60, range: "1..600",
                     description: "Seconds to wait after the switch is turned OFF before turning it back ON"
+                input "allowAutoRearmSwitch", "capability.switch", title: "Allow Auto Re-arm Switch (must be ON for delayed re-arm)", required: false,
+                    description: "Delayed re-arm only happens while this switch is ON. Turning it OFF cancels any pending re-arm immediately. Leave unset for always-allowed (feature behaves as before)."
                 input "pauseBDAlarmSwitch", "capability.switch", title: "Pause Backdoor Alarm Switch (suppress re-arm when ON)", required: false,
                     description: "The shared PauseBDAlarm switch. When it is ON, re-arm is skipped so an intentional disarm while paused is not overridden."
             }
@@ -107,6 +109,10 @@ def initialize() {
     logInfo "Initializing Ring Alarm Manager (repeatCount=${repeatCount}, quickRetryDelay=${quickRetryDelay}s, repeatDelay=${repeatDelay}s)"
     subscribe(ringModeOnOff, "switch.on", handleRingModeOn)
     subscribe(ringModeOnOff, "switch.off", handleRingModeOff)
+    if (allowAutoRearmSwitch) {
+        subscribe(allowAutoRearmSwitch, "switch", handleAllowAutoRearm)
+        logDebug "Subscribed to AllowAutoRearm switch for re-arm gating/cancellation"
+    }
     if (pauseBDAlarmSwitch) {
         subscribe(pauseBDAlarmSwitch, "switch", handlePauseBDAlarm)
         logDebug "Subscribed to PauseBDAlarm switch for re-arm cancellation"
@@ -159,12 +165,12 @@ def handleRingModeOff(evt) {
     state.intentionalOff = false
     state.intentionalOn = false
 
-    // Delayed re-arm (optional): schedule turning the switch back ON,
-    // skipped while the Backdoor alarm is paused (existing behavior unchanged)
-    if (enableReArmOnDelay && !isPauseBDAlarmOn()) {
+    // Delayed re-arm (optional): schedule turning the switch back ON.
+    // Requires: feature enabled, AllowAutoRearm switch ON (or unset), and no backdoor pause.
+    if (enableReArmOnDelay && isAllowAutoRearmOn() && !isPauseBDAlarmOn()) {
         scheduleReArm()
     } else if (enableReArmOnDelay) {
-        logDebug "Not scheduling re-arm — PauseBDAlarm is ON (guard active)"
+        logDebug "Not scheduling re-arm — AllowAutoRearm OFF or PauseBDAlarm ON (guard active)"
     }
 }
 
@@ -234,6 +240,12 @@ private Boolean isPauseBDAlarmOn() {
     return pauseBDAlarmSwitch?.currentValue("switch")?.toLowerCase() == "on"
 }
 
+// True when auto re-arm is permitted. Unconfigured = always allowed (backward compatible).
+private Boolean isAllowAutoRearmOn() {
+    if (!allowAutoRearmSwitch) return true
+    return allowAutoRearmSwitch.currentValue("switch")?.toLowerCase() == "on"
+}
+
 private void scheduleReArm() {
     unschedule(reArmRingMode)
     Integer delay = (reArmDelay ?: 60) as Integer
@@ -242,8 +254,12 @@ private void scheduleReArm() {
 }
 
 def reArmRingMode() {
-    // Fire-time safety guard: if the Backdoor alarm is now paused, do not re-arm
-    // (the handlePauseBDAlarm subscription normally cancels the timer already).
+    // Fire-time safety guards: if auto re-arm was disallowed or the Backdoor alarm
+    // is now paused, do not re-arm (the subscriptions normally cancel the timer already).
+    if (!isAllowAutoRearmOn()) {
+        logInfo "Re-arm skipped — AllowAutoRearm is OFF (guard active)"
+        return
+    }
     if (isPauseBDAlarmOn()) {
         logInfo "Re-arm skipped — PauseBDAlarm is ON (guard active)"
         return
@@ -266,6 +282,16 @@ def handlePauseBDAlarm(evt) {
         unschedule(reArmRingMode)
         logInfo "PauseBDAlarm turned ON — cancelled any pending re-arm (pause takes over)"
     }
+}
+
+def handleAllowAutoRearm(evt) {
+    if (evt.value?.toLowerCase() == "off") {
+        // Auto re-arm no longer permitted — cancel any running re-arm delay immediately.
+        unschedule(reArmRingMode)
+        logInfo "AllowAutoRearm turned OFF — cancelled any pending re-arm"
+    }
+    // When AllowAutoRearm turns ON, no action here — re-arm scheduling resumes
+    // naturally on the next external RingModeOnOff OFF event.
 }
 
 // ========================================
