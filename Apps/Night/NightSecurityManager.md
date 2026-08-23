@@ -40,7 +40,8 @@
 - **Shed Sensors** (optional, multiple): Contact sensors for outbuildings (e.g. concrete shed, woodshed, she shed)
 - **BH Screen Door** (required): Contact sensor for birdhouse screen door
 - **Carport Beam** (required): Contact sensor (beam break detector)
-- **Carport Front Motion** (required): Motion sensor in carport area (verification)
+- **Use Carport Motion Sensors?** (bool, default on): Toggle for motion verification
+- **Carport Motion Sensors (verify)** (multi-select): ALL selected carport motion sensors must be active to verify a beam break (front + rear)
 - **Dining Room Door** (required): Contact sensor for dining room entry
 - **Outside Backdoor Motion** (required): Motion sensor at back door
 - **Flood Side Motion** (required): Motion sensor on side of house
@@ -84,7 +85,7 @@ The app subscribes to all configured sensors and switches. When any sensor trigg
 
 #### Carport Beam
 - **Trigger**: Beam broken (contact closes)
-- **Conditions**: Silent OFF AND Carport Front Motion active
+- **Conditions**: Silent OFF AND (ALL configured carport motion sensors active OR any Ring RPD verification switch ON), to confirm a person (not an animal)
 - **Actions**: 
   - Send notification "Alert! Intruder in the carport!"
   - Wait configured delay, then activate sirens for alarm duration

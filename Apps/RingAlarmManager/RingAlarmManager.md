@@ -43,15 +43,18 @@ No other app in this system subscribes to `ringModeOnOff` switch events:
 
 ### Repeat Configuration
 - **Extra ON Sends** (required, default: 2, range: 1–5): How many additional OFF→ON cycles to perform after the initial arm. The total number of ON commands sent will be `Extra ON Sends + 1`.
-- **Delay Before Each Repeat** (required, default: 15 seconds, range: 5–120): How long to wait after the previous ON before starting the next OFF→ON cycle.
+- **Quick First Retry Delay** (required, default: 3 seconds, range: 1–30): How long to wait after the initial ON before the first OFF→ON retry. Keep this short — its purpose is to re-arm Ring quickly when the first command fails.
+- **Delay Before Each Subsequent Repeat** (required, default: 15 seconds, range: 5–120): How long to wait after the quick retry ON before starting each additional OFF→ON cycle.
 - **OFF-to-ON Delay Within Each Repeat** (required, default: 5 seconds, range: 1–30): How long to hold the switch OFF before sending ON within each repeat cycle.
 
 **Example with defaults**: If the switch turns ON at T=0, the sequence is:
 - T=0s: original ON (from whatever turned the switch on)
-- T=15s: repeat 1 — turn OFF
-- T=20s: repeat 1 — turn ON (5s after the OFF)
-- T=35s: repeat 2 — turn OFF
-- T=40s: repeat 2 — turn ON (5s after the OFF)
+- T=3s: quick retry — turn OFF
+- T=8s: quick retry — turn ON (5s after the OFF)  ← Ring usually arms here
+- T=23s: repeat 1 — turn OFF
+- T=28s: repeat 1 — turn ON (5s after the OFF)
+- T=43s: repeat 2 — turn OFF
+- T=48s: repeat 2 — turn ON (5s after the OFF)
 
 ### Notifications
 - **Notify on Each Repeat Send** (default: false): When enabled, sends a push notification each time a repeat ON command is fired. Useful for debugging.

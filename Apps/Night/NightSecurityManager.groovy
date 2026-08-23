@@ -35,9 +35,21 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>SENSORS</b>\n<b>═══════════════════════════════════════</b>") {
             input "standardIntruderSensors", "capability.contactSensor", title: "Standard Intruder Sensors (e.g. French doors, front door)", multiple: true, required: false
             input "shedSensors", "capability.contactSensor", title: "Shed Sensors (e.g. concrete shed, woodshed, she shed)", multiple: true, required: false
-            input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: true
+            input "useBirdHouseScreen", "bool", title: "Use BH Screen Door?", defaultValue: false, submitOnChange: true
+            if (settings.useBirdHouseScreen) {
+                input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: false
+            }
             input "carportBeam", "capability.contactSensor", title: "Carport Beam (closed = beam broken)", required: true
-            input "carportFrontMotion", "capability.motionSensor", title: "Carport Front Motion (verification)", required: true
+            input "useCarportMotionSensors", "bool", title: "Use Carport Motion Sensors?", defaultValue: true, submitOnChange: true
+            if (settings.useCarportMotionSensors) {
+                input "carportMotionSensors", "capability.motionSensor", title: "Carport Motion Sensors (verify)",
+                        description: "Multi-select. ALL selected must be active to verify a beam break.",
+                        multiple: true, required: false
+            }
+            input "useRpdSwitches", "bool", title: "Use RPD Verification Switches?", defaultValue: true, submitOnChange: true
+            if (settings.useRpdSwitches) {
+                input "rpdSwitches", "capability.switch", title: "RPD Switches (Ring person detection verification)", multiple: true, required: false
+            }
             input "doorDiningRoom", "capability.contactSensor", title: "Dining Room Door", required: true
             input "chickenPenOutside", "capability.motionSensor", title: "Chicken Pen Outside Motion (temperature only)", required: false
             input "doorLanai", "capability.contactSensor", title: "Lanai Door (Backdoor)", required: true
@@ -113,7 +125,7 @@ def initialize() {
     logInfo "Initializing Night Security Manager"
     standardIntruderSensors?.each { subscribe(it, "contact.open", handleStandardIntruder) }
     shedSensors?.each { subscribe(it, "contact.open", handleShedIntruder) }
-    subscribe(doorBHScreen, "contact.open", handleBHScreen)
+    if (settings.useBirdHouseScreen && doorBHScreen) subscribe(doorBHScreen, "contact.open", handleBHScreen)
     subscribe(carportBeam, "contact", handleCarportBeam)
     subscribe(doorDiningRoom, "contact.open", handleDiningRoomDoor)
     subscribe(doorLanai, "contact.open", handleIntruderBackdoor)
@@ -158,10 +170,30 @@ def handleCarportBeam(evt) {
          logBeamActivity("Carport beam broken")
          
          // Check if motion or Ring person detection is active (verification to avoid false positives from animals)
-         Boolean motionVerified = carportFrontMotion.currentValue("motion") == "active"
+         // At least one verification path must be configured
+         def motionSensors = (useCarportMotionSensors ? carportMotionSensors : null)
+         def hasVerification =
+             (useCarportMotionSensors && carportMotionSensors?.size() > 0) ||
+             (useRpdSwitches && rpdSwitches)
+         if (!hasVerification) {
+             logDebug "No verification sensors configured — beam break alone is insufficient, skipping"
+             return
+         }
+         
+         Boolean motionVerified = false
+         if (motionSensors && allCarportMotionActive(motionSensors)) {
+             motionVerified = true
+             logDebug "Carport motion verification passed (all of ${motionSensors*.displayName} active)"
+         }
+         if (!motionVerified && useRpdSwitches && rpdSwitches) {
+             motionVerified = rpdSwitches.any { it.currentValue("switch") == "on" }
+             if (motionVerified) {
+                 logDebug "RPD switch verification passed (one of ${rpdSwitches*.displayName} is ON)"
+             }
+         }
          
          if (!motionVerified) {
-             logDebug "Beam broken but no motion/person verification - skipping alert to avoid false positives"
+             logDebug "Beam broken but no motion/RPD verification — skipping alert"
              return
          }
          
@@ -178,8 +210,23 @@ def handleCarportBeam(evt) {
              runIn(delay, executeAlarmsOn)
          }
     } else if (evt.value == "open") { // Beam clear (normal state)
-        logBeamActivity("Carport beam cleared")
-    }
+         logBeamActivity("Carport beam cleared")
+     }
+}
+
+// ========================================
+// VERIFICATION HELPERS
+// ========================================
+
+/**
+ * Carport beam verification: EVERY selected carport motion sensor must be active
+ * to confirm a person (not an animal) broke the beam. Mirrors Perimeter Security
+ * Manager semantics. Returns false when no sensors are configured (an empty set
+ * cannot verify a beam break).
+ */
+def allCarportMotionActive(List sensors) {
+    if (!sensors) return false
+    return sensors.every { it?.currentValue("motion") == "active" }
 }
 
 def executeAlarmsOn() {

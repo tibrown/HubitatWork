@@ -32,3 +32,15 @@ If Step 2 returns `COMPILER PASS`:
 - Never paste raw Groovy source across tool calls — always pass the local `file_path` and let the MCP tools read from disk.
 - Never skip the Step 2 validation before pushing.
 - Don't guess a `target_app_id`; look it up via `mcp_push-groovy_search_hubitat_apps` if uncertain.
+
+## Pitfall — unselecting a device input
+
+Hubitat's device dropdown for a single (non-multiple) `capability.*` input often will NOT let the user clear it back to blank, even when the input is marked `required: false` — once a device is saved there may be no "unselect" option in the UI. To let a user reliably disable a sensor, wrap the device input in a boolean toggle + conditional input instead:
+
+```groovy
+input "useBirdHouseScreen", "bool", title: "Use BH Screen Door?", defaultValue: false, submitOnChange: true
+if (settings.useBirdHouseScreen) {
+    input "doorBHScreen", "capability.contactSensor", title: "BH Screen Door", required: false
+}
+```
+…and guard the subscription: `if (settings.useBirdHouseScreen && doorBHScreen) subscribe(...)`. Handlers that only use `evt` and other configured devices need no extra null guards.

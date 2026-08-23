@@ -91,14 +91,16 @@ def mainPage() {
                   description: "Infrared beam sensor (closed = beam broken)",
                   required: false
             
-            input "carportMotion", "capability.motionSensor",
-                  title: "Carport Front Motion Sensor",
-                  description: "Used to verify beam breaks",
+            input "carportMotionSensors", "capability.motionSensor",
+                  title: "Carport Motion Sensors (verify)",
+                  description: "Multi-select. ALL selected must report active to verify a beam break.",
+                  multiple: true,
                   required: false
             
-            input "frontDoorRingMotion", "capability.switch",
-                  title: "Front Door Ring Motion (Switch)",
-                  description: "Ring doorbell motion as verification",
+            input "rpdVerificationSwitches", "capability.switch",
+                  title: "RPD Switches (Ring person detection verification)",
+                  description: "Ring-MQTT smart person switches used to verify beam breaks (multi-select)",
+                  multiple: true,
                   required: false
         }
         
@@ -762,13 +764,14 @@ def handleCarportBeamBroken(String mode) {
 }
 
 def handleBeamAway() {
-    // Check if motion or Ring person is detected for verification (to avoid false positives from animals)
+    // Check if ALL carport motion sensors OR Ring person is detected for verification (to avoid false positives from animals)
     Boolean verified = false
-    if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
+    if (allCarportMotionActive()) {
         verified = true
     }
-    if (settings.frontDoorRingMotion && settings.frontDoorRingMotion.currentValue("switch") == "on") {
+    if (!verified && isPersonDetected()) {
         verified = true
+        logDebug "Away mode: RPD switch verification passed (one of ${settings.rpdVerificationSwitches*.displayName} is ON)"
     }
     
     if (verified) {
@@ -794,13 +797,14 @@ def handleBeamDay() {
         return
     }
     
-    // Check for motion verification
+    // Check for motion verification (ALL carport motion sensors must be active)
     Boolean motionDetected = false
-    if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
+    if (allCarportMotionActive()) {
         motionDetected = true
     }
-    if (settings.frontDoorRingMotion && settings.frontDoorRingMotion.currentValue("switch") == "on") {
+    if (!motionDetected && isPersonDetected()) {
         motionDetected = true
+        logDebug "Day mode: RPD switch verification passed (one of ${settings.rpdVerificationSwitches*.displayName} is ON)"
     }
     
     if (!motionDetected) {
@@ -827,13 +831,14 @@ def handleBeamEvening() {
         return
     }
     
-    // Check for motion or Ring person verification (to avoid false positives from animals)
+    // Check if ALL carport motion sensors OR Ring person is detected for verification (to avoid false positives from animals)
     Boolean verified = false
-    if (settings.carportMotion && settings.carportMotion.currentValue("motion") == "active") {
+    if (allCarportMotionActive()) {
         verified = true
     }
-    if (settings.frontDoorRingMotion && settings.frontDoorRingMotion.currentValue("switch") == "on") {
+    if (!verified && isPersonDetected()) {
         verified = true
+        logDebug "Evening mode: RPD switch verification passed (one of ${settings.rpdVerificationSwitches*.displayName} is ON)"
     }
     
     if (!verified) {
@@ -900,6 +905,34 @@ def isSwitchOn(device) {
  */
 def isHighAlertEnabled() {
     return settings?.highAlert?.currentValue("switch") == "on"
+}
+
+/**
+ * Check whether all configured carport motion sensors report active.
+ * Uses the multi-select carportMotionSensors list.
+ */
+def allCarportMotionActive() {
+    Boolean allActive = true
+    def sensors = settings.carportMotionSensors
+    if (sensors) {
+        sensors.each { s ->
+            if (s?.currentValue("motion") != "active") {
+                allActive = false
+            }
+        }
+    }
+    return allActive
+}
+
+/**
+ * Check whether any RPD (Ring person detection) verification switch is on.
+ */
+def isPersonDetected() {
+    Boolean detected = false
+    if (settings.rpdVerificationSwitches) {
+        detected = settings.rpdVerificationSwitches.any { it.currentValue("switch") == "on" }
+    }
+    return detected
 }
 
 // ============================================================================
