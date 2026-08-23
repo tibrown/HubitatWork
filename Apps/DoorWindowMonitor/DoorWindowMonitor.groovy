@@ -647,10 +647,19 @@ def handleMotionActive() {
         }
     }
     
-    // Activate pause backdoor alarm if configured
-    if (settings.usePauseBDAlarm && pauseBDAlarm && pauseBDAlarm.currentValue("switch")?.toLowerCase() != "on") {
-        pauseBDAlarm.on()
-        logInfo "Activated pause backdoor alarm from motion"
+    // Activate pause backdoor alarm if configured — and reset the unpause
+    // timer on any new motion while the pause is still in effect.
+    if (settings.usePauseBDAlarm && pauseBDAlarm) {
+        if (pauseBDAlarm.currentValue("switch")?.toLowerCase() != "on") {
+            pauseBDAlarm.on()  // handlePauseBD sets the auto-unpause timer
+            logInfo "Activated pause backdoor alarm from motion"
+        } else {
+            // Pause already active — restart the auto-unpause countdown on new motion.
+            unschedule(unpauseBD)
+            Integer pauseMin = (getConfigValue("pauseDuration", "PauseDuration") as Integer) * 60
+            runIn(pauseMin, unpauseBD)
+            logInfo "Pause BD alarm already active — reset auto-unpause to ${pauseMin / 60} min"
+        }
     }
     
     // Turn on pause switch if configured
