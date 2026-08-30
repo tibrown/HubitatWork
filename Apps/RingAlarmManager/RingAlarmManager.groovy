@@ -39,7 +39,7 @@ def mainPage() {
         }
 
         section("<b>═══════════════════════════════════════</b>\n<b>REPEAT CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
-            input "repeatCount", "number", title: "Extra ON Sends", required: true, defaultValue: 2, range: "1..5",
+            input "repeatCount", "number", title: "Extra ON Sends", required: true, defaultValue: 2, range: "0..5",
                 description: "How many additional OFF→ON cycles to send after the first (total sends = this + 1)"
             input "quickRetryDelay", "number", title: "Quick First Retry Delay (seconds)", required: true, defaultValue: 3, range: "1..30",
                 description: "Seconds after the initial ON before the first OFF→ON retry — keep short so Ring arms quickly when the first command fails"
@@ -144,6 +144,12 @@ def handleRingModeOn(evt) {
 
     // A genuine ON (manual, other app, or re-arm) supersedes any pending re-arm
     unschedule(reArmRingMode)
+
+    // Extra ON sends disabled — single ON only, no repeat cycle
+    if (count <= 0) {
+        logInfo "Extra ON sends disabled (repeatCount=0) — sending single ON only, no repeats"
+        return
+    }
 
     state.repeatSendsPending = true
     state.repeatsRemaining = count
