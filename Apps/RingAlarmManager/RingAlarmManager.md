@@ -42,7 +42,7 @@ No other app in this system subscribes to `ringModeOnOff` switch events:
 - **Ring Mode On/Off Switch** (required): Select the `RingModeOnOff` Connector Switch device. This is the virtual switch that represents the Ring alarm's armed/disarmed state.
 
 ### Repeat Configuration
-- **Extra ON Sends** (required, default: 2, range: 1–5): How many additional OFF→ON cycles to perform after the initial arm. The total number of ON commands sent will be `Extra ON Sends + 1`.
+- **Extra ON Sends** (required, default: 2, range: 0–5): How many additional OFF→ON cycles to perform after the initial arm. Setting `0` disables repeats entirely (single ON only). The total number of ON commands sent will be `Extra ON Sends + 1`.
 - **Quick First Retry Delay** (required, default: 3 seconds, range: 1–30): How long to wait after the initial ON before the first OFF→ON retry. Keep this short — its purpose is to re-arm Ring quickly when the first command fails.
 - **Delay Before Each Subsequent Repeat** (required, default: 15 seconds, range: 5–120): How long to wait after the quick retry ON before starting each additional OFF→ON cycle.
 - **OFF-to-ON Delay Within Each Repeat** (required, default: 5 seconds, range: 1–30): How long to hold the switch OFF before sending ON within each repeat cycle.

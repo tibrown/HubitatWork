@@ -138,7 +138,7 @@ def handleRingModeOn(evt) {
         return
     }
 
-    Integer count = (repeatCount ?: 2) as Integer
+    Integer count = (repeatCount == null ? 2 : repeatCount) as Integer
     Integer firstDelay = (quickRetryDelay ?: 3) as Integer
     logInfo "RingModeOnOff turned ON — quick retry in ${firstDelay}s, then ${count} more repeat(s) at ${repeatDelay ?: 15}s intervals"
 
@@ -195,7 +195,7 @@ def sendNextRingOn() {
     }
 
     Integer remaining = (state.repeatsRemaining ?: 0) as Integer
-    Integer total = (repeatCount ?: 2) as Integer
+    Integer total = (repeatCount == null ? 2 : repeatCount) as Integer
     Integer sendNumber = total - remaining + 1
     Integer offWait = (offDelay ?: 5) as Integer
 
@@ -215,7 +215,7 @@ def doRingOn() {
     }
 
     Integer remaining = (state.repeatsRemaining ?: 0) as Integer
-    Integer total = (repeatCount ?: 2) as Integer
+    Integer total = (repeatCount == null ? 2 : repeatCount) as Integer
     Integer sendNumber = total - remaining + 1
 
     logInfo "Repeat ${sendNumber} of ${total}: sending ON"
