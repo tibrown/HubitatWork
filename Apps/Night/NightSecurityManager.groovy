@@ -72,6 +72,11 @@ def mainPage() {
             input "notificationDevices", "capability.notification", title: "Notification Devices", multiple: true, required: true
         }
 
+        section("<b>═══════════════════════════════════════</b>\n<b>AI \"WHY\" EXPLAINER</b>\n<b>═══════════════════════════════════════</b>") {
+            input "dashboardAiUrl", "text", title: "Dashboard AI Base URL", required: false,
+                description: "Hubitat Dashboard base URL, e.g. http://192.168.1.x:3000. When set, alerts include a plain-English \"why\" line from POST /ai/explain-alarm. Leave empty to send original messages only."
+        }
+
         section("<b>═══════════════════════════════════════</b>\n<b>ACTIONS / OUTPUTS</b>\n<b>═══════════════════════════════════════</b>") {
             input "sirens", "capability.alarm", title: "Sirens", multiple: true, required: true
         }
@@ -160,7 +165,7 @@ def handleBHScreen(evt) {
     if (!isActiveMode()) return
     if (traveling.currentValue("switch")?.toLowerCase() == "off" && !areNotificationBlockersActive()) {
         logInfo "Birdhouse screen door opened during night mode"
-        notificationDevices.each { it.deviceNotification("Birdhouse screen door is open, birdhouse screen door is open") }
+        sendNotification("Birdhouse screen door is open, birdhouse screen door is open")
     }
 }
 
@@ -205,7 +210,7 @@ def handleCarportBeam(evt) {
              
              state.lastCarportAlert = now()
              logInfo "Intruder detected in carport - motion/person verified"
-             notificationDevices.each { it.deviceNotification("Alert! Intruder in the carport!") }
+             sendNotification("Alert! Intruder in the carport!")
              Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
              runIn(delay, executeAlarmsOn)
          }
@@ -262,7 +267,7 @@ def handleDiningRoomDoor(evt) {
     if (alarmsEnabled.currentValue("switch")?.toLowerCase() == "on" && !areNotificationBlockersActive() && pauseDRDoorAlarm.currentValue("switch")?.toLowerCase() == "off") {
         logInfo "Intruder detected at dining room door"
         turnAllLightsOnNow()
-        notificationDevices.each { it.deviceNotification("Intruder at the Dining Room Door") }
+        sendNotification("Intruder at the Dining Room Door")
         Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
         runIn(delay, executeAlarmsOn)
     }
@@ -282,7 +287,7 @@ def handleStandardIntruder(evt) {
     def message = evt.device.label
     logInfo "Intruder detected: ${message}"
     turnAllLightsOnNow()
-    notificationDevices.each { it.deviceNotification(message) }
+    sendNotification(message)
     Integer delay = getConfigValue("alertDelay", "AlertDelay") as Integer
     runIn(delay, executeAlarmsOn)
 }
@@ -294,7 +299,7 @@ def handleShedIntruder(evt) {
     if (highAlert?.currentValue("switch")?.toLowerCase() != "on" && alarmsEnabled.currentValue("switch")?.toLowerCase() != "on") return
     def message = evt.device.label
     logInfo "Shed intruder detected: ${message}"
-    notificationDevices.each { it.deviceNotification(message) }
+    sendNotification(message)
     // High Alert only forces the notification through - it must not affect
     // whether the physical siren fires. That still strictly requires alarms
     // to be enabled, regardless of High Alert.
@@ -438,6 +443,92 @@ def disableNightSecurity() {
     unschedule(executeShedSirenOn)
     
     logInfo "Night security disabled"
+}
+
+// ========================================
+// NOTIFICATION + AI "WHY" EXPLAINER
+// ========================================
+
+def sendNotification(String message) {
+    logInfo "Sending notification: ${message}"
+
+    // Deliver the original alert message IMMEDIATELY and unchanged. This must
+    // never depend on the AI call.
+    if (notificationDevices) {
+        notificationDevices.each { device ->
+            device.deviceNotification(message)
+        }
+    }
+
+    // Fire the best-effort AI "why" follow-up asynchronously. It goes out as a
+    // SEPARATE notification only when the explanation is ready.
+    sendWhyFollowUp(message)
+}
+
+/**
+ * Fire-and-forget AI "why" follow-up. Best-effort: if a summary is returned
+ * it's sent to the same notification devices as a SEPARATE "Why: ..."
+ * notification. On any failure (timeout, 404, empty reply, exception) it logs
+ * and sends nothing else - never an error notification, never the original
+ * alert text again.
+ */
+private void sendWhyFollowUp(String contextMessage) {
+    String base = settings.dashboardAiUrl?.toString()?.trim()
+    if (!base) {
+        logDebug "dashboardAiUrl not configured - skipping why follow-up"
+        return
+    }
+    String url = base.endsWith("/") ? base + "ai/explain-alarm" : base + "/ai/explain-alarm"
+    try {
+        // Async form: httpPostJson(Map, Closure) returns immediately and the
+        // closure runs when the response lands (up to timeout seconds later).
+        httpPostJson([ uri: url.toString(), timeout: 120, body: buildAlarmState(contextMessage) ]) { resp ->
+            if (resp?.status == 200 && resp.data?.summary) {
+                // Re-check blockers asynchronously: if silence was engaged after
+                // the alert was sent, suppress the why follow-up.
+                if (areNotificationBlockersActive()) {
+                    logDebug "Notification blockers now active after alert - skipping why follow-up"
+                    return
+                }
+                String summary = resp.data.summary.toString()
+                logDebug "Why follow-up ready for '${contextMessage}'"
+                if (notificationDevices) {
+                    notificationDevices.each { device ->
+                        device.deviceNotification("Why: " + summary)
+                    }
+                }
+            } else {
+                logDebug "AI explain endpoint returned status ${resp?.status} without a summary - no follow-up sent"
+            }
+        }
+    } catch (Exception e) {
+        logDebug "AI explain follow-up failed for '${contextMessage}': ${e.message}"
+    }
+}
+
+/**
+ * Builds the alarm payload for /ai/explain-alarm from REAL state: armed comes
+ * from the AlarmsEnabled hub var (written by SecurityAlarmManager), triggered
+ * from AlarmActive, and silent from the locally monitored silent /
+ * silence-office switches.
+ */
+private Map buildAlarmState(String contextMessage) {
+    def state = [:]
+    def armedVar = getGlobalVar("AlarmsEnabled")
+    if (armedVar != null && armedVar.toString() != "") {
+        state.armed = armedVar.toString().toLowerCase() == "true" ? "armed" : "disarmed"
+    } else if (alarmsEnabled) {
+        state.armed = alarmsEnabled.currentValue("switch") == "on" ? "armed" : "disarmed"
+    }
+    def triggeredVar = getGlobalVar("AlarmActive")
+    if (triggeredVar != null && triggeredVar.toString() != "") {
+        state.triggered = triggeredVar.toString().toLowerCase() == "true" ? "triggered" : ""
+    }
+    boolean silentState = (silent && silent.currentValue("switch") == "on") ||
+                          (silenceOffice && silenceOffice.currentValue("switch") == "on")
+    state.silent = silentState
+    state.source = app.label ?: "NightSecurityManager"
+    return [ alarm: state, context: contextMessage ]
 }
 
 // ========================================
