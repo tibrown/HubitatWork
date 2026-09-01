@@ -528,7 +528,9 @@ private Map buildAlarmState(String contextMessage) {
                           (silenceOffice && silenceOffice.currentValue("switch") == "on")
     state.silent = silentState
     state.source = app.label ?: "NightSecurityManager"
-    return [ alarm: state, context: contextMessage ]
+    // Security alerts must explain fast — always use the cloud OpenRouter/DeepSeek
+    // provider, never the local Ollama path. Overrides the route's 'ollama' default.
+    return [ alarm: state, context: contextMessage, provider: 'openrouter' ]
 }
 
 // ========================================
