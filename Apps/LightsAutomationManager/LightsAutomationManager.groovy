@@ -18,7 +18,7 @@ definition(
     name: "Lights Automation Manager",
     namespace: "timbrown",
     author: "Tim Brown",
-    description: "Comprehensive lighting automation managing mode-based schedules, night mode lights, desk lighting, color strips, and master controls. Floods handle their own motion detection. v1.2.1",
+    description: "Comprehensive lighting automation managing mode-based schedules, night mode lights, desk lighting, color strips, master controls, and a mode-gated SpecialLights group. Floods handle their own motion detection. v1.2.2",
     category: "Lighting",
     iconUrl: "",
     iconX2Url: "",
@@ -110,6 +110,15 @@ def mainPage() {
                 options: ["Morning", "Day", "Evening", "Night"], multiple: true, required: false
         }
         
+        section("<b>═══════════════════════════════════════</b>\n<b>SPECIAL LIGHTS (SPECIALLIGHTS)</b>\n<b>═══════════════════════════════════════</b>") {
+            input "specialLights", "capability.switch", title: "Special Lights (switches/lights in this group)",
+                description: "This group is forced ON whenever the hub mode is one of the modes selected below, and forced OFF in every other mode.",
+                multiple: true, required: false
+            input "specialLightsOnModes", "enum", title: "Turn ON Special Lights when mode is:",
+                description: "If no mode is selected, the group is always forced OFF.",
+                options: ["Morning", "Day", "Evening", "Night", "Away"], multiple: true, required: false
+        }
+        
         section("<b>═══════════════════════════════════════</b>\n<b>GENERIC SWITCHES & OUTLETS</b>\n<b>═══════════════════════════════════════</b>") {
             input "genericSwitches", "capability.switch", title: "Generic Switches/Outlets (mode-controlled)", multiple: true, required: false
         }
@@ -199,6 +208,7 @@ def initialize() {
     // Mode changes
     subscribe(location, "mode", modeHandler)
     subscribe(location, "mode", officeLightsModeHandler)
+    subscribe(location, "mode", specialLightsModeHandler)
     
     // Schedule Evening mode advance if configured
     scheduleEveningAdvance()
@@ -240,6 +250,9 @@ def initialize() {
     
     // Set office lights based on current mode
     officeLightsModeHandler(null)
+
+    // Apply SpecialLights group based on current mode
+    specialLightsModeHandler(null)
 }
 
 // ========================================
@@ -570,6 +583,30 @@ def officeLightsModeHandler(evt) {
     }
     else {
         logDebug "No office lights action for ${currentMode} mode"
+    }
+}
+
+// ========================================
+// SPECIAL LIGHTS (SPECIALLIGHTS) HANDLER
+// ========================================
+
+def specialLightsModeHandler(evt) {
+    if (!specialLights) {
+        logDebug "No special lights configured"
+        return
+    }
+
+    String currentMode = evt ? evt.value : location.mode
+    logDebug "SpecialLights handler: current mode = ${currentMode}"
+
+    boolean shouldBeOn = specialLightsOnModes?.contains(currentMode) ?: false
+
+    if (shouldBeOn) {
+        logInfo "Turning ON SpecialLights for ${currentMode} mode"
+        turnOnDevicesWithRetry(specialLights, "SpecialLights")
+    } else {
+        logInfo "Turning OFF SpecialLights (mode ${currentMode} not in ON list ${specialLightsOnModes})"
+        turnOffDevicesWithRetry(specialLights, "SpecialLights")
     }
 }
 
