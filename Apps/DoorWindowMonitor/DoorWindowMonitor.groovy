@@ -204,6 +204,15 @@ def mainPage() {
         section("<b>═══════════════════════════════════════</b>\n<b>LOGGING</b>\n<b>═══════════════════════════════════════</b>") {
             input "logLevel", "enum", title: "Log Level", options: ["None","Info","Debug","Trace"], defaultValue: "Info"
         }
+        
+        section("<b>═══════════════════════════════════════</b>\n<b>SECURITY CHECK REMINDER</b>\n<b>═══════════════════════════════════════</b>") {
+            input "useSecurityCheckReminder", "bool", title: "Use Security Check Reminder (alert daily if SafeLocked is OFF)?", defaultValue: false, submitOnChange: true
+            if (settings.useSecurityCheckReminder) {
+                input "safeLockedSwitch", "capability.switch", title: "SafeLocked Switch (ON = check already done, suppress reminder)", required: true
+                input "securityCheckTime", "time", title: "Daily Security Check Reminder Time", required: true
+                input "securityResetMode", "mode", title: "Hub Mode that Resets SafeLocked Switch to OFF (e.g. Night)", required: true
+            }
+        }
     }
 }
 
@@ -266,6 +275,12 @@ def initialize() {
     // Schedule periodic left-open check
     Integer interval = getConfigValue("checkInterval", "CheckInterval") as Integer
     schedule("0 */${interval} * * * ?", checkLeftOpen)
+    
+    // Schedule daily security check reminder
+    if (settings.useSecurityCheckReminder && securityCheckTime) {
+        schedule(securityCheckTime, securityCheckReminder)
+        logInfo "Security check reminder scheduled daily at ${securityCheckTime}"
+    }
 }
 
 // ========================================
@@ -274,6 +289,15 @@ def initialize() {
 
 def handleModeChange(evt) {
     logDebug "Mode changed to: ${evt.value}"
+    
+    // Reset SafeLocked switch to OFF when entering the configured security-check reset mode,
+    // so the next daily reminder isn't suppressed.
+    if (settings.useSecurityCheckReminder && securityResetMode && evt.value == securityResetMode && safeLockedSwitch) {
+        if (safeLockedSwitch.currentValue("switch")?.toLowerCase() != "off") {
+            safeLockedSwitch.off()
+            logInfo "Security check: reset SafeLocked switch to OFF on entering ${evt.value} mode"
+        }
+    }
     
     if (evt.value == "Night") {
         logInfo "Entering Night mode - checking for open doors"
@@ -446,6 +470,27 @@ def handleSafeDoorOpen() {
 }
 
 def handleOfficeDoorOpen() { }
+
+def securityCheckReminder() {
+    if (!settings.useSecurityCheckReminder || !safeLockedSwitch) {
+        logDebug "Security check reminder skipped (feature disabled or switch unset)"
+        return
+    }
+    if (safeLockedSwitch.currentValue("switch")?.toLowerCase() == "on") {
+        logInfo "Security check reminder suppressed - SafeLocked already ON"
+        return
+    }
+    logInfo "Security check reminder firing (ignores Silent switch per config)"
+    // Deliberately bypasses sendNotification()/Silent switch — reminders should always reach the user.
+    if (notificationDevices) {
+        notificationDevices.each { device ->
+            device.deviceNotification("REMINDER: Perform your security check, then turn SafeLocked switch ON.")
+            logInfo "Security check reminder sent to: ${device.displayName}"
+        }
+    } else {
+        log.warn "Door Window Monitor: Security check reminder but NO notification devices configured!"
+    }
+}
 
 def handleLRWindowOpen(String mode, Integer windowNum) { }
 
