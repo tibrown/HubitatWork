@@ -61,6 +61,10 @@ def mainPage() {
             input "silentSwitch", "capability.switch", title: "Silent Mode Switch", required: false
             input "silenceOfficeSwitch", "capability.switch", title: "Silence Office Switch", required: false
             input "allLightsSwitch", "capability.switch", title: "All Lights ON Switch", required: false
+            input "pauseBDAlarmSwitch", "capability.switch", title: "Pause Backdoor Alarm Switch", required: false,
+                description: "While this switch is ON, person detections from the Backdoor RPD Switches below are suppressed (no notification, no lights). Ring's own announcement is not affected."
+            input "backdoorRPDSwitches", "capability.switch", title: "Backdoor RPD Switches", multiple: true, required: false,
+                description: "RPD switches that count as 'backdoor'. Suppressed entirely while the Pause Backdoor Alarm Switch is ON."
         }
         
         section("<b>═══════════════════════════════════════</b>\n<b>TIMING CONFIGURATION</b>\n<b>═══════════════════════════════════════</b>") {
@@ -129,6 +133,7 @@ def handleRPD(evt) {
 
     logInfo "Person detected: ${message}"
     if (!shouldSendNotification(device.id)) return
+    if (isBackdoorPaused(device)) return
     if (isNightMode()) {
         if (sendNotification(message)) {
             state["notifCooldown_${device.id}"] = now()
@@ -145,6 +150,7 @@ def handleNightModeSoftRPD(evt) {
 
     logInfo "Person detected (night mode soft): ${message}"
     if (!shouldSendNotification(device.id)) return
+    if (isBackdoorPaused(device)) return
     if (isNightMode()) {
         if (sendSoftNotification(message)) {
             state["notifCooldown_${device.id}"] = now()
@@ -243,6 +249,25 @@ def isSilent() {
     if (silentSwitch?.currentValue("switch") == "on") return true
     if (silenceOfficeSwitch?.currentValue("switch") == "on") return true
     return false
+}
+
+/**
+ * True when the backdoor alarm is paused (PauseBDAlarm switch ON) AND the
+ * detected device is one of the configured Backdoor RPD Switches. Suppresses
+ * the notification + all-lights path for backdoor detections while someone is
+ * intentionally coming/going through the back door (wife scenario). Ring's own
+ * cloud-side announcement still fires — only Hubitat's extra warnings/lights
+ * are skipped.
+ */
+Boolean isBackdoorPaused(def device) {
+    if (!pauseBDAlarmSwitch || !backdoorRPDSwitches) return false
+    Boolean paused = pauseBDAlarmSwitch.currentValue("switch")?.toLowerCase() == "on"
+    if (!paused) return false
+    Boolean isBackdoor = backdoorRPDSwitches.any { it.id == device.id }
+    if (isBackdoor) {
+        logInfo "PauseBDAlarm ON + backdoor detection — suppressing warning & lights: ${device.label}"
+    }
+    return isBackdoor
 }
 
 // ==================== Logging Methods ====================
